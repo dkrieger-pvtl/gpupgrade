@@ -13,7 +13,6 @@ func (s *AgentServer) CheckConversionStatus(ctx context.Context, in *pb.CheckCon
 	if len(in.GetSegments()) == 0 {
 		return nil, errors.New("no segment information was passed to the agent")
 	}
-	//format := "%s - DBID %d - CONTENT ID %d - PRIMARY - %s"
 
 	var statuses []*pb.PrimaryStatus
 	for _, segment := range in.GetSegments() {
