@@ -153,9 +153,9 @@ FLY_TARGET ?= gpdb-dev
 set-pipeline:
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
 		-c ci/pipeline.yml \
-		-l ~/workspace/continuous-integration/secrets/$(SECRETS_FILE) \
-		-l ~/workspace/continuous-integration/secrets/gpdb_common-ci-secrets.yml \
-		-l ~/workspace/continuous-integration/secrets/gpdb_master-ci-secrets.yml \
+		-l ~/workspace/gp-continuous-integration/secrets/$(SECRETS_FILE) \
+		-l ~/workspace/gp-continuous-integration/secrets/gpdb_common-ci-secrets.yml \
+		-l ~/workspace/gp-continuous-integration/secrets/gpdb_master-ci-secrets.yml \
 		-v gpupgrade-git-remote=$(GIT_URI) \
 		-v gpupgrade-git-branch=$(BRANCH)
 
