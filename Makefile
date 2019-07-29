@@ -155,7 +155,12 @@ endif
 # Concourse does not allow "/" in pipeline names
 PIPELINE_NAME ?= gpupgrade:$(shell git rev-parse --abbrev-ref HEAD | tr '/' ':')
 DEPLOY_TYPE ?= dev
-FLY_TARGET ?= gpdb-dev
+FLY_TARGET ?= dev
+ifeq ($(DEPLOY_TYPE),prod)
+PROD_OR_DEV = prod
+else
+PROD_OR_DEV = dev
+endif
 
 .PHONY: set-pipeline expose-pipeline
 # TODO: Keep this in sync with the README at github.com/greenplum-db/continuous-integration
@@ -164,10 +169,10 @@ set-pipeline:
 	#NOTE-- such as https://github.com/greenplum-db/gpupgrade.git"
 	fly -t $(FLY_TARGET) set-pipeline -p $(PIPELINE_NAME) \
 		-c ci/pipeline.yml \
-		-l ~/workspace/gp-continuous-integration/secrets/gpupgrade.$(DEPLOY_TYPE).yml \
+		-l ~/workspace/gp-continuous-integration/secrets/gpupgrade.$(PROD_OR_DEV).yml \
 		-l ~/workspace/gp-continuous-integration/secrets/gpdb_common-ci-secrets.yml \
 		-l ~/workspace/gp-continuous-integration/secrets/gpdb_master-ci-secrets.prod.yml \
-		-l ~/workspace/gp-continuous-integration/secrets/ccp_ci_secrets_gpdb-$(DEPLOY_TYPE).yml \
+		-l ~/workspace/gp-continuous-integration/secrets/ccp_ci_secrets_$(DEPLOY_TYPE).yml \
 		-v gpupgrade-git-remote=$(GIT_URI) \
 		-v gpupgrade-git-branch=$(BRANCH)
 
