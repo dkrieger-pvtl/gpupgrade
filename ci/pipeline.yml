@@ -16,7 +16,7 @@ resources:
 - name: gpupgrade_src
   type: git
   source:
-    uri: {{gpupgrade-git-remote}}
+    uri: https://github.com/greenplum-db/gpupgrade
     branch: {{gpupgrade-git-branch}}
 
 - name: gpdb_src
