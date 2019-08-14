@@ -51,7 +51,7 @@ func BuildRootCommand() *cobra.Command {
 	// TODO: if called without a subcommand, the cli prints a help message with timestamp.  Remove the timestamp.
 	root := &cobra.Command{Use: "gpupgrade"}
 
-	root.AddCommand(prepare, config, status, check, version, upgrade)
+	root.AddCommand(prepare, config, status, check, version, upgrade, gptest)
 
 	subPrepareInit := createPrepareInitSubcommand()
 	prepare.AddCommand(subPrepareStartHub, subPrepareInitCluster, subPrepareShutdownClusters, subPrepareStartAgents,
@@ -67,6 +67,8 @@ func BuildRootCommand() *cobra.Command {
 
 	upgrade.AddCommand(subUpgradeConvertMaster, subUpgradeConvertPrimaries, subUpgradeShareOids,
 		subUpgradeValidateStartCluster, subUpgradeReconfigurePorts)
+
+	gptest.AddCommand(subGpTestHelloWorld, subGpTestAsyncWait)
 
 	return root
 }
@@ -501,5 +503,37 @@ var version = &cobra.Command{
 	Long:  `Version of gpupgrade`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(utils.VersionString("gpupgrade"))
+	},
+}
+
+//////////////////////////////////////// GPTEST and its subcommands
+var gptest = &cobra.Command{
+	Use:   "gptest",
+	Short: "subcommands for internal use",
+	Long:  "subcommands for internal use...DO NOT USE UNLESS YOU KNOW WHAT YOU ARE DOING.",
+}
+var subGpTestHelloWorld = &cobra.Command{
+	Use:   "hello-world",
+	Short: "print hello-world",
+	Long:  `print hello-world`,
+	Run: func(cmd *cobra.Command, args []string) {
+		gplog.Info("Hello world")
+	},
+}
+var subGpTestAsyncWait = &cobra.Command{
+	Use:   "async-wait [seconds]",
+	Short: "run on agent for [seconds]",
+	Long:  `run on agent for [seconds]`,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return errors.New("requires a time to wait")
+		}
+		_, err := strconv.ParseFloat(args[0], 64)
+		return err
+	},
+	Run: func(cmd *cobra.Command, args []string) {
+		waitSeconds, _ := strconv.ParseFloat(args[0], 64)
+		gplog.Info("waiting for " + args[0])
+		time.Sleep(time.Duration(waitSeconds) * time.Second)
 	},
 }
