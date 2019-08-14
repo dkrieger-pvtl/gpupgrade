@@ -21,6 +21,7 @@ service CliToHub {
     rpc UpgradeReconfigurePorts(UpgradeReconfigurePortsRequest) returns (UpgradeReconfigurePortsReply) {}
     rpc SetConfig(SetConfigRequest) returns (SetConfigReply) {}
     rpc GetConfig(GetConfigRequest) returns (GetConfigReply) {}
+    rpc GpTest(GpTestRequest) returns (GpTestReply) {}
 }
 
 message UpgradeReconfigurePortsRequest {}
@@ -141,3 +142,21 @@ message GetConfigRequest {
 message GetConfigReply {
     string value = 1;
 }
+
+enum GpTestType {
+    UNKNOWN = 0;  // http://androiddevblog.com/protocol-buffers-pitfall-adding-enum-values/
+    HELLO_WORLD = 1;
+    ASYNC_WAIT = 2;
+}
+message GpTestRequest_HELLO_WORLD {}
+message GpTestRequest_ASYNC_WAIT {
+    float timeoutSecs = 1;
+}
+message GpTestRequest {
+    GpTestType type = 1;
+    oneof typeArgs {
+        GpTestRequest_HELLO_WORLD hw = 10;
+        GpTestRequest_ASYNC_WAIT  aw = 11;
+    }
+}
+message GpTestReply {}

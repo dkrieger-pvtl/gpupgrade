@@ -516,8 +516,20 @@ var subGpTestHelloWorld = &cobra.Command{
 	Use:   "hello-world",
 	Short: "print hello-world",
 	Long:  `print hello-world`,
-	Run: func(cmd *cobra.Command, args []string) {
-		gplog.Info("Hello world")
+	RunE: func(cmd *cobra.Command, args []string) error {
+		gplog.Info("CLI: Hello world")
+
+		requestArg := new(idl.GpTestRequest)
+		requestArg.Type = idl.GpTestType_HELLO_WORLD
+		requestArg.TypeArgs = &idl.GpTestRequest_Hw{&idl.GpTestRequest_HELLO_WORLD{}}
+
+		client := connectToHub()
+		_, err := commanders.NewGpTest(client, requestArg).Execute()
+
+		if err != nil {
+			gplog.Error(err.Error())
+		}
+		return err
 	},
 }
 var subGpTestAsyncWait = &cobra.Command{

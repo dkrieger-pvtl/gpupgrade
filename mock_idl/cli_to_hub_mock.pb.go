@@ -5,12 +5,45 @@
 package mock_idl
 
 import (
+	context "context"
 	gomock "github.com/golang/mock/gomock"
 	idl "github.com/greenplum-db/gpupgrade/idl"
-	context "golang.org/x/net/context"
 	grpc "google.golang.org/grpc"
 	reflect "reflect"
 )
+
+// MockisGpTestRequest_TypeArgs is a mock of isGpTestRequest_TypeArgs interface
+type MockisGpTestRequest_TypeArgs struct {
+	ctrl     *gomock.Controller
+	recorder *MockisGpTestRequest_TypeArgsMockRecorder
+}
+
+// MockisGpTestRequest_TypeArgsMockRecorder is the mock recorder for MockisGpTestRequest_TypeArgs
+type MockisGpTestRequest_TypeArgsMockRecorder struct {
+	mock *MockisGpTestRequest_TypeArgs
+}
+
+// NewMockisGpTestRequest_TypeArgs creates a new mock instance
+func NewMockisGpTestRequest_TypeArgs(ctrl *gomock.Controller) *MockisGpTestRequest_TypeArgs {
+	mock := &MockisGpTestRequest_TypeArgs{ctrl: ctrl}
+	mock.recorder = &MockisGpTestRequest_TypeArgsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockisGpTestRequest_TypeArgs) EXPECT() *MockisGpTestRequest_TypeArgsMockRecorder {
+	return m.recorder
+}
+
+// isGpTestRequest_TypeArgs mocks base method
+func (m *MockisGpTestRequest_TypeArgs) isGpTestRequest_TypeArgs() {
+	m.ctrl.Call(m, "isGpTestRequest_TypeArgs")
+}
+
+// isGpTestRequest_TypeArgs indicates an expected call of isGpTestRequest_TypeArgs
+func (mr *MockisGpTestRequest_TypeArgsMockRecorder) isGpTestRequest_TypeArgs() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "isGpTestRequest_TypeArgs", reflect.TypeOf((*MockisGpTestRequest_TypeArgs)(nil).isGpTestRequest_TypeArgs))
+}
 
 // MockCliToHubClient is a mock of CliToHubClient interface
 type MockCliToHubClient struct {
@@ -359,6 +392,24 @@ func (mr *MockCliToHubClientMockRecorder) GetConfig(ctx, in interface{}, opts ..
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfig", reflect.TypeOf((*MockCliToHubClient)(nil).GetConfig), varargs...)
 }
 
+// GpTest mocks base method
+func (m *MockCliToHubClient) GpTest(ctx context.Context, in *idl.GpTestRequest, opts ...grpc.CallOption) (*idl.GpTestReply, error) {
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GpTest", varargs...)
+	ret0, _ := ret[0].(*idl.GpTestReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GpTest indicates an expected call of GpTest
+func (mr *MockCliToHubClientMockRecorder) GpTest(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GpTest", reflect.TypeOf((*MockCliToHubClient)(nil).GpTest), varargs...)
+}
+
 // MockCliToHubServer is a mock of CliToHubServer interface
 type MockCliToHubServer struct {
 	ctrl     *gomock.Controller
@@ -614,4 +665,17 @@ func (m *MockCliToHubServer) GetConfig(arg0 context.Context, arg1 *idl.GetConfig
 // GetConfig indicates an expected call of GetConfig
 func (mr *MockCliToHubServerMockRecorder) GetConfig(arg0, arg1 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConfig", reflect.TypeOf((*MockCliToHubServer)(nil).GetConfig), arg0, arg1)
+}
+
+// GpTest mocks base method
+func (m *MockCliToHubServer) GpTest(arg0 context.Context, arg1 *idl.GpTestRequest) (*idl.GpTestReply, error) {
+	ret := m.ctrl.Call(m, "GpTest", arg0, arg1)
+	ret0, _ := ret[0].(*idl.GpTestReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GpTest indicates an expected call of GpTest
+func (mr *MockCliToHubServerMockRecorder) GpTest(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GpTest", reflect.TypeOf((*MockCliToHubServer)(nil).GpTest), arg0, arg1)
 }

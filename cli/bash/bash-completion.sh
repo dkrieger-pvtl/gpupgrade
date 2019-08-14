@@ -394,6 +394,59 @@ _gpupgrade_config()
     noun_aliases=()
 }
 
+_gpupgrade_gptest_async-wait()
+{
+    last_command="gpupgrade_gptest_async-wait"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_gpupgrade_gptest_hello-world()
+{
+    last_command="gpupgrade_gptest_hello-world"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
+_gpupgrade_gptest()
+{
+    last_command="gpupgrade_gptest"
+    commands=()
+    commands+=("async-wait")
+    commands+=("hello-world")
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _gpupgrade_prepare_init()
 {
     last_command="gpupgrade_prepare_init"
@@ -688,6 +741,7 @@ _gpupgrade()
     commands=()
     commands+=("check")
     commands+=("config")
+    commands+=("gptest")
     commands+=("prepare")
     commands+=("status")
     commands+=("upgrade")
