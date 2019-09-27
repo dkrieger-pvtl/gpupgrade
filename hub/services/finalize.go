@@ -127,7 +127,7 @@ func ClonePortsFromCluster(db *sql.DB, src *cluster.Cluster) (err error) {
 
 	for _, content := range src.ContentIDs {
 		port := src.Segments[content].Port
-		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = ? WHERE content = ?",
+		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = $1 WHERE content = $2",
 			port, content)
 		if err != nil {
 			return xerrors.Errorf("updating segment configuration: %w", err)

@@ -69,7 +69,7 @@ func (h *Hub) reconfigurePorts() (err error) {
 	}
 
 	// 3). rewrite gp_segment_configuration with the updated port number
-	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&search_path=", h.target.MasterPort())
+	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path=", h.target.MasterPort())
 	targetDB, err := sql.Open("pgx", connURI)
 	defer func() {
 		targetDB.Close() //TODO: return multierror here to capture err from Close()
@@ -85,9 +85,10 @@ func (h *Hub) reconfigurePorts() (err error) {
 	}
 
 	// 4). rewrite the "port" field in the master's postgresql.conf
-	_, err = targetDB.Exec("ALTER SYSTEM SET port TO ?", h.source.MasterPort())
+	alterSystemSQL := fmt.Sprintf("ALTER SYSTEM SET port TO %d", h.source.MasterPort())
+	_, err = targetDB.Exec(alterSystemSQL)
 	if err != nil {
-		return xerrors.Errorf("%s failed to clone ports: %w",
+		return xerrors.Errorf("%s failed to ALTER SYSTEM: %w",
 			upgradestatus.RECONFIGURE_PORTS, err)
 	}
 
