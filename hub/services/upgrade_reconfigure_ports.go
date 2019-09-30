@@ -14,11 +14,9 @@ import (
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 )
 
-const (
-	SedAndMvString = "sed 's/port=%d/port=%d/' %[3]s/postgresql.conf > %[3]s/postgresql.conf.updated && " +
-		"mv %[3]s/postgresql.conf %[3]s/postgresql.conf.bak && " +
-		"mv %[3]s/postgresql.conf.updated %[3]s/postgresql.conf"
-)
+const SedAndMvString = "sed 's/port=%d/port=%d/' %[3]s/postgresql.conf > %[3]s/postgresql.conf.updated && " +
+	"mv %[3]s/postgresql.conf %[3]s/postgresql.conf.bak && " +
+	"mv %[3]s/postgresql.conf.updated %[3]s/postgresql.conf"
 
 func (h *Hub) UpgradeReconfigurePorts(ctx context.Context, in *idl.UpgradeReconfigurePortsRequest) (*idl.UpgradeReconfigurePortsReply, error) {
 	gplog.Info("starting %s", upgradestatus.RECONFIGURE_PORTS)
@@ -44,13 +42,10 @@ func (h *Hub) UpgradeReconfigurePorts(ctx context.Context, in *idl.UpgradeReconf
 //    1). bring down the cluster
 //    2). bring up the master(fts will not "freak out", etc)
 //    3). rewrite gp_segment_configuration with the updated port number
-//    4). modify the master's config file to use the new port
-//    5). bring down the master
+//    4). bring down the master
+//    5). modify the master's config file to use the new port
 //    6). bring up the cluster
 func (h *Hub) reconfigurePorts() (err error) {
-	sedCommand := fmt.Sprintf(SedAndMvString, h.target.MasterPort(), h.source.MasterPort(), h.target.MasterDataDir())
-	gplog.Debug("executing command: %+v", sedCommand) // TODO: Move this debug log into ExecuteLocalCommand()
-
 	// 1). bring down the cluster
 	err = StopCluster(h.target)
 	if err != nil {
@@ -59,9 +54,9 @@ func (h *Hub) reconfigurePorts() (err error) {
 	}
 
 	// 2). bring up the master(fts will not "freak out", etc)
-	startScript := fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstart -am -d %s",
+	script := fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstart -am -d %s",
 		h.target.BinDir, h.target.BinDir, h.target.MasterDataDir())
-	cmd := exec.Command("bash", "-c", startScript)
+	cmd := exec.Command("bash", "-c", script)
 	err = cmd.Run()
 	if err != nil {
 		return xerrors.Errorf("%s failed to start target cluster in utility mode: %w",
@@ -84,23 +79,33 @@ func (h *Hub) reconfigurePorts() (err error) {
 			upgradestatus.RECONFIGURE_PORTS, err)
 	}
 
-	// 4). rewrite the "port" field in the master's postgresql.conf
-	alterSystemSQL := fmt.Sprintf("ALTER SYSTEM SET port TO %d", h.source.MasterPort())
-	_, err = targetDB.Exec(alterSystemSQL)
-	if err != nil {
-		return xerrors.Errorf("%s failed to ALTER SYSTEM: %w",
-			upgradestatus.RECONFIGURE_PORTS, err)
-	}
-
-	// 5). bring down the master and bring back up the cluster
-	// # TODO: we apparently cannot `gpstop -air` from master-only to full cluster
-	// #   run these as separate commands
-	stopScript := fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstop -air -d %s",
+	// 4). bring down the master
+	script = fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstop -aim -d %s",
 		h.target.BinDir, h.target.BinDir, h.target.MasterDataDir())
-	cmd = exec.Command("bash", "-c", stopScript)
+	cmd = exec.Command("bash", "-c", script)
 	err = cmd.Run()
 	if err != nil {
 		return xerrors.Errorf("%s failed to stop target cluster in utility mode: %w",
+			upgradestatus.RECONFIGURE_PORTS, err)
+	}
+
+	// 5). rewrite the "port" field in the master's postgresql.conf
+	script = fmt.Sprintf(SedAndMvString, h.target.MasterPort(), h.source.MasterPort(), h.target.MasterDataDir())
+	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
+	cmd = exec.Command("bash", "-c", script)
+	err = cmd.Run()
+	if err != nil {
+		return xerrors.Errorf("%s failed to execute sed command: %w",
+			upgradestatus.RECONFIGURE_PORTS, err)
+	}
+
+	// 6. bring up the cluster
+	script = fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstart -a -d %s",
+		h.target.BinDir, h.target.BinDir, h.target.MasterDataDir())
+	cmd = exec.Command("bash", "-c", script)
+	err = cmd.Run()
+	if err != nil {
+		return xerrors.Errorf("%s failed to start target cluster: %w",
 			upgradestatus.RECONFIGURE_PORTS, err)
 	}
 
