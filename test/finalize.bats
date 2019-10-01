@@ -78,7 +78,7 @@ EOF
     kill_hub
     gpupgrade_hub --daemonize 3>&-
 
-    gpupgrade upgrade reconfigure-ports
+    gpupgrade reconfigure-ports
 
     # Check to make sure the new cluster's ports match the old one.
     local new_ports=$(get_ports)
