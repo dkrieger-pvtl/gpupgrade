@@ -29,6 +29,13 @@ func (h *Hub) UpgradeReconfigurePorts(ctx context.Context, in *idl.UpgradeReconf
 
 	if err := h.reconfigurePorts(); err != nil {
 		gplog.Error(err.Error())
+
+		// Log any stderr from failed commands.
+		var exitErr *exec.ExitError
+		if xerrors.As(err, &exitErr) {
+			gplog.Debug(string(exitErr.Stderr))
+		}
+
 		step.MarkFailed()
 		return &idl.UpgradeReconfigurePortsReply{}, err
 	}
@@ -58,7 +65,7 @@ func (h *Hub) reconfigurePorts() (err error) {
 	script := fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstart -am -d %s",
 		h.target.BinDir, h.target.BinDir, h.target.MasterDataDir())
 	cmd := exec.Command("bash", "-c", script)
-	err = cmd.Run()
+	_, err = cmd.Output()
 	if err != nil {
 		return xerrors.Errorf("%s failed to start target cluster in utility mode: %w",
 			upgradestatus.RECONFIGURE_PORTS, err)
@@ -84,7 +91,7 @@ func (h *Hub) reconfigurePorts() (err error) {
 	script = fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstop -aim -d %s",
 		h.target.BinDir, h.target.BinDir, h.target.MasterDataDir())
 	cmd = exec.Command("bash", "-c", script)
-	err = cmd.Run()
+	_, err = cmd.Output()
 	if err != nil {
 		return xerrors.Errorf("%s failed to stop target cluster in utility mode: %w",
 			upgradestatus.RECONFIGURE_PORTS, err)
@@ -94,7 +101,7 @@ func (h *Hub) reconfigurePorts() (err error) {
 	script = fmt.Sprintf(SedAndMvString, h.target.MasterPort(), h.source.MasterPort(), h.target.MasterDataDir())
 	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
 	cmd = exec.Command("bash", "-c", script)
-	err = cmd.Run()
+	_, err = cmd.Output()
 	if err != nil {
 		return xerrors.Errorf("%s failed to execute sed command: %w",
 			upgradestatus.RECONFIGURE_PORTS, err)
@@ -104,7 +111,7 @@ func (h *Hub) reconfigurePorts() (err error) {
 	script = fmt.Sprintf("source %s/../greenplum_path.sh && %s/gpstart -a -d %s",
 		h.target.BinDir, h.target.BinDir, h.target.MasterDataDir())
 	cmd = exec.Command("bash", "-c", script)
-	err = cmd.Run()
+	_, err = cmd.Output()
 	if err != nil {
 		return xerrors.Errorf("%s failed to start target cluster: %w",
 			upgradestatus.RECONFIGURE_PORTS, err)
