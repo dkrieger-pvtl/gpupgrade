@@ -45,6 +45,7 @@ func (h *Hub) UpgradeReconfigurePorts(ctx context.Context, in *idl.UpgradeReconf
 //    4). bring down the master
 //    5). modify the master's config file to use the new port
 //    6). bring up the cluster
+// TODO: this method needs test coverage.
 func (h *Hub) reconfigurePorts() (err error) {
 	// 1). bring down the cluster
 	err = StopCluster(h.target)
