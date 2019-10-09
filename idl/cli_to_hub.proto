@@ -13,6 +13,7 @@ service CliToHub {
     rpc Finalize (FinalizeRequest) returns (FinalizeReply) {}
     rpc SetConfig (SetConfigRequest) returns (SetConfigReply) {}
     rpc GetConfig (GetConfigRequest) returns (GetConfigReply) {}
+    rpc RestartAgents(RestartAgentsRequest) returns (RestartAgentsReply) {}
 }
 
 message InitializeRequest {
@@ -26,6 +27,11 @@ message ExecuteRequest {}
 
 message FinalizeRequest {}
 message FinalizeReply {}
+
+message RestartAgentsRequest {}
+message RestartAgentsReply {
+    repeated string agentHosts = 1;
+}
 
 message StatusConversionRequest {}
 

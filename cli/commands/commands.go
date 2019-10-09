@@ -34,6 +34,8 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/greenplum-db/gpupgrade/cli/commanders"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/utils"
@@ -54,6 +56,7 @@ func BuildRootCommand() *cobra.Command {
 	root.AddCommand(initialize())
 	root.AddCommand(execute)
 	root.AddCommand(finalize)
+	root.AddCommand(start)
 
 	subConfigSet := createConfigSetSubcommand()
 	subConfigShow := createConfigShowSubcommand()
@@ -311,6 +314,16 @@ func initialize() *cobra.Command {
 				return errors.Wrap(err, "tried to create state directory")
 			}
 
+			countHubs, err := commanders.HowManyHubsRunning()
+			if err != nil {
+				gplog.Error("failed to determine if hub already running")
+				return err
+			}
+			if countHubs >= 1 {
+				gplog.Error("gpupgrade_hub process already running")
+				return errors.New("gpupgrade_hub process already running")
+			}
+
 			err = commanders.StartHub()
 			if err != nil {
 				return errors.Wrap(err, "starting hub")
@@ -363,5 +376,36 @@ var finalize = &cobra.Command{
 			gplog.Error(err.Error())
 			os.Exit(1)
 		}
+	},
+}
+
+var start = &cobra.Command{
+	Use:   "start",
+	Short: "starts hub/agents that are not currently running",
+	Long:  "starts hub/agents that are not currently running",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		countHubs, err := commanders.HowManyHubsRunning()
+		if err != nil {
+			return xerrors.Errorf("failed to determine if there is a hub running: %w", err)
+		}
+
+		if countHubs == 0 {
+			err = commanders.StartHub()
+			if err != nil {
+				return err
+			}
+			fmt.Println("Restarted hub")
+		}
+
+		reply, err := connectToHub().RestartAgents(context.Background(), &idl.RestartAgentsRequest{})
+		for _, host := range reply.GetAgentHosts() {
+			fmt.Printf("Restarted agent on: %s\n", host)
+		}
+
+		if err != nil {
+			return xerrors.Errorf("failed to start all agents: %w", err)
+		}
+
+		return nil
 	},
 }

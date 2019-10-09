@@ -5,6 +5,13 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/hashicorp/go-multierror"
+
+	"google.golang.org/grpc"
 
 	"github.com/greenplum-db/gp-common-go-libs/cluster"
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
@@ -126,16 +133,25 @@ func ReloadAndCommitCluster(cluster *utils.Cluster, conn *dbconn.DBConn) error {
 	return nil
 }
 
+func getAgentPath() (string, error) {
+	hubPath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(hubPath), "gpupgrade_agent"), nil
+
+}
+
 func StartAgents(source *utils.Cluster, target *utils.Cluster, stateDir string) error {
 	// XXX If there are failures, does it matter what agents have successfully
 	// started, or do we just want to stop all of them and kick back to the
 	// user?
 	logStr := "start agents on master and hosts"
-	hubPath, err := os.Executable()
+
+	agentPath, err := getAgentPath()
 	if err != nil {
 		return errors.Errorf("failed to get the hub executable path %v", err)
 	}
-	agentPath := filepath.Join(filepath.Dir(hubPath), "gpupgrade_agent")
 
 	// XXX State directory handling on agents needs to be improved. See issue
 	// #127: all agents will silently recreate that directory if it doesn't
@@ -171,4 +187,71 @@ func StartAgents(source *utils.Cluster, target *utils.Cluster, stateDir string) 
 	}
 
 	return nil
+}
+
+func (h *Hub) RestartAgents(ctx context.Context, in *idl.RestartAgentsRequest) (*idl.RestartAgentsReply, error) {
+	var wg sync.WaitGroup
+	hostnames := h.source.GetHostnames()
+	restartedHosts := make(chan string, len(hostnames))
+	errs := make(chan error, len(hostnames))
+
+	for _, host := range hostnames {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			address := host + ":" + strconv.Itoa(h.conf.HubToAgentPort)
+			timeoutCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Second)
+			opts := []grpc.DialOption{
+				grpc.WithBlock(),
+				grpc.WithInsecure(),
+				grpc.FailOnNonTempDialError(true),
+			}
+			conn, err := grpc.DialContext(timeoutCtx, address, opts...)
+			cancelFunc()
+			if err == nil {
+				err = conn.Close()
+				if err != nil {
+					gplog.Error("when checking agent for connectivity to %s, failed to close: %+v", host, err)
+				}
+
+				return
+			}
+
+			gplog.Debug("when checking agent for connectivity to %s, could not dial: %+v", host, err)
+			gplog.Info("starting agent on %s", host)
+
+			agentPath, err := getAgentPath()
+			if err != nil {
+				errs <- err
+				return
+			}
+			cmd := execCommand("ssh", host,
+				fmt.Sprintf("bash -c \"%s --daemonize --state-directory %s\"", agentPath, h.conf.StateDir))
+			stdout, err := cmd.Output()
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			gplog.Debug(string(stdout))
+			restartedHosts <- host
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+	close(restartedHosts)
+
+	var multiErr *multierror.Error
+	for err := range errs {
+		multiErr = multierror.Append(multiErr, err)
+	}
+
+	var reply idl.RestartAgentsReply
+	for h := range restartedHosts {
+		reply.AgentHosts = append(reply.AgentHosts, h)
+	}
+
+	return &reply, multiErr.ErrorOrNil()
 }

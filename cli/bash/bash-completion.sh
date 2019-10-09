@@ -397,6 +397,23 @@ _gpupgrade_initialize()
     noun_aliases=()
 }
 
+_gpupgrade_start()
+{
+    last_command="gpupgrade_start"
+    commands=()
+
+    flags=()
+    two_word_flags=()
+    local_nonpersistent_flags=()
+    flags_with_completion=()
+    flags_completion=()
+
+
+    must_have_one_flag=()
+    must_have_one_noun=()
+    noun_aliases=()
+}
+
 _gpupgrade_status_conversion()
 {
     last_command="gpupgrade_status_conversion"
@@ -476,6 +493,7 @@ _gpupgrade()
     commands+=("execute")
     commands+=("finalize")
     commands+=("initialize")
+    commands+=("start")
     commands+=("status")
     commands+=("version")
 

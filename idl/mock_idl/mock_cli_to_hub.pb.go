@@ -176,6 +176,26 @@ func (mr *MockCliToHubClientMockRecorder) Initialize(arg0, arg1 interface{}, arg
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockCliToHubClient)(nil).Initialize), varargs...)
 }
 
+// RestartAgents mocks base method
+func (m *MockCliToHubClient) RestartAgents(arg0 context.Context, arg1 *idl.RestartAgentsRequest, arg2 ...grpc.CallOption) (*idl.RestartAgentsReply, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RestartAgents", varargs...)
+	ret0, _ := ret[0].(*idl.RestartAgentsReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RestartAgents indicates an expected call of RestartAgents
+func (mr *MockCliToHubClientMockRecorder) RestartAgents(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestartAgents", reflect.TypeOf((*MockCliToHubClient)(nil).RestartAgents), varargs...)
+}
+
 // SetConfig mocks base method
 func (m *MockCliToHubClient) SetConfig(arg0 context.Context, arg1 *idl.SetConfigRequest, arg2 ...grpc.CallOption) (*idl.SetConfigReply, error) {
 	m.ctrl.T.Helper()
@@ -361,6 +381,21 @@ func (m *MockCliToHubServer) Initialize(arg0 context.Context, arg1 *idl.Initiali
 func (mr *MockCliToHubServerMockRecorder) Initialize(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Initialize", reflect.TypeOf((*MockCliToHubServer)(nil).Initialize), arg0, arg1)
+}
+
+// RestartAgents mocks base method
+func (m *MockCliToHubServer) RestartAgents(arg0 context.Context, arg1 *idl.RestartAgentsRequest) (*idl.RestartAgentsReply, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RestartAgents", arg0, arg1)
+	ret0, _ := ret[0].(*idl.RestartAgentsReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RestartAgents indicates an expected call of RestartAgents
+func (mr *MockCliToHubServerMockRecorder) RestartAgents(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RestartAgents", reflect.TypeOf((*MockCliToHubServer)(nil).RestartAgents), arg0, arg1)
 }
 
 // SetConfig mocks base method

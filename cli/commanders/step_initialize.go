@@ -64,16 +64,6 @@ func CreateStateDirAndClusterConfigs(sourceBinDir, targetBinDir string) error {
 }
 
 func StartHub() error {
-	countHubs, err := HowManyHubsRunning()
-	if err != nil {
-		gplog.Error("failed to determine if hub already running")
-		return err
-	}
-	if countHubs >= 1 {
-		gplog.Error("gpupgrade_hub process already running")
-		return errors.New("gpupgrade_hub process already running")
-	}
-
 	cmd := execCommandHubStart("gpupgrade_hub", "--daemonize")
 	stdout, cmdErr := cmd.Output()
 	if cmdErr != nil {
@@ -103,7 +93,7 @@ func Initialize(client idl.CliToHubClient, oldBinDir, newBinDir string, oldPort 
 }
 
 func HowManyHubsRunning() (int, error) {
-	howToLookForHub := `ps -ef | grep -Gc "[g]pupgrade_hub$"` // use square brackets to avoid finding yourself in matches
+	howToLookForHub := `ps -ef | grep -Gc "[g]pupgrade_hub"` // use square brackets to avoid finding yourself in matches
 	output, err := execCommandHubCount("bash", "-c", howToLookForHub).Output()
 	value, convErr := strconv.Atoi(strings.TrimSpace(string(output)))
 	if convErr != nil {
