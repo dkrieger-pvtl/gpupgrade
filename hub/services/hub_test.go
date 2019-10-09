@@ -39,13 +39,13 @@ var _ = Describe("Hub", func() {
 		agentA.Stop()
 	})
 
-	It("will return from Start() with an error if Stop() is called first", func() {
+	It("will return from Start() with an error if Shutdown() is called first", func() {
 		hubConfig := &services.HubConfig{
 			CliToHubPort: cliToHubPort,
 		}
 		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
 
-		hub.Stop()
+		hub.Shutdown()
 		go func() {
 			err = hub.Start()
 		}()
@@ -80,7 +80,7 @@ var _ = Describe("Hub", func() {
 
 	// This is inherently testing a race. It will give false successes instead
 	// of false failures, so DO NOT ignore transient failures in this test!
-	It("will return from Start() if Stop is called concurrently", func() {
+	It("will return from Start() if Shutdown is called concurrently", func() {
 		hubConfig := &services.HubConfig{
 			CliToHubPort: cliToHubPort,
 		}
@@ -91,7 +91,7 @@ var _ = Describe("Hub", func() {
 			hub.Start()
 			done <- true
 		}()
-		hub.Stop()
+		hub.Shutdown()
 
 		Eventually(done).Should(Receive())
 	})
@@ -112,7 +112,7 @@ var _ = Describe("Hub", func() {
 		}
 
 		By("closing the connections")
-		hub.Stop()
+		hub.Shutdown()
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, conn := range conns {

@@ -34,6 +34,8 @@ import (
 	"strconv"
 	"time"
 
+	"google.golang.org/grpc/codes"
+
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/cli/commanders"
@@ -45,6 +47,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"google.golang.org/grpc"
+	grpcStatus "google.golang.org/grpc/status"
 )
 
 func BuildRootCommand() *cobra.Command {
@@ -57,6 +60,7 @@ func BuildRootCommand() *cobra.Command {
 	root.AddCommand(execute)
 	root.AddCommand(finalize)
 	root.AddCommand(start)
+	root.AddCommand(stop)
 
 	subConfigSet := createConfigSetSubcommand()
 	subConfigShow := createConfigShowSubcommand()
@@ -407,5 +411,24 @@ var start = &cobra.Command{
 		}
 
 		return nil
+	},
+}
+
+var stop = &cobra.Command{
+	Use:   "stop",
+	Short: "stops hub/agents that are currently running",
+	Long:  "stops hub/agents that are currently running",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		_, err := connectToHub().Stop(context.Background(), &idl.StopRequest{})
+		if err != nil {
+			errCode := grpcStatus.Code(err)
+			errMsg := grpcStatus.Convert(err).Message()
+			if errCode != codes.Unavailable || errMsg != "transport is closing" {
+				return err
+			}
+			return nil
+		}
+
+		return errors.New("failed to stop hub")
 	},
 }

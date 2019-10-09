@@ -256,6 +256,26 @@ func (mr *MockCliToHubClientMockRecorder) StatusUpgrade(arg0, arg1 interface{}, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StatusUpgrade", reflect.TypeOf((*MockCliToHubClient)(nil).StatusUpgrade), varargs...)
 }
 
+// Stop mocks base method
+func (m *MockCliToHubClient) Stop(arg0 context.Context, arg1 *idl.StopRequest, arg2 ...grpc.CallOption) (*idl.StopReply, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Stop", varargs...)
+	ret0, _ := ret[0].(*idl.StopReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Stop indicates an expected call of Stop
+func (mr *MockCliToHubClientMockRecorder) Stop(arg0, arg1 interface{}, arg2 ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockCliToHubClient)(nil).Stop), varargs...)
+}
+
 // MockCliToHubServer is a mock of CliToHubServer interface
 type MockCliToHubServer struct {
 	ctrl     *gomock.Controller
@@ -441,6 +461,21 @@ func (m *MockCliToHubServer) StatusUpgrade(arg0 context.Context, arg1 *idl.Statu
 func (mr *MockCliToHubServerMockRecorder) StatusUpgrade(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StatusUpgrade", reflect.TypeOf((*MockCliToHubServer)(nil).StatusUpgrade), arg0, arg1)
+}
+
+// Stop mocks base method
+func (m *MockCliToHubServer) Stop(arg0 context.Context, arg1 *idl.StopRequest) (*idl.StopReply, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stop", arg0, arg1)
+	ret0, _ := ret[0].(*idl.StopReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Stop indicates an expected call of Stop
+func (mr *MockCliToHubServerMockRecorder) Stop(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockCliToHubServer)(nil).Stop), arg0, arg1)
 }
 
 // MockCliToHub_ExecuteServer is a mock of CliToHub_ExecuteServer interface

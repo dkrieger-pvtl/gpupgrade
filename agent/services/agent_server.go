@@ -91,7 +91,12 @@ func (a *AgentServer) Start() {
 	a.stopped <- struct{}{}
 }
 
-func (a *AgentServer) Stop() {
+func (a *AgentServer) StopAgent(ctx context.Context, in *idl.StopAgentRequest) (*idl.StopAgentReply, error) {
+	a.server.Stop()
+	return &idl.StopAgentReply{}, nil
+}
+
+func (a *AgentServer) Shutdown() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

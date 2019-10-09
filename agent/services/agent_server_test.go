@@ -51,7 +51,7 @@ var _ = Describe("AgentServer", func() {
 		agent := services.NewAgentServer(nil, agentConf)
 
 		go agent.Start()
-		defer agent.Stop()
+		defer agent.Shutdown()
 
 		Eventually(exists).Should(BeTrue())
 		os.RemoveAll(dir)
@@ -65,7 +65,7 @@ var _ = Describe("AgentServer", func() {
 
 		agent := services.NewAgentServer(nil, agentConf)
 		go agent.Start()
-		defer agent.Stop()
+		defer agent.Shutdown()
 
 		Eventually(exists).Should(BeTrue())
 		os.RemoveAll(dir)

@@ -14,6 +14,7 @@ service CliToHub {
     rpc SetConfig (SetConfigRequest) returns (SetConfigReply) {}
     rpc GetConfig (GetConfigRequest) returns (GetConfigReply) {}
     rpc RestartAgents(RestartAgentsRequest) returns (RestartAgentsReply) {}
+    rpc Stop(StopRequest) returns (StopReply) {}
 }
 
 message InitializeRequest {
@@ -32,6 +33,9 @@ message RestartAgentsRequest {}
 message RestartAgentsReply {
     repeated string agentHosts = 1;
 }
+
+message StopRequest {}
+message StopReply {}
 
 message StatusConversionRequest {}
 

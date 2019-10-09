@@ -52,8 +52,6 @@ func main() {
 
 			agentServer.Start()
 
-			agentServer.Stop()
-
 			return nil
 		},
 	}

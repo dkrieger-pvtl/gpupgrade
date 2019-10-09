@@ -10,6 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/xerrors"
+
+	"google.golang.org/grpc/codes"
+
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/greenplum-db/gpupgrade/hub/upgradestatus"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/utils"
@@ -23,11 +29,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/reflection"
+	grpcStatus "google.golang.org/grpc/status"
 )
 
 var DialTimeout = 3 * time.Second
 
-// Returned from Hub.Start() if Hub.Stop() has already been called.
+// Returned from Hub.Start() if Hub.Shutdown() has already been called.
 var ErrHubStopped = errors.New("hub is stopped")
 
 type Dialer func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
@@ -46,11 +53,11 @@ type Hub struct {
 	lis    net.Listener
 
 	// This is used both as a channel to communicate from Start() to
-	// Stop() to indicate to Stop() that it can finally terminate
-	// and also as a flag to communicate from Stop() to Start() that
-	// Stop() had already beed called, so no need to do anything further
+	// Shutdown() to indicate to Shutdown() that it can finally terminate
+	// and also as a flag to communicate from Shutdown() to Start() that
+	// Shutdown() had already beed called, so no need to do anything further
 	// in Start().
-	// Note that when used as a flag, nil value means that Stop() has
+	// Note that when used as a flag, nil value means that Shutdown() has
 	// been called.
 
 	stopped chan struct{}
@@ -106,7 +113,7 @@ func (h *Hub) Start() error {
 
 	h.mu.Lock()
 	if h.stopped == nil {
-		// Stop() has already been called; return without serving.
+		// Shutdown() has already been called; return without serving.
 		h.mu.Unlock()
 		return ErrHubStopped
 	}
@@ -127,20 +134,70 @@ func (h *Hub) Start() error {
 		err = errors.Wrap(err, "failed to serve")
 	}
 
-	// inform Stop() that is it is OK to stop now
+	// inform Shutdown() that is it is OK to stop now
 	h.stopped <- struct{}{}
 
 	return err
 }
 
-func (h *Hub) Stop() {
+func (h *Hub) Stop(ctx context.Context, in *idl.StopRequest) (*idl.StopReply, error) {
+	err := h.StopAgents()
+	if err != nil {
+		gplog.Debug("failed to stop agents: %#v", err)
+	}
+
+	h.server.Stop()
+	return &idl.StopReply{}, nil
+}
+
+func (h *Hub) StopAgents() error {
+	_, err := h.AgentConns()
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, len(h.agentConns))
+
+	for _, conn := range h.agentConns {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			_, err := conn.AgentClient.StopAgent(context.Background(), &idl.StopAgentRequest{})
+			if err != nil {
+				errCode := grpcStatus.Code(err)
+				errMsg := grpcStatus.Convert(err).Message()
+				if errCode != codes.Unavailable || errMsg != "transport is closing" {
+					errs <- xerrors.Errorf("failed to stop agent on host %s : %w", conn.Hostname, err)
+				}
+				return
+			}
+
+			errs <- errors.Errorf("failed to stop agent on host: %s", conn.Hostname)
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+
+	var multiErr *multierror.Error
+	for err := range errs {
+		multiErr = multierror.Append(multiErr, err)
+	}
+
+	return multiErr.ErrorOrNil()
+}
+
+func (h *Hub) Shutdown() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.closeConns()
 
 	if h.server != nil {
-		h.server.Stop()
+		h.server.GracefulStop()
 		<-h.stopped // block until it is OK to stop
 	}
 
@@ -150,9 +207,9 @@ func (h *Hub) Stop() {
 }
 
 func (h *Hub) AgentConns() ([]*Connection, error) {
-	// Lock the mutex to protect against races with Hub.Stop().
+	// Lock the mutex to protect against races with Hub.Shutdown().
 	// XXX This is a *ridiculously* broad lock. Have fun waiting for the dial
-	// timeout when calling Stop() and AgentConns() at the same time, for
+	// timeout when calling Shutdown() and AgentConns() at the same time, for
 	// instance. We should not lock around a network operation, but it seems
 	// like the AgentConns concept is not long for this world anyway.
 	h.mu.Lock()
