@@ -5,13 +5,10 @@ load helpers
 setup() {
     STATE_DIR=`mktemp -d`
     export GPUPGRADE_HOME="${STATE_DIR}/gpupgrade"
-    kill_hub
-    kill_agents
 }
 
 teardown() {
-    kill_hub
-    kill_agents
+    gpupgrade stop
     rm -r "$STATE_DIR"
 }
 

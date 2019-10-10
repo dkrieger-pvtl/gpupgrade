@@ -8,9 +8,6 @@ setup() {
     STATE_DIR=`mktemp -d`
     export GPUPGRADE_HOME="${STATE_DIR}/gpupgrade"
 
-    kill_agents
-    kill_hub
-
     # XXX We use $PWD here instead of a real binary directory because
     # `make check` is expected to test the locally built binaries, not the
     # installation. This causes problems for tests that need to call GPDB
@@ -24,8 +21,9 @@ setup() {
 teardown() {
     # XXX Beware, BATS_TEST_SKIPPED is not a documented export.
     if [ -z "${BATS_TEST_SKIPPED}" ]; then
-        kill_hub
-        kill_agents
+        run gpupgrade stop
+        log "${output}"
+
         rm -r "${STATE_DIR}"
     fi
 }
@@ -46,8 +44,8 @@ teardown() {
 
 @test "configuration persists after hub is killed and restarted" {
     gpupgrade config set --new-bindir /my/bin/dir
-    kill_hub
 
+    gpupgrade stop
     gpupgrade_hub --daemonize
 
     run gpupgrade config show --new-bindir
