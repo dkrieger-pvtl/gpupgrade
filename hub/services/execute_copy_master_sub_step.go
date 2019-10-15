@@ -71,8 +71,7 @@ func CopyMasterDirectoryToSegmentDirectories(agentConns []*Connection, target *u
 		go func(c *Connection) {
 			defer wg.Done()
 
-			client := idl.NewAgentClient(c.Conn)
-			_, err := client.CopyMasterDirectoryToSegmentDirectories(context.Background(),
+			_, err := agentConn.AgentClient.CopyMasterDirectoryToSegmentDirectories(context.Background(),
 				&idl.CopyMasterDirRequest{
 					MasterDir: destinationDirName,
 					Datadirs:  segmentDataDirMap[c.Hostname],

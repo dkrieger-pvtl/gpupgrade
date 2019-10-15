@@ -56,9 +56,7 @@ type Hub struct {
 }
 
 type Connection struct {
-	Conn          *grpc.ClientConn
 	AgentClient   idl.AgentClient
-	Hostname      string
 	CancelContext func()
 }
 

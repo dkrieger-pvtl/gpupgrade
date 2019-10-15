@@ -3,6 +3,9 @@ package services_test
 import (
 	"database/sql/driver"
 	"fmt"
+	"net"
+	"os"
+
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
 	"github.com/greenplum-db/gpupgrade/hub/services"
 	"github.com/greenplum-db/gpupgrade/testutils"
@@ -12,9 +15,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"gopkg.in/DATA-DOG/go-sqlmock.v1"
-	"os"
 )
 
 var _ = Describe("Hub prepare init-cluster", func() {
@@ -33,7 +34,12 @@ var _ = Describe("Hub prepare init-cluster", func() {
 
 		source.Executor = testExecutor
 		cm := testutils.NewMockChecklistManager()
-		hub = services.NewHub(source, target, grpc.DialContext, hubConf, cm)
+
+		dialer := func(ctx context.Context, address string) (net.Conn, error) {
+			d := net.Dialer{}
+			return d.DialContext(ctx, "tcp", address)
+		}
+		hub = services.NewHub(source, target, dialer, hubConf, cm)
 	})
 
 	Describe("CreateInitialInitsystemConfig", func() {
@@ -124,8 +130,8 @@ var _ = Describe("Hub prepare init-cluster", func() {
 
 			createErr := errors.New("could not create directories")
 			mockAgent.Err <- createErr
-			badConnection, _ := dialer(context.Background(), "dummy", grpc.WithInsecure())
-			fakeConns := []*services.Connection{{badConnection, nil, "localhost", func() {}}}
+			badConnection, _ := dialer(context.Background(), "dummy")
+			fakeConns := []*services.Connection{{&badConnection, nil, "localhost", func() {}}}
 
 			err := hub.CreateAllDataDirectories(fakeConns, segDataDirMap)
 			Expect(err).To(HaveOccurred())
