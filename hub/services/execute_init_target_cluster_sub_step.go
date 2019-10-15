@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"golang.org/x/xerrors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -49,14 +50,8 @@ func (h *Hub) InitTargetCluster(stream messageSender, log io.Writer, sourceDBCon
 		return nil, err
 	}
 
-	agentConns := []*Connection{}
-	agentConns, err = h.AgentConns()
-	if err != nil {
-		return nil, errors.Wrap(err, "Could not get/create agents")
-	}
-
 	gpinitsystemConfig, segmentDataDirMap, targetPort := h.DeclareDataDirectories(gpinitsystemConfig)
-	err = h.CreateAllDataDirectories(agentConns, segmentDataDirMap)
+	err = h.CreateAllDataDirectories(h.agentConns, segmentDataDirMap)
 	if err != nil {
 		return nil, err
 	}

@@ -6,10 +6,12 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
+
 	"github.com/greenplum-db/gp-common-go-libs/cluster"
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
-	"github.com/pkg/errors"
 
 	"github.com/greenplum-db/gpupgrade/db"
 	"github.com/greenplum-db/gpupgrade/hub/upgradestatus"
@@ -24,6 +26,15 @@ func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initiali
 	}
 
 	err = h.startAgentsSubStep(stream)
+
+	if h.agentConns == nil {
+		agentConns, err := h.AgentConns(h.dialer)
+		if err != nil {
+			return xerrors.Errorf("failed to get agent connections %w", err)
+		}
+		h.agentConns = agentConns
+	}
+
 	return err
 }
 

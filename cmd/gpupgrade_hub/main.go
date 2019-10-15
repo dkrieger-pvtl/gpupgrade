@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -16,7 +18,6 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils/daemon"
 	"github.com/greenplum-db/gpupgrade/utils/log"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
 )
 
 // This directory to have the implementation code for the gRPC server to serve
@@ -82,7 +83,12 @@ func main() {
 
 			cm := upgradestatus.NewChecklistManager(conf.StateDir)
 
-			hub := services.NewHub(source, target, grpc.DialContext, conf, cm)
+			var dialer = func(ctx context.Context, address string) (net.Conn, error) {
+				d := net.Dialer{}
+				return d.DialContext(ctx, "tcp", address)
+			}
+
+			hub := services.NewHub(source, target, dialer, conf, cm)
 
 			// Set up the checklist steps in order.
 			//

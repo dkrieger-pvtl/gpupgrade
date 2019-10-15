@@ -12,12 +12,7 @@ import (
 )
 
 func (h *Hub) StatusConversion(ctx context.Context, in *idl.StatusConversionRequest) (*idl.StatusConversionReply, error) {
-	agentConnections, err := h.AgentConns()
-	if err != nil {
-		return &idl.StatusConversionReply{}, err
-	}
-
-	primaryStatuses, err := GetConversionStatusFromPrimaries(agentConnections, h.source)
+	primaryStatuses, err := GetConversionStatusFromPrimaries(h.agentConns, h.source)
 	if err != nil {
 		err := fmt.Errorf("Could not get conversion status from primaries. Err: \"%v\"", err)
 		gplog.Error(err.Error())

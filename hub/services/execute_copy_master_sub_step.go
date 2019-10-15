@@ -46,12 +46,7 @@ func (h *Hub) CopyMasterDataDir(stream messageSender, log io.Writer) error {
 		}
 	}
 
-	agentConns, connErr := h.AgentConns()
-	if connErr != nil {
-		return multierror.Append(err, connErr)
-	}
-
-	copyErr := CopyMasterDirectoryToSegmentDirectories(agentConns, h.target, destinationDirName)
+	copyErr := CopyMasterDirectoryToSegmentDirectories(h.agentConns, h.target, destinationDirName)
 	if copyErr != nil {
 		return multierror.Append(err, copyErr)
 	}

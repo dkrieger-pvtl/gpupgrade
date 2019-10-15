@@ -34,19 +34,14 @@ func (h *Hub) ExecuteUpgradePrimariesSubStep(stream messageSender) error {
 }
 
 func (h *Hub) convertPrimaries() error {
-	agentConns, err := h.AgentConns()
-	if err != nil {
-		return errors.Wrap(err, "failed to connect to gpupgrade_agent")
-	}
-
 	dataDirPair, err := h.getDataDirPairs()
 	if err != nil {
 		return errors.Wrap(err, "failed to get old and new primary data directories")
 	}
 
 	wg := sync.WaitGroup{}
-	agentErrs := make(chan error, len(agentConns))
-	for _, agentConn := range agentConns {
+	agentErrs := make(chan error, len(h.agentConns))
+	for _, agentConn := range h.agentConns {
 		wg.Add(1)
 
 		go func(conn *Connection) {

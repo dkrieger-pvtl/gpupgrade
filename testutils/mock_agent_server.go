@@ -52,9 +52,16 @@ func NewMockAgentServer() (*MockAgentServer, services.Dialer, int) {
 
 	// Target this running server during dial.
 	port := lis.Addr().(*net.TCPAddr).Port
-	dialer := func(ctx context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		authority := fmt.Sprintf("127.0.0.1:%d", port)
-		return grpc.DialContext(ctx, authority, opts...)
+	//dialer := func(ctx context.Context, _ string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	//	authority := fmt.Sprintf("127.0.0.1:%d", port)
+	//	return grpc.DialContext(ctx, authority, opts...)
+	//}
+
+	dialer := func(ctx context.Context, address string) (net.Conn, error) {
+		port := lis.Addr().(*net.TCPAddr).Port
+		address = fmt.Sprintf("127.0.0.1:%d", port)
+		d := net.Dialer{}
+		return d.DialContext(ctx, "tcp", address)
 	}
 
 	return mockServer, dialer, port

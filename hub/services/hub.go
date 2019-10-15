@@ -6,23 +6,21 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
+	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/greenplum-db/gpupgrade/hub/upgradestatus"
+	"github.com/greenplum-db/gpupgrade/hub/upgradestatus/file"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/daemon"
 	"github.com/greenplum-db/gpupgrade/utils/log"
-
-	"github.com/pkg/errors"
-
-	"github.com/greenplum-db/gp-common-go-libs/gplog"
-	"github.com/greenplum-db/gpupgrade/hub/upgradestatus/file"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/reflection"
 )
 
 var DialTimeout = 3 * time.Second
@@ -30,7 +28,7 @@ var DialTimeout = 3 * time.Second
 // Returned from Hub.Start() if Hub.Stop() has already been called.
 var ErrHubStopped = errors.New("hub is stopped")
 
-type Dialer func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+type Dialer func(ctx context.Context, address string) (net.Conn, error)
 
 type Hub struct {
 	conf *HubConfig
@@ -38,7 +36,7 @@ type Hub struct {
 	agentConns []*Connection
 	source     *utils.Cluster
 	target     *utils.Cluster
-	grpcDialer Dialer
+	dialer     Dialer
 	checklist  upgradestatus.Checklist
 
 	mu     sync.Mutex
@@ -71,14 +69,14 @@ type HubConfig struct {
 	LogDir         string
 }
 
-func NewHub(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, grpcDialer Dialer, conf *HubConfig, checklist upgradestatus.Checklist) *Hub {
+func NewHub(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, dialer Dialer, conf *HubConfig, checklist upgradestatus.Checklist) *Hub {
 	h := &Hub{
-		stopped:    make(chan struct{}, 1),
-		conf:       conf,
-		source:     sourceCluster,
-		target:     targetCluster,
-		grpcDialer: grpcDialer,
-		checklist:  checklist,
+		stopped:   make(chan struct{}, 1),
+		conf:      conf,
+		source:    sourceCluster,
+		target:    targetCluster,
+		dialer:    dialer,
+		checklist: checklist,
 	}
 
 	return h
@@ -149,7 +147,7 @@ func (h *Hub) Stop() {
 	h.stopped = nil
 }
 
-func (h *Hub) AgentConns() ([]*Connection, error) {
+func (h *Hub) AgentConns(dialer Dialer) ([]*Connection, error) {
 	// Lock the mutex to protect against races with Hub.Stop().
 	// XXX This is a *ridiculously* broad lock. Have fun waiting for the dial
 	// timeout when calling Stop() and AgentConns() at the same time, for
@@ -158,29 +156,26 @@ func (h *Hub) AgentConns() ([]*Connection, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if h.agentConns != nil {
-		err := EnsureConnsAreReady(h.agentConns)
-		if err != nil {
-			gplog.Error("ensureConnsAreReady failed: %s", err)
-			return nil, err
-		}
-
-		return h.agentConns, nil
-	}
-
 	hostnames := h.source.PrimaryHostnames()
+	agentConns := make([]*Connection, 0, len(hostnames))
+
 	for _, host := range hostnames {
+		address := host + ":" + strconv.Itoa(h.conf.HubToAgentPort)
 		ctx, cancelFunc := context.WithTimeout(context.Background(), DialTimeout)
-		conn, err := h.grpcDialer(ctx,
-			host+":"+strconv.Itoa(h.conf.HubToAgentPort),
-			grpc.WithInsecure(), grpc.WithBlock())
-		if err != nil {
-			err = errors.Errorf("grpcDialer failed: %s", err.Error())
-			gplog.Error(err.Error())
-			cancelFunc()
-			return nil, err
+		opts := []grpc.DialOption{
+			grpc.WithBlock(),
+			grpc.WithInsecure(),
+			grpc.WithContextDialer(dialer),
+			//grpc.FailOnNonTempDialError(true),
 		}
-		h.agentConns = append(h.agentConns, &Connection{
+		conn, err := grpc.DialContext(ctx, address, opts...)
+		if err != nil {
+			cancelFunc()
+			gplog.Error("failed to dial agent connection to %s: %+v", host, err)
+			return nil, xerrors.Errorf("failed to dial agent %w", err)
+		}
+
+		agentConns = append(agentConns, &Connection{
 			Conn:          conn,
 			AgentClient:   idl.NewAgentClient(conn),
 			Hostname:      host,
@@ -188,22 +183,7 @@ func (h *Hub) AgentConns() ([]*Connection, error) {
 		})
 	}
 
-	return h.agentConns, nil
-}
-
-func EnsureConnsAreReady(agentConns []*Connection) error {
-	hostnames := []string{}
-	for _, conn := range agentConns {
-		if conn.Conn.GetState() != connectivity.Ready {
-			hostnames = append(hostnames, conn.Hostname)
-		}
-	}
-
-	if len(hostnames) > 0 {
-		return fmt.Errorf("the connections to the following hosts were not ready: %s", strings.Join(hostnames, ","))
-	}
-
-	return nil
+	return agentConns, nil
 }
 
 // Closes all h.agentConns. Callers must hold the Hub's mutex.
