@@ -1,154 +1,189 @@
-package services_test
+package services
 
 import (
 	"database/sql/driver"
 	"fmt"
-	"net"
-	"os"
-
+	"github.com/golang/mock/gomock"
+	"github.com/greenplum-db/gp-common-go-libs/cluster"
+	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
-	"github.com/greenplum-db/gpupgrade/hub/services"
-	"github.com/greenplum-db/gpupgrade/testutils"
+	"io/ioutil"
+	"log"
+	"os"
+	"testing"
+
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
+	"gopkg.in/DATA-DOG/go-sqlmock.v1"
+
+	as "github.com/greenplum-db/gpupgrade/agent/services"
+	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/utils"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
-	"golang.org/x/net/context"
-	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 )
 
-var _ = Describe("Hub prepare init-cluster", func() {
-	var (
-		segDataDirMap map[string][]string
-		testExecutor  *testhelper.TestExecutor
-	)
+func TestInitTargetCluster(t *testing.T) {
+	g := NewGomegaWithT(t)
+	ctrl := gomock.NewController(GinkgoT())
+	defer ctrl.Finish()
 
-	BeforeEach(func() {
-		testExecutor = &testhelper.TestExecutor{}
+	hasServerStarted := make(chan bool, 1)
+	listener := bufconn.Listen(1024 * 1024)
+	agentServer := grpc.NewServer()
+	defer agentServer.Stop() // TODO: why does this hang
 
-		segDataDirMap = map[string][]string{
-			"host1": {fmt.Sprintf("%s_upgrade", dir)},
-			"host2": {fmt.Sprintf("%s_upgrade", dir)},
+	idl.RegisterAgentServer(agentServer, &as.AgentServer{})
+	go func() {
+		hasServerStarted <- true
+		if err := agentServer.Serve(listener); err != nil {
+			log.Fatalf("Server exited with error: %v", err)
 		}
+	}()
 
-		source.Executor = testExecutor
-		cm := testutils.NewMockChecklistManager()
+	<-hasServerStarted
 
-		dialer := func(ctx context.Context, address string) (net.Conn, error) {
-			d := net.Dialer{}
-			return d.DialContext(ctx, "tcp", address)
+
+	_, _, _ = testhelper.SetupTestLogger() // Store gplog output.
+
+	dbConn, sqlMock := testhelper.CreateAndConnectMockDB(1)
+
+	dir, _ := ioutil.TempDir("", "")
+
+	sourceCluster := cluster.NewCluster([]cluster.SegConfig{
+		cluster.SegConfig{ContentID: -1, DbID: 1, Port: 15432, Hostname: "localhost", DataDir: fmt.Sprintf("%s/seg-1", dir)},
+		cluster.SegConfig{ContentID: 0, DbID: 2, Port: 25432, Hostname: "host1", DataDir: fmt.Sprintf("%s/seg1", dir)},
+		cluster.SegConfig{ContentID: 1, DbID: 3, Port: 25433, Hostname: "host2", DataDir: fmt.Sprintf("%s/seg2", dir)},
+	})
+	source := &utils.Cluster{
+		Cluster:    sourceCluster,
+		BinDir:     "/source/bindir",
+		ConfigPath: "my/config/path",
+		Version:    dbconn.GPDBVersion{},
+	}
+
+	targetCluster := cluster.NewCluster([]cluster.SegConfig{})
+	target := &utils.Cluster{
+		Cluster:    targetCluster,
+		BinDir:     "/target/bindir",
+		ConfigPath: "my/config/path",
+		Version:    dbconn.GPDBVersion{},
+	}
+
+
+
+	hubConf := &HubConfig{
+		HubToAgentPort: -1,
+		StateDir:       dir,
+	}
+
+	hub := NewHub(source, target, hubConf, nil)
+
+	expectedSegDataDirMap := map[string][]string{
+		"host1": {fmt.Sprintf("%s_upgrade", dir)},
+		"host2": {fmt.Sprintf("%s_upgrade", dir)},
+	}
+
+	t.Run("CreateInitialInitsystemConfig: successfully get initial gpinitsystem config array", func(t *testing.T) {
+		utils.System.Hostname = func() (string, error) {
+			return "mdw", nil
 		}
-		hub = services.NewHub(source, target, dialer, hubConf, cm)
+		expectedConfig := []string{
+			`ARRAY_NAME="gp_upgrade cluster"`, "SEG_PREFIX=seg",
+			"TRUSTED_SHELL=ssh"}
+		gpinitsystemConfig, err := hub.CreateInitialInitsystemConfig()
+		g.Expect(err).To(BeNil())
+		g.Expect(gpinitsystemConfig).To(Equal(expectedConfig))
 	})
 
-	Describe("CreateInitialInitsystemConfig", func() {
-		It("successfully get initial gpinitsystem config array", func() {
-			utils.System.Hostname = func() (string, error) {
-				return "mdw", nil
-			}
-			expectedConfig := []string{
-				`ARRAY_NAME="gp_upgrade cluster"`, "SEG_PREFIX=seg",
-				"TRUSTED_SHELL=ssh"}
-			gpinitsystemConfig, err := hub.CreateInitialInitsystemConfig()
-			Expect(err).To(BeNil())
-			Expect(gpinitsystemConfig).To(Equal(expectedConfig))
-		})
-	})
-	Describe("GetCheckpointSegmentsAndEncoding", func() {
-		It("successfully get the GUC values", func() {
-			checkpointRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("8"))
-			encodingRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("UNICODE"))
-			mock.ExpectQuery("SELECT .*checkpoint.*").WillReturnRows(checkpointRow)
-			mock.ExpectQuery("SELECT .*server.*").WillReturnRows(encodingRow)
-			expectedConfig := []string{"CHECK_POINT_SEGMENTS=8", "ENCODING=UNICODE"}
-			gpinitsystemConfig, err := services.GetCheckpointSegmentsAndEncoding([]string{}, dbConnector)
-			Expect(err).To(BeNil())
-			Expect(gpinitsystemConfig).To(Equal(expectedConfig))
-		})
+	t.Run("GetCheckpointSegmentsAndEncoding: successfully get the GUC values", func(t *testing.T) {
+		checkpointRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("8"))
+		encodingRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("UNICODE"))
+		sqlMock.ExpectQuery("SELECT .*checkpoint.*").WillReturnRows(checkpointRow)
+		sqlMock.ExpectQuery("SELECT .*server.*").WillReturnRows(encodingRow)
+		expectedConfig := []string{"CHECK_POINT_SEGMENTS=8", "ENCODING=UNICODE"}
+		gpinitsystemConfig, err := GetCheckpointSegmentsAndEncoding([]string{}, dbConn)
+		g.Expect(err).To(BeNil())
+		g.Expect(gpinitsystemConfig).To(Equal(expectedConfig))
 	})
 
-	Describe("DeclareDataDirectories", func() {
-		It("successfully declares all directories", func() {
-			expectedConfig := []string{fmt.Sprintf("QD_PRIMARY_ARRAY=localhost~15433~%[1]s_upgrade/seg-1~1~-1~0", dir),
-				fmt.Sprintf(`declare -a PRIMARY_ARRAY=(
+	t.Run("DeclareDataDirectories: successfully declares all directories", func(t *testing.T) {
+		expectedConfig := []string{fmt.Sprintf("QD_PRIMARY_ARRAY=localhost~15433~%[1]s_upgrade/seg-1~1~-1~0", dir),
+			fmt.Sprintf(`declare -a PRIMARY_ARRAY=(
 	host1~29432~%[1]s_upgrade/seg1~2~0~0
 	host2~29433~%[1]s_upgrade/seg2~3~1~0
 )`, dir)}
-			resultConfig, resultMap, port := hub.DeclareDataDirectories([]string{})
-			Expect(resultMap).To(Equal(segDataDirMap))
-			Expect(resultConfig).To(Equal(expectedConfig))
-			Expect(port).To(Equal(15433))
-		})
-	})
-	Describe("CreateAllDataDirectories", func() {
-		It("successfully creates all directories", func() {
-			statCalls := []string{}
-			mkdirCalls := []string{}
-			utils.System.Stat = func(name string) (os.FileInfo, error) {
-				statCalls = append(statCalls, name)
-				return nil, os.ErrNotExist
-			}
-			utils.System.MkdirAll = func(path string, perm os.FileMode) error {
-				mkdirCalls = append(mkdirCalls, path)
-				return nil
-			}
-			fakeConns := []*services.Connection{}
-			err := hub.CreateAllDataDirectories(fakeConns, segDataDirMap)
-			Expect(err).To(BeNil())
-			Expect(statCalls).To(Equal([]string{fmt.Sprintf("%s_upgrade", dir)}))
-			Expect(mkdirCalls).To(Equal([]string{fmt.Sprintf("%s_upgrade", dir)}))
-		})
-		It("cannot stat the master data directory", func() {
-			utils.System.Stat = func(name string) (os.FileInfo, error) {
-				return nil, errors.New("permission denied")
-			}
-			fakeConns := []*services.Connection{}
-			expectedErr := errors.Errorf("Error statting new directory %s_upgrade: permission denied", dir)
-			err := hub.CreateAllDataDirectories(fakeConns, segDataDirMap)
-			Expect(err.Error()).To(Equal(expectedErr.Error()))
-		})
-		It("cannot create the master data directory", func() {
-			utils.System.Stat = func(name string) (os.FileInfo, error) {
-				return nil, os.ErrNotExist
-			}
-			utils.System.MkdirAll = func(path string, perm os.FileMode) error {
-				return errors.New("permission denied")
-			}
-			fakeConns := []*services.Connection{}
-			expectedErr := errors.New("Could not create new directory: permission denied")
-			err := hub.CreateAllDataDirectories(fakeConns, segDataDirMap)
-			Expect(err.Error()).To(Equal(expectedErr.Error()))
-		})
-		It("cannot create the segment data directories", func() {
-			utils.System.Stat = func(name string) (os.FileInfo, error) {
-				return nil, os.ErrNotExist
-			}
-			utils.System.MkdirAll = func(path string, perm os.FileMode) error {
-				return nil
-			}
-
-			createErr := errors.New("could not create directories")
-			mockAgent.Err <- createErr
-			badConnection, _ := dialer(context.Background(), "dummy")
-			fakeConns := []*services.Connection{{&badConnection, nil, "localhost", func() {}}}
-
-			err := hub.CreateAllDataDirectories(fakeConns, segDataDirMap)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(createErr.Error()))
-		})
+		resultConfig, resultMap, port := hub.DeclareDataDirectories([]string{})
+		g.Expect(resultMap).To(Equal(expectedSegDataDirMap))
+		g.Expect(resultConfig).To(Equal(expectedConfig))
+		g.Expect(port).To(Equal(15433))
 	})
 
-	Describe("RunInitsystemForTargetCluster", func() {
+	t.Run("CreateAllDataDirectories: successfully creates all directories", func(t *testing.T) {
+		statCalls := []string{}
+		mkdirCalls := []string{}
+		utils.System.Stat = func(name string) (os.FileInfo, error) {
+			statCalls = append(statCalls, name)
+			return nil, os.ErrNotExist
+		}
+		utils.System.MkdirAll = func(path string, perm os.FileMode) error {
+			mkdirCalls = append(mkdirCalls, path)
+			return nil
+		}
+		fakeConns := []*Connection{}
+		err := hub.CreateAllDataDirectories(fakeConns, expectedSegDataDirMap)
+		g.Expect(err).To(BeNil())
+		g.Expect(statCalls).To(Equal([]string{fmt.Sprintf("%s_upgrade", dir)}))
+		g.Expect(mkdirCalls).To(Equal([]string{fmt.Sprintf("%s_upgrade", dir)}))
+	})
+
+	t.Run("CreateAllDataDirectories: cannot stat the master data directory", func(t *testing.T) {
+		utils.System.Stat = func(name string) (os.FileInfo, error) {
+			return nil, errors.New("permission denied")
+		}
+		fakeConns := []*Connection{}
+		expectedErr := errors.Errorf("Error statting new directory %s_upgrade: permission denied", dir)
+		err := hub.CreateAllDataDirectories(fakeConns, expectedSegDataDirMap)
+		g.Expect(err.Error()).To(Equal(expectedErr.Error()))
+	})
+
+	t.Run("CreateAllDataDirectories: cannot create the master data directory", func(t *testing.T) {
+		utils.System.Stat = func(name string) (os.FileInfo, error) {
+			return nil, os.ErrNotExist
+		}
+		utils.System.MkdirAll = func(path string, perm os.FileMode) error {
+			return errors.New("permission denied")
+		}
+		fakeConns := []*Connection{}
+		expectedErr := errors.New("Could not create new directory: permission denied")
+		err := hub.CreateAllDataDirectories(fakeConns, expectedSegDataDirMap)
+		g.Expect(err.Error()).To(Equal(expectedErr.Error()))
+	})
+
+	t.Run("CreateAllDataDirectories: cannot create the segment data directories", func(t *testing.T) {
+		badConnection, err := grpc.Dial("nonExistHost", grpc.WithInsecure())
+		g.Expect(err).To(Not(HaveOccurred()))
+
+		agentConns := []*Connection{{"nonExistHost:123", badConnection, func() {}}}
+
+		err = hub.CreateAllDataDirectories(agentConns, expectedSegDataDirMap)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).To(ContainSubstring("Error creating segment data directories"))
+	})
+
+	t.Run("RunInitsystemForTargetCluster", func(t *testing.T) {
 		// XXX: See other test file that is in package services which enables us to test execCommand.
 	})
 
-	Describe("GetMasterSegPrefix", func() {
+	t.Run("GetMasterSegPrefix", func(t *testing.T) {
 		DescribeTable("returns a valid seg prefix given",
 			func(datadir string) {
-				segPrefix, err := services.GetMasterSegPrefix(datadir)
-				Expect(segPrefix).To(Equal("gpseg"))
-				Expect(err).ShouldNot(HaveOccurred())
+				segPrefix, err := GetMasterSegPrefix(datadir)
+				g.Expect(segPrefix).To(Equal("gpseg"))
+				g.Expect(err).ShouldNot(HaveOccurred())
 			},
 			Entry("an absolute path", "/data/master/gpseg-1"),
 			Entry("a relative path", "../master/gpseg-1"),
@@ -157,8 +192,8 @@ var _ = Describe("Hub prepare init-cluster", func() {
 
 		DescribeTable("returns errors when given",
 			func(datadir string) {
-				_, err := services.GetMasterSegPrefix(datadir)
-				Expect(err).To(HaveOccurred())
+				_, err := GetMasterSegPrefix(datadir)
+				g.Expect(err).To(HaveOccurred())
 			},
 			Entry("the empty string", ""),
 			Entry("a path without a content identifier", "/opt/myseg"),
@@ -167,5 +202,4 @@ var _ = Describe("Hub prepare init-cluster", func() {
 			Entry("a path that ends in only a content identifier", "///-1"),
 		)
 	})
-
-})
+}

@@ -4,18 +4,18 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/greenplum-db/gpupgrade/hub/services"
-	"github.com/greenplum-db/gpupgrade/testutils"
+	"github.com/pkg/errors"
 	"golang.org/x/net/context"
-
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/test/bufconn"
 
+	"github.com/greenplum-db/gpupgrade/hub/services"
 	"github.com/greenplum-db/gpupgrade/idl"
+	"github.com/greenplum-db/gpupgrade/testutils"
 	"github.com/greenplum-db/gpupgrade/utils"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 )
 
 // msgStream is a mock server stream for InitializeStep().
@@ -36,14 +36,18 @@ var _ = Describe("Hub", func() {
 		source         *utils.Cluster
 		target         *utils.Cluster
 		err            error
-		mockDialer     services.Dialer
 		mockStream     *msgStream
+		dialer         services.Dialer
 	)
 
 	BeforeEach(func() {
-		agentA, mockDialer, hubToAgentPort = testutils.NewMockAgentServer()
+		agentA, _, hubToAgentPort = testutils.NewMockAgentServer()
 		source, target = testutils.CreateMultinodeSampleClusterPair("/tmp")
 		mockStream = &msgStream{}
+		listener := bufconn.Listen(1024 * 1024)
+		dialer = func(ctx context.Context, address string) (net.Conn, error) {
+			return listener.Dial()
+		}
 	})
 
 	AfterEach(func() {
@@ -55,7 +59,7 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			CliToHubPort: cliToHubPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 
 		hub.Stop()
 		go func() {
@@ -80,7 +84,7 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			CliToHubPort: cliToHubPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 
 		go func() {
 			err = hub.Start()
@@ -96,7 +100,7 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			CliToHubPort: cliToHubPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 		done := make(chan bool, 1)
 
 		go func() {
@@ -112,11 +116,11 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			HubToAgentPort: hubToAgentPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 		go hub.Start()
 
 		By("creating connections")
-		conns, err := hub.AgentConns()
+		conns, err := hub.AgentConns(dialer)
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, conn := range conns {
@@ -136,9 +140,9 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			HubToAgentPort: hubToAgentPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 
-		conns, err := hub.AgentConns()
+		conns, err := hub.AgentConns(dialer)
 		Expect(err).ToNot(HaveOccurred())
 
 		for _, conn := range conns {
@@ -156,12 +160,12 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			HubToAgentPort: hubToAgentPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 
-		newConns, err := hub.AgentConns()
+		newConns, err := hub.AgentConns(dialer)
 		Expect(err).ToNot(HaveOccurred())
 
-		savedConns, err := hub.AgentConns()
+		savedConns, err := hub.AgentConns(dialer)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(newConns).To(ConsistOf(savedConns))
@@ -172,9 +176,9 @@ var _ = Describe("Hub", func() {
 		hubConfig := &services.HubConfig{
 			HubToAgentPort: hubToAgentPort,
 		}
-		hub := services.NewHub(source, target, mockDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 
-		conns, err := hub.AgentConns()
+		conns, err := hub.AgentConns(dialer)
 		Expect(err).ToNot(HaveOccurred())
 
 		agentA.Stop()
@@ -183,12 +187,12 @@ var _ = Describe("Hub", func() {
 			Eventually(func() connectivity.State { return conn.Conn.GetState() }).Should(Equal(connectivity.TransientFailure))
 		}
 
-		_, err = hub.AgentConns()
+		_, err = hub.AgentConns(dialer)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("returns an error if any connections have non-ready states when first dialing", func() {
-		errDialer := func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+		errDialer := func(ctx context.Context, target string) (net.Conn, error) {
 			return nil, errors.New("grpc dialer error")
 		}
 
@@ -196,9 +200,9 @@ var _ = Describe("Hub", func() {
 			HubToAgentPort: hubToAgentPort,
 		}
 
-		hub := services.NewHub(source, target, errDialer, hubConfig, nil)
+		hub := services.NewHub(source, target, hubConfig, nil)
 
-		_, err := hub.AgentConns()
+		_, err := hub.AgentConns(errDialer)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -207,7 +211,7 @@ var _ = Describe("Hub", func() {
 			CliToHubPort: cliToHubPort,
 		}
 		mockChecklistManager := testutils.NewMockChecklistManager()
-		hub := services.NewHub(source, target, mockDialer, hubConfig, mockChecklistManager)
+		hub := services.NewHub(source, target, hubConfig, mockChecklistManager)
 		hub.InitializeStep("dub-step", mockStream)
 
 		Expect(mockChecklistManager.GetStepReader("dub-step").Status()).To(Equal(idl.StepStatus_RUNNING))
@@ -221,7 +225,7 @@ var _ = Describe("Hub", func() {
 		mockChecklistManager := testutils.NewMockChecklistManager()
 		mockChecklistManager.StepWriter.ResetStateDirErr = errors.New("permission denied")
 
-		hub := services.NewHub(source, target, mockDialer, hubConfig, mockChecklistManager)
+		hub := services.NewHub(source, target, hubConfig, mockChecklistManager)
 		_, err := hub.InitializeStep("dub-step", mockStream)
 
 		Expect(err).To(HaveOccurred())
@@ -236,7 +240,7 @@ var _ = Describe("Hub", func() {
 		mockChecklistManager := testutils.NewMockChecklistManager()
 		mockChecklistManager.StepWriter.MarkInProgressErr = errors.New("EAGAIN")
 
-		hub := services.NewHub(source, target, mockDialer, hubConfig, mockChecklistManager)
+		hub := services.NewHub(source, target, hubConfig, mockChecklistManager)
 		_, err := hub.InitializeStep("dub-step", mockStream)
 
 		Expect(err).To(HaveOccurred())
@@ -251,7 +255,7 @@ var _ = Describe("Hub", func() {
 		mockChecklistManager := testutils.NewMockChecklistManager()
 		mockChecklistManager.StepWriter.MarkCompleteErr = errors.New("ENOENT")
 
-		hub := services.NewHub(source, target, mockDialer, hubConfig, mockChecklistManager)
+		hub := services.NewHub(source, target, hubConfig, mockChecklistManager)
 		step, err := hub.InitializeStep("dub-step", mockStream)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -269,7 +273,7 @@ var _ = Describe("Hub", func() {
 		mockChecklistManager := testutils.NewMockChecklistManager()
 		mockChecklistManager.StepWriter.MarkFailedErr = errors.New("EPERM")
 
-		hub := services.NewHub(source, target, mockDialer, hubConfig, mockChecklistManager)
+		hub := services.NewHub(source, target, hubConfig, mockChecklistManager)
 		step, err := hub.InitializeStep("dub-step", mockStream)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -285,7 +289,7 @@ var _ = Describe("Hub", func() {
 			CliToHubPort: cliToHubPort,
 		}
 		mockChecklistManager := testutils.NewMockChecklistManager()
-		hub := services.NewHub(source, target, mockDialer, hubConfig, mockChecklistManager)
+		hub := services.NewHub(source, target, hubConfig, mockChecklistManager)
 
 		step, err := hub.InitializeStep("dub-step", mockStream)
 		Expect(err).ToNot(HaveOccurred())

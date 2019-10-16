@@ -66,22 +66,22 @@ func CopyMasterDirectoryToSegmentDirectories(agentConns []*Connection, target *u
 	errMsg := "Error copying master data directory to segment data directories"
 	wg := sync.WaitGroup{}
 	errChan := make(chan error, len(agentConns))
-	for _, agentConn := range agentConns {
+	for _, conn := range agentConns {
 		wg.Add(1)
 		go func(c *Connection) {
 			defer wg.Done()
 
-			_, err := agentConn.AgentClient.CopyMasterDirectoryToSegmentDirectories(context.Background(),
+			_, err := idl.NewAgentClient(conn.Conn).CopyMasterDirectoryToSegmentDirectories(context.Background(),
 				&idl.CopyMasterDirRequest{
 					MasterDir: destinationDirName,
-					Datadirs:  segmentDataDirMap[c.Hostname],
+					Datadirs:  segmentDataDirMap[conn.Hostname],
 				})
 
 			if err != nil {
-				gplog.Error("%s on host %s: %s", errMsg, c.Hostname, err.Error())
+				gplog.Error("%s on host %s: %s", errMsg, conn.Hostname, err.Error())
 				errChan <- err
 			}
-		}(agentConn)
+		}(conn)
 	}
 
 	wg.Wait()

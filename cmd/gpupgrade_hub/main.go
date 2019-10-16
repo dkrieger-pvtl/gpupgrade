@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -83,12 +81,7 @@ func main() {
 
 			cm := upgradestatus.NewChecklistManager(conf.StateDir)
 
-			var dialer = func(ctx context.Context, address string) (net.Conn, error) {
-				d := net.Dialer{}
-				return d.DialContext(ctx, "tcp", address)
-			}
-
-			hub := services.NewHub(source, target, dialer, conf, cm)
+			hub := services.NewHub(source, target, conf, cm)
 
 			// Set up the checklist steps in order.
 			//

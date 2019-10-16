@@ -24,7 +24,7 @@ func (h *Hub) ExecuteUpgradePrimariesSubStep(stream messageSender) error {
 	sendStatus(stream, step, idl.StepStatus_RUNNING)
 
 	status := idl.StepStatus_COMPLETE
-	err := h.convertPrimaries()
+	err := h.convertPrimaries(h.agentConns)
 	if err != nil {
 		status = idl.StepStatus_FAILED
 	}
@@ -33,31 +33,31 @@ func (h *Hub) ExecuteUpgradePrimariesSubStep(stream messageSender) error {
 	return err
 }
 
-func (h *Hub) convertPrimaries() error {
+func (h *Hub) convertPrimaries(agentConns []*Connection) error {
 	dataDirPair, err := h.getDataDirPairs()
 	if err != nil {
 		return errors.Wrap(err, "failed to get old and new primary data directories")
 	}
 
 	wg := sync.WaitGroup{}
-	agentErrs := make(chan error, len(h.agentConns))
-	for _, agentConn := range h.agentConns {
+	agentErrs := make(chan error, len(agentConns))
+	for _, conn := range h.agentConns {
 		wg.Add(1)
 
 		go func(conn *Connection) {
 			defer wg.Done()
 
-			_, err := idl.NewAgentClient(conn.Conn).AgentExecuteUpgradePrimariesSubStep(context.Background(), &idl.UpgradePrimariesRequest{
-				OldBinDir:    h.source.BinDir,
-				NewBinDir:    h.target.BinDir,
-				NewVersion:   h.target.Version.SemVer.String(),
-				DataDirPairs: dataDirPair[conn.Hostname],
+			_, err := idl.NewAgentClient(conn.Conn).AgentExecuteUpgradePrimariesSubStep(context.Background(),
+				&idl.UpgradePrimariesRequest{
+					OldBinDir:    h.source.BinDir,
+					NewBinDir:    h.target.BinDir,
+					NewVersion:   h.target.Version.SemVer.String(),
+					DataDirPairs: dataDirPair[conn.Hostname],
 			})
-
 			if err != nil {
 				agentErrs <- errors.Wrapf(err, "gpupgrade_agent failed to convert primary segment on host %s", conn.Hostname)
 			}
-		}(agentConn)
+		}(conn)
 	}
 
 	wg.Wait()

@@ -25,7 +25,6 @@ var (
 	dbConnector *dbconn.DBConn
 	mock        sqlmock.Sqlmock
 	mockAgent   *testutils.MockAgentServer
-	dialer      services.Dialer
 	client      *mock_idl.MockAgentClient
 	cm          *testutils.MockChecklistManager
 	port        int
@@ -56,13 +55,13 @@ var _ = BeforeEach(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	source, target = testutils.CreateMultinodeSampleClusterPair(dir)
-	mockAgent, dialer, port = testutils.NewMockAgentServer()
+	mockAgent, _, port = testutils.NewMockAgentServer()
 	client = mock_idl.NewMockAgentClient(ctrl)
 	hubConf = &services.HubConfig{
 		HubToAgentPort: port,
 		StateDir:       dir,
 	}
-	hub = services.NewHub(source, target, dialer, hubConf, cm)
+	hub = services.NewHub(source, target, hubConf, cm)
 })
 
 var _ = AfterEach(func() {

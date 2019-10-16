@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"errors"
+	"google.golang.org/grpc"
 
 	"github.com/golang/mock/gomock"
 
@@ -20,9 +21,14 @@ var _ = Describe("hub", func() {
 	)
 
 	BeforeEach(func() {
+		conn1, err := grpc.Dial("host1", grpc.WithInsecure())
+		Expect(err).To(Not(HaveOccurred()))
+		conn2, err := grpc.Dial("hos2", grpc.WithInsecure())
+		Expect(err).To(Not(HaveOccurred()))
+
 		agentConnections = []*services.Connection{
-			{nil, client, "host1", nil},
-			{nil, client, "host2", nil},
+			{"host1", conn1, nil},
+			{"host2", conn2, nil},
 		}
 	})
 

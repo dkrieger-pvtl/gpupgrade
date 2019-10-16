@@ -210,23 +210,22 @@ func GetMasterSegPrefix(datadir string) (string, error) {
 func CreateSegmentDataDirectories(agentConns []*Connection, dataDirMap map[string][]string) error {
 	wg := sync.WaitGroup{}
 	errChan := make(chan error, len(agentConns))
-	for _, agentConn := range agentConns {
+	for _, conn := range agentConns {
 		wg.Add(1)
 		go func(c *Connection) {
 			defer wg.Done()
 
-			client := idl.NewAgentClient(c.Conn)
-			_, err := client.CreateSegmentDataDirectories(context.Background(),
+			_, err := idl.NewAgentClient(conn.Conn).CreateSegmentDataDirectories(context.Background(),
 				&idl.CreateSegmentDataDirRequest{
-					Datadirs: dataDirMap[c.Hostname],
+					Datadirs: dataDirMap[conn.Hostname],
 				})
 
 			if err != nil {
 				gplog.Error("Error creating segment data directories on host %s: %s",
-					c.Hostname, err.Error())
+					conn.Hostname, err.Error())
 				errChan <- err
 			}
-		}(agentConn)
+		}(conn)
 	}
 
 	wg.Wait()

@@ -38,7 +38,7 @@ var _ = Describe("status upgrade", func() {
 		cm.AddStep(upgradestatus.UPGRADE_PRIMARIES, idl.UpgradeSteps_UPGRADE_PRIMARIES)
 		cm.AddStep(upgradestatus.RECONFIGURE_PORTS, idl.UpgradeSteps_RECONFIGURE_PORTS)
 
-		hub = services.NewHub(source, target, dialer, hubConf, cm)
+		hub = services.NewHub(source, target, hubConf, cm)
 	})
 
 	It("responds with the statuses of the steps based on checklist state", func() {

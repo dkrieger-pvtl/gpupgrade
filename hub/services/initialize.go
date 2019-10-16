@@ -1,7 +1,9 @@
 package services
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,8 +29,13 @@ func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initiali
 
 	err = h.startAgentsSubStep(stream)
 
+	dialer := func(ctx context.Context, address string) (net.Conn, error) {
+		d := net.Dialer{}
+		return d.DialContext(ctx, "tcp", address)
+	}
+
 	if h.agentConns == nil {
-		agentConns, err := h.AgentConns(h.dialer)
+		agentConns, err := h.AgentConns(dialer)
 		if err != nil {
 			return xerrors.Errorf("failed to get agent connections %w", err)
 		}

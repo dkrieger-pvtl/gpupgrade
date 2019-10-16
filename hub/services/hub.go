@@ -28,15 +28,12 @@ var DialTimeout = 3 * time.Second
 // Returned from Hub.Start() if Hub.Stop() has already been called.
 var ErrHubStopped = errors.New("hub is stopped")
 
-type Dialer func(ctx context.Context, address string) (net.Conn, error)
-
 type Hub struct {
 	conf *HubConfig
 
 	agentConns []*Connection
 	source     *utils.Cluster
 	target     *utils.Cluster
-	dialer     Dialer
 	checklist  upgradestatus.Checklist
 
 	mu     sync.Mutex
@@ -56,7 +53,8 @@ type Hub struct {
 }
 
 type Connection struct {
-	AgentClient   idl.AgentClient
+	Hostname      string
+	Conn          *grpc.ClientConn
 	CancelContext func()
 }
 
@@ -67,13 +65,12 @@ type HubConfig struct {
 	LogDir         string
 }
 
-func NewHub(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, dialer Dialer, conf *HubConfig, checklist upgradestatus.Checklist) *Hub {
+func NewHub(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, conf *HubConfig, checklist upgradestatus.Checklist) *Hub {
 	h := &Hub{
 		stopped:   make(chan struct{}, 1),
 		conf:      conf,
 		source:    sourceCluster,
 		target:    targetCluster,
-		dialer:    dialer,
 		checklist: checklist,
 	}
 
@@ -145,6 +142,8 @@ func (h *Hub) Stop() {
 	h.stopped = nil
 }
 
+type Dialer func(ctx context.Context, address string) (net.Conn, error)
+
 func (h *Hub) AgentConns(dialer Dialer) ([]*Connection, error) {
 	// Lock the mutex to protect against races with Hub.Stop().
 	// XXX This is a *ridiculously* broad lock. Have fun waiting for the dial
@@ -174,9 +173,8 @@ func (h *Hub) AgentConns(dialer Dialer) ([]*Connection, error) {
 		}
 
 		agentConns = append(agentConns, &Connection{
-			Conn:          conn,
-			AgentClient:   idl.NewAgentClient(conn),
 			Hostname:      host,
+			Conn:          conn,
 			CancelContext: cancelFunc,
 		})
 	}

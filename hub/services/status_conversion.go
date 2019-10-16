@@ -26,9 +26,9 @@ func (h *Hub) StatusConversion(ctx context.Context, in *idl.StatusConversionRequ
 
 // Helper function to make grpc calls to all agents on primaries for their status
 // TODO: Check conversion statuses in parallel
-func GetConversionStatusFromPrimaries(conns []*Connection, source *utils.Cluster) ([]*idl.PrimaryStatus, error) {
+func GetConversionStatusFromPrimaries(agentConns []*Connection, source *utils.Cluster) ([]*idl.PrimaryStatus, error) {
 	var statuses []*idl.PrimaryStatus
-	for _, conn := range conns {
+	for _, conn := range agentConns {
 		// Build a list of segments on the host in which the agent resides on.
 		var agentSegments []*idl.SegmentInfo
 
@@ -45,7 +45,7 @@ func GetConversionStatusFromPrimaries(conns []*Connection, source *utils.Cluster
 			})
 		}
 
-		status, err := conn.AgentClient.CheckConversionStatus(context.Background(), &idl.CheckConversionStatusRequest{
+		status, err := idl.NewAgentClient(conn.Conn).CheckConversionStatus(context.Background(), &idl.CheckConversionStatusRequest{
 			Segments: agentSegments,
 			Hostname: conn.Hostname,
 		})
