@@ -16,7 +16,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-func (h *Hub) CopyMasterDataDir(stream messageSender, log io.Writer) error {
+func (h *Hub) CopyMasterDataDir(stream messageSender, log io.Writer, args ...string) error {
 	var err error
 	rsyncFlags := "-rzpogt"
 

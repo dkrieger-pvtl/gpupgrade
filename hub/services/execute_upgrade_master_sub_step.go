@@ -2,19 +2,25 @@ package services
 
 import (
 	"fmt"
-	"github.com/greenplum-db/gpupgrade/idl"
-	"github.com/greenplum-db/gpupgrade/utils"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+
+	"github.com/greenplum-db/gpupgrade/idl"
+	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 // Allow exec.Command to be mocked out by exectest.NewCommand.
 var execCommand = exec.Command
 
-func (h *Hub) UpgradeMaster(stream messageSender, log io.Writer) error {
+const (
+	MASTER_CHECK   = "MASTER_CHECK"
+	MASTER_UPGRADE = "MASTER_UPGRADE"
+)
+
+func (h *Hub) UpgradeMaster(stream messageSender, log io.Writer, args ...string) error {
 	// Make sure our working directory exists.
 	wd := utils.MasterPGUpgradeDirectory(h.conf.StateDir)
 	err := utils.System.MkdirAll(wd, 0700)
@@ -23,7 +29,7 @@ func (h *Hub) UpgradeMaster(stream messageSender, log io.Writer) error {
 	}
 
 	pair := clusterPair{h.source, h.target}
-	return pair.ConvertMaster(stream, log, wd)
+	return pair.ConvertMaster(stream, log, wd, args[0])
 }
 
 // clusterPair simply holds the source and target clusters.
@@ -40,11 +46,11 @@ type clusterPair struct {
 // Errors when writing to the io.Writer are fatal, but errors encountered during
 // gRPC streaming are logged and otherwise ignored. The pg_upgrade execution
 // will continue even if the client disconnects.
-func (c clusterPair) ConvertMaster(stream messageSender, out io.Writer, wd string) error {
+func (c clusterPair) ConvertMaster(stream messageSender, out io.Writer, wd string, which string) error {
 	mux := newMultiplexedStream(stream, out)
 
 	path := filepath.Join(c.Target.BinDir, "pg_upgrade")
-	cmd := execCommand(path,
+	args := []string{
 		"--old-bindir", c.Source.BinDir,
 		"--old-datadir", c.Source.MasterDataDir(),
 		"--old-port", strconv.Itoa(c.Source.MasterPort()),
@@ -52,7 +58,11 @@ func (c clusterPair) ConvertMaster(stream messageSender, out io.Writer, wd strin
 		"--new-datadir", c.Target.MasterDataDir(),
 		"--new-port", strconv.Itoa(c.Target.MasterPort()),
 		"--mode=dispatcher",
-	)
+	}
+	if which == MASTER_CHECK {
+		args = append(args, "--check")
+	}
+	cmd := execCommand(path, args...)
 
 	cmd.Stdout = mux.NewStreamWriter(idl.Chunk_STDOUT)
 	cmd.Stderr = mux.NewStreamWriter(idl.Chunk_STDERR)

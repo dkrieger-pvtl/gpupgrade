@@ -45,17 +45,12 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 		return xerrors.Errorf("failed writing to execute log: %w", err)
 	}
 
-	err = h.ExecuteSubStep(executeStream, upgradestatus.INIT_TARGET_CLUSTER, h.CreateTargetCluster)
+	err = h.ExecuteSubStep(executeStream, upgradestatus.SHUTDOWN_CLUSTERS, h.ShutdownClusters, SOURCE)
 	if err != nil {
 		return err
 	}
 
-	err = h.ExecuteSubStep(executeStream, upgradestatus.SHUTDOWN_CLUSTERS, h.ShutdownClusters)
-	if err != nil {
-		return err
-	}
-
-	err = h.ExecuteSubStep(executeStream, upgradestatus.UPGRADE_MASTER, h.UpgradeMaster)
+	err = h.ExecuteSubStep(executeStream, upgradestatus.UPGRADE_MASTER, h.UpgradeMaster, MASTER_UPGRADE)
 	if err != nil {
 		return err
 	}
@@ -66,8 +61,8 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 	}
 
 	err = h.ExecuteSubStep(executeStream, upgradestatus.UPGRADE_PRIMARIES,
-		func(_ messageSender, _ io.Writer) error {
-			return h.ConvertPrimaries()
+		func(_ messageSender, _ io.Writer, _ ...string) error {
+			return h.ConvertPrimaries(true)
 		})
 	if err != nil {
 		return err
@@ -77,7 +72,10 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 	return err
 }
 
-func (h *Hub) ExecuteSubStep(executeStream *ExecuteStream, subStep string, subStepFunc func(stream messageSender, log io.Writer) error) error {
+// TODO: is there a way to pass in a variadic arg but still get type checking?
+func (h *Hub) ExecuteSubStep(executeStream *ExecuteStream, subStep string,
+	subStepFunc func(stream messageSender, log io.Writer, args ...string) error,
+	args ...string) error {
 	gplog.Info("starting %s", subStep)
 	_, err := executeStream.log.Write([]byte(fmt.Sprintf("\nStarting %s...\n\n", subStep)))
 	if err != nil {
@@ -90,7 +88,7 @@ func (h *Hub) ExecuteSubStep(executeStream *ExecuteStream, subStep string, subSt
 		return err
 	}
 
-	err = subStepFunc(executeStream.stream, executeStream.log)
+	err = subStepFunc(executeStream.stream, executeStream.log, args...)
 	if err != nil {
 		gplog.Error(err.Error())
 		step.MarkFailed()

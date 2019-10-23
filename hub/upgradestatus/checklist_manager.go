@@ -12,15 +12,19 @@ import (
 )
 
 const (
-	CONFIG                 = "check-config"
-	START_AGENTS           = "start-agents"
-	INIT_TARGET_CLUSTER    = "init-target-cluster"
-	SHUTDOWN_CLUSTERS      = "shutdown-clusters"
-	UPGRADE_MASTER         = "upgrade-master"
-	COPY_MASTER            = "copy-master"
-	UPGRADE_PRIMARIES      = "upgrade-primaries"
-	START_TARGET_CLUSTER   = "start-target-cluster"
-	RECONFIGURE_PORTS      = "reconfigure-ports"
+	CONFIG                  = "check-config"
+	START_AGENTS            = "start-agents"
+	INIT_TARGET_CLUSTER     = "init-target-cluster"
+	SHUTDOWN_TARGET_CLUSTER = "shutdown-target-cluster"
+	CHECK_MASTER            = "check-master"
+	CHECK_PRIMARIES         = "check-primaries"
+	RESTART_TARGET_CLUSTER  = "restart-target-cluster"
+	SHUTDOWN_CLUSTERS       = "shutdown-clusters"
+	UPGRADE_MASTER          = "upgrade-master"
+	COPY_MASTER             = "copy-master"
+	UPGRADE_PRIMARIES       = "upgrade-primaries"
+	START_TARGET_CLUSTER    = "start-target-cluster"
+	RECONFIGURE_PORTS       = "reconfigure-ports"
 )
 
 type Checklist interface {

@@ -1,10 +1,6 @@
 package commanders
 
 import (
-	"context"
-
-	"github.com/pkg/errors"
-
 	"github.com/greenplum-db/gpupgrade/idl"
 )
 
@@ -22,13 +18,15 @@ func (req VersionChecker) Execute() (err error) {
 	s := Substep("Checking version compatibility...")
 	defer s.Finish(&err)
 
-	resp, err := req.client.CheckVersion(context.Background(), &idl.CheckVersionRequest{})
-	if err != nil {
-		return errors.Wrap(err, "gRPC call to hub failed")
-	}
-	if !resp.IsVersionCompatible {
-		return errors.New("Version Compatibility Check Failed")
-	}
+	// TODO: this should really just be checking the versions of greenplum as
+	//  reported by "postgres --gp-version" on each host
+	//resp, err := req.client.CheckVersion(context.Background(), &idl.CheckVersionRequest{})
+	//if err != nil {
+	//	return errors.Wrap(err, "gRPC call to hub failed")
+	//}
+	//if !resp.IsVersionCompatible {
+	//	return errors.New("Version Compatibility Check Failed")
+	//}
 
 	return nil
 }

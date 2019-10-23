@@ -15,6 +15,7 @@ message UpgradePrimariesRequest {
     string NewBinDir = 2;
     string NewVersion = 3;
     repeated DataDirPair DataDirPairs = 4;
+    bool CheckOnly = 5;
 }
 
 message DataDirPair {

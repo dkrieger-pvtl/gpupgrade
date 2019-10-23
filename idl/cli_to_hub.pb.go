@@ -3,13 +3,14 @@
 
 package idl
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-
 import (
-	context "golang.org/x/net/context"
+	context "context"
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
+	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,53 +22,67 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type UpgradeSteps int32
 
 const (
-	UpgradeSteps_UNKNOWN_STEP         UpgradeSteps = 0
-	UpgradeSteps_CONFIG               UpgradeSteps = 1
-	UpgradeSteps_START_AGENTS         UpgradeSteps = 2
-	UpgradeSteps_INIT_TARGET_CLUSTER  UpgradeSteps = 3
-	UpgradeSteps_SHUTDOWN_CLUSTERS    UpgradeSteps = 4
-	UpgradeSteps_UPGRADE_MASTER       UpgradeSteps = 5
-	UpgradeSteps_COPY_MASTER          UpgradeSteps = 6
-	UpgradeSteps_UPGRADE_PRIMARIES    UpgradeSteps = 7
-	UpgradeSteps_START_TARGET_CLUSTER UpgradeSteps = 8
-	UpgradeSteps_RECONFIGURE_PORTS    UpgradeSteps = 9
+	UpgradeSteps_UNKNOWN_STEP            UpgradeSteps = 0
+	UpgradeSteps_CONFIG                  UpgradeSteps = 1
+	UpgradeSteps_START_AGENTS            UpgradeSteps = 2
+	UpgradeSteps_INIT_TARGET_CLUSTER     UpgradeSteps = 3
+	UpgradeSteps_SHUTDOWN_TARGET_CLUSTER UpgradeSteps = 4
+	UpgradeSteps_CHECK_MASTER            UpgradeSteps = 5
+	UpgradeSteps_CHECK_PRIMARIES         UpgradeSteps = 6
+	UpgradeSteps_RESTART_TARGET_CLUSTER  UpgradeSteps = 7
+	UpgradeSteps_SHUTDOWN_CLUSTERS       UpgradeSteps = 8
+	UpgradeSteps_UPGRADE_MASTER          UpgradeSteps = 9
+	UpgradeSteps_COPY_MASTER             UpgradeSteps = 10
+	UpgradeSteps_UPGRADE_PRIMARIES       UpgradeSteps = 11
+	UpgradeSteps_START_TARGET_CLUSTER    UpgradeSteps = 12
+	UpgradeSteps_RECONFIGURE_PORTS       UpgradeSteps = 13
 )
 
 var UpgradeSteps_name = map[int32]string{
-	0: "UNKNOWN_STEP",
-	1: "CONFIG",
-	2: "START_AGENTS",
-	3: "INIT_TARGET_CLUSTER",
-	4: "SHUTDOWN_CLUSTERS",
-	5: "UPGRADE_MASTER",
-	6: "COPY_MASTER",
-	7: "UPGRADE_PRIMARIES",
-	8: "START_TARGET_CLUSTER",
-	9: "RECONFIGURE_PORTS",
+	0:  "UNKNOWN_STEP",
+	1:  "CONFIG",
+	2:  "START_AGENTS",
+	3:  "INIT_TARGET_CLUSTER",
+	4:  "SHUTDOWN_TARGET_CLUSTER",
+	5:  "CHECK_MASTER",
+	6:  "CHECK_PRIMARIES",
+	7:  "RESTART_TARGET_CLUSTER",
+	8:  "SHUTDOWN_CLUSTERS",
+	9:  "UPGRADE_MASTER",
+	10: "COPY_MASTER",
+	11: "UPGRADE_PRIMARIES",
+	12: "START_TARGET_CLUSTER",
+	13: "RECONFIGURE_PORTS",
 }
+
 var UpgradeSteps_value = map[string]int32{
-	"UNKNOWN_STEP":         0,
-	"CONFIG":               1,
-	"START_AGENTS":         2,
-	"INIT_TARGET_CLUSTER":  3,
-	"SHUTDOWN_CLUSTERS":    4,
-	"UPGRADE_MASTER":       5,
-	"COPY_MASTER":          6,
-	"UPGRADE_PRIMARIES":    7,
-	"START_TARGET_CLUSTER": 8,
-	"RECONFIGURE_PORTS":    9,
+	"UNKNOWN_STEP":            0,
+	"CONFIG":                  1,
+	"START_AGENTS":            2,
+	"INIT_TARGET_CLUSTER":     3,
+	"SHUTDOWN_TARGET_CLUSTER": 4,
+	"CHECK_MASTER":            5,
+	"CHECK_PRIMARIES":         6,
+	"RESTART_TARGET_CLUSTER":  7,
+	"SHUTDOWN_CLUSTERS":       8,
+	"UPGRADE_MASTER":          9,
+	"COPY_MASTER":             10,
+	"UPGRADE_PRIMARIES":       11,
+	"START_TARGET_CLUSTER":    12,
+	"RECONFIGURE_PORTS":       13,
 }
 
 func (x UpgradeSteps) String() string {
 	return proto.EnumName(UpgradeSteps_name, int32(x))
 }
+
 func (UpgradeSteps) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{0}
+	return fileDescriptor_631e66a01873be02, []int{0}
 }
 
 type StepStatus int32
@@ -87,6 +102,7 @@ var StepStatus_name = map[int32]string{
 	3: "COMPLETE",
 	4: "FAILED",
 }
+
 var StepStatus_value = map[string]int32{
 	"UNKNOWN_STATUS": 0,
 	"PENDING":        1,
@@ -98,8 +114,9 @@ var StepStatus_value = map[string]int32{
 func (x StepStatus) String() string {
 	return proto.EnumName(StepStatus_name, int32(x))
 }
+
 func (StepStatus) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{1}
+	return fileDescriptor_631e66a01873be02, []int{1}
 }
 
 type Chunk_Type int32
@@ -115,6 +132,7 @@ var Chunk_Type_name = map[int32]string{
 	1: "STDOUT",
 	2: "STDERR",
 }
+
 var Chunk_Type_value = map[string]int32{
 	"UNKNOWN": 0,
 	"STDOUT":  1,
@@ -124,14 +142,15 @@ var Chunk_Type_value = map[string]int32{
 func (x Chunk_Type) String() string {
 	return proto.EnumName(Chunk_Type_name, int32(x))
 }
+
 func (Chunk_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{17, 0}
+	return fileDescriptor_631e66a01873be02, []int{18, 0}
 }
 
 type InitializeRequest struct {
-	OldBinDir            string   `protobuf:"bytes,1,opt,name=oldBinDir" json:"oldBinDir,omitempty"`
-	NewBinDir            string   `protobuf:"bytes,2,opt,name=newBinDir" json:"newBinDir,omitempty"`
-	OldPort              int32    `protobuf:"varint,3,opt,name=oldPort" json:"oldPort,omitempty"`
+	OldBinDir            string   `protobuf:"bytes,1,opt,name=oldBinDir,proto3" json:"oldBinDir,omitempty"`
+	NewBinDir            string   `protobuf:"bytes,2,opt,name=newBinDir,proto3" json:"newBinDir,omitempty"`
+	OldPort              int32    `protobuf:"varint,3,opt,name=oldPort,proto3" json:"oldPort,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -141,16 +160,17 @@ func (m *InitializeRequest) Reset()         { *m = InitializeRequest{} }
 func (m *InitializeRequest) String() string { return proto.CompactTextString(m) }
 func (*InitializeRequest) ProtoMessage()    {}
 func (*InitializeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{0}
+	return fileDescriptor_631e66a01873be02, []int{0}
 }
+
 func (m *InitializeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_InitializeRequest.Unmarshal(m, b)
 }
 func (m *InitializeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_InitializeRequest.Marshal(b, m, deterministic)
 }
-func (dst *InitializeRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_InitializeRequest.Merge(dst, src)
+func (m *InitializeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InitializeRequest.Merge(m, src)
 }
 func (m *InitializeRequest) XXX_Size() int {
 	return xxx_messageInfo_InitializeRequest.Size(m)
@@ -182,6 +202,37 @@ func (m *InitializeRequest) GetOldPort() int32 {
 	return 0
 }
 
+type InitializeCreateClusterRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *InitializeCreateClusterRequest) Reset()         { *m = InitializeCreateClusterRequest{} }
+func (m *InitializeCreateClusterRequest) String() string { return proto.CompactTextString(m) }
+func (*InitializeCreateClusterRequest) ProtoMessage()    {}
+func (*InitializeCreateClusterRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_631e66a01873be02, []int{1}
+}
+
+func (m *InitializeCreateClusterRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_InitializeCreateClusterRequest.Unmarshal(m, b)
+}
+func (m *InitializeCreateClusterRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_InitializeCreateClusterRequest.Marshal(b, m, deterministic)
+}
+func (m *InitializeCreateClusterRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_InitializeCreateClusterRequest.Merge(m, src)
+}
+func (m *InitializeCreateClusterRequest) XXX_Size() int {
+	return xxx_messageInfo_InitializeCreateClusterRequest.Size(m)
+}
+func (m *InitializeCreateClusterRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_InitializeCreateClusterRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_InitializeCreateClusterRequest proto.InternalMessageInfo
+
 type ExecuteRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -192,16 +243,17 @@ func (m *ExecuteRequest) Reset()         { *m = ExecuteRequest{} }
 func (m *ExecuteRequest) String() string { return proto.CompactTextString(m) }
 func (*ExecuteRequest) ProtoMessage()    {}
 func (*ExecuteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{1}
+	return fileDescriptor_631e66a01873be02, []int{2}
 }
+
 func (m *ExecuteRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ExecuteRequest.Unmarshal(m, b)
 }
 func (m *ExecuteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_ExecuteRequest.Marshal(b, m, deterministic)
 }
-func (dst *ExecuteRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ExecuteRequest.Merge(dst, src)
+func (m *ExecuteRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ExecuteRequest.Merge(m, src)
 }
 func (m *ExecuteRequest) XXX_Size() int {
 	return xxx_messageInfo_ExecuteRequest.Size(m)
@@ -222,16 +274,17 @@ func (m *FinalizeRequest) Reset()         { *m = FinalizeRequest{} }
 func (m *FinalizeRequest) String() string { return proto.CompactTextString(m) }
 func (*FinalizeRequest) ProtoMessage()    {}
 func (*FinalizeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{2}
+	return fileDescriptor_631e66a01873be02, []int{3}
 }
+
 func (m *FinalizeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_FinalizeRequest.Unmarshal(m, b)
 }
 func (m *FinalizeRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_FinalizeRequest.Marshal(b, m, deterministic)
 }
-func (dst *FinalizeRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FinalizeRequest.Merge(dst, src)
+func (m *FinalizeRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FinalizeRequest.Merge(m, src)
 }
 func (m *FinalizeRequest) XXX_Size() int {
 	return xxx_messageInfo_FinalizeRequest.Size(m)
@@ -252,16 +305,17 @@ func (m *RestartAgentsRequest) Reset()         { *m = RestartAgentsRequest{} }
 func (m *RestartAgentsRequest) String() string { return proto.CompactTextString(m) }
 func (*RestartAgentsRequest) ProtoMessage()    {}
 func (*RestartAgentsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{3}
+	return fileDescriptor_631e66a01873be02, []int{4}
 }
+
 func (m *RestartAgentsRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RestartAgentsRequest.Unmarshal(m, b)
 }
 func (m *RestartAgentsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_RestartAgentsRequest.Marshal(b, m, deterministic)
 }
-func (dst *RestartAgentsRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RestartAgentsRequest.Merge(dst, src)
+func (m *RestartAgentsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RestartAgentsRequest.Merge(m, src)
 }
 func (m *RestartAgentsRequest) XXX_Size() int {
 	return xxx_messageInfo_RestartAgentsRequest.Size(m)
@@ -273,7 +327,7 @@ func (m *RestartAgentsRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_RestartAgentsRequest proto.InternalMessageInfo
 
 type RestartAgentsReply struct {
-	AgentHosts           []string `protobuf:"bytes,1,rep,name=agentHosts" json:"agentHosts,omitempty"`
+	AgentHosts           []string `protobuf:"bytes,1,rep,name=agentHosts,proto3" json:"agentHosts,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -283,16 +337,17 @@ func (m *RestartAgentsReply) Reset()         { *m = RestartAgentsReply{} }
 func (m *RestartAgentsReply) String() string { return proto.CompactTextString(m) }
 func (*RestartAgentsReply) ProtoMessage()    {}
 func (*RestartAgentsReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{4}
+	return fileDescriptor_631e66a01873be02, []int{5}
 }
+
 func (m *RestartAgentsReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_RestartAgentsReply.Unmarshal(m, b)
 }
 func (m *RestartAgentsReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_RestartAgentsReply.Marshal(b, m, deterministic)
 }
-func (dst *RestartAgentsReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_RestartAgentsReply.Merge(dst, src)
+func (m *RestartAgentsReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RestartAgentsReply.Merge(m, src)
 }
 func (m *RestartAgentsReply) XXX_Size() int {
 	return xxx_messageInfo_RestartAgentsReply.Size(m)
@@ -320,16 +375,17 @@ func (m *StopServicesRequest) Reset()         { *m = StopServicesRequest{} }
 func (m *StopServicesRequest) String() string { return proto.CompactTextString(m) }
 func (*StopServicesRequest) ProtoMessage()    {}
 func (*StopServicesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{5}
+	return fileDescriptor_631e66a01873be02, []int{6}
 }
+
 func (m *StopServicesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StopServicesRequest.Unmarshal(m, b)
 }
 func (m *StopServicesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_StopServicesRequest.Marshal(b, m, deterministic)
 }
-func (dst *StopServicesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_StopServicesRequest.Merge(dst, src)
+func (m *StopServicesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StopServicesRequest.Merge(m, src)
 }
 func (m *StopServicesRequest) XXX_Size() int {
 	return xxx_messageInfo_StopServicesRequest.Size(m)
@@ -350,16 +406,17 @@ func (m *StopServicesReply) Reset()         { *m = StopServicesReply{} }
 func (m *StopServicesReply) String() string { return proto.CompactTextString(m) }
 func (*StopServicesReply) ProtoMessage()    {}
 func (*StopServicesReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{6}
+	return fileDescriptor_631e66a01873be02, []int{7}
 }
+
 func (m *StopServicesReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_StopServicesReply.Unmarshal(m, b)
 }
 func (m *StopServicesReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_StopServicesReply.Marshal(b, m, deterministic)
 }
-func (dst *StopServicesReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_StopServicesReply.Merge(dst, src)
+func (m *StopServicesReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_StopServicesReply.Merge(m, src)
 }
 func (m *StopServicesReply) XXX_Size() int {
 	return xxx_messageInfo_StopServicesReply.Size(m)
@@ -371,8 +428,8 @@ func (m *StopServicesReply) XXX_DiscardUnknown() {
 var xxx_messageInfo_StopServicesReply proto.InternalMessageInfo
 
 type UpgradeStepStatus struct {
-	Step                 UpgradeSteps `protobuf:"varint,1,opt,name=step,enum=idl.UpgradeSteps" json:"step,omitempty"`
-	Status               StepStatus   `protobuf:"varint,2,opt,name=status,enum=idl.StepStatus" json:"status,omitempty"`
+	Step                 UpgradeSteps `protobuf:"varint,1,opt,name=step,proto3,enum=idl.UpgradeSteps" json:"step,omitempty"`
+	Status               StepStatus   `protobuf:"varint,2,opt,name=status,proto3,enum=idl.StepStatus" json:"status,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
 	XXX_unrecognized     []byte       `json:"-"`
 	XXX_sizecache        int32        `json:"-"`
@@ -382,16 +439,17 @@ func (m *UpgradeStepStatus) Reset()         { *m = UpgradeStepStatus{} }
 func (m *UpgradeStepStatus) String() string { return proto.CompactTextString(m) }
 func (*UpgradeStepStatus) ProtoMessage()    {}
 func (*UpgradeStepStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{7}
+	return fileDescriptor_631e66a01873be02, []int{8}
 }
+
 func (m *UpgradeStepStatus) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_UpgradeStepStatus.Unmarshal(m, b)
 }
 func (m *UpgradeStepStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_UpgradeStepStatus.Marshal(b, m, deterministic)
 }
-func (dst *UpgradeStepStatus) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpgradeStepStatus.Merge(dst, src)
+func (m *UpgradeStepStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UpgradeStepStatus.Merge(m, src)
 }
 func (m *UpgradeStepStatus) XXX_Size() int {
 	return xxx_messageInfo_UpgradeStepStatus.Size(m)
@@ -417,9 +475,9 @@ func (m *UpgradeStepStatus) GetStatus() StepStatus {
 }
 
 type CountPerDb struct {
-	DbName               string   `protobuf:"bytes,1,opt,name=DbName" json:"DbName,omitempty"`
-	AoCount              int32    `protobuf:"varint,2,opt,name=AoCount" json:"AoCount,omitempty"`
-	HeapCount            int32    `protobuf:"varint,3,opt,name=HeapCount" json:"HeapCount,omitempty"`
+	DbName               string   `protobuf:"bytes,1,opt,name=DbName,proto3" json:"DbName,omitempty"`
+	AoCount              int32    `protobuf:"varint,2,opt,name=AoCount,proto3" json:"AoCount,omitempty"`
+	HeapCount            int32    `protobuf:"varint,3,opt,name=HeapCount,proto3" json:"HeapCount,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -429,16 +487,17 @@ func (m *CountPerDb) Reset()         { *m = CountPerDb{} }
 func (m *CountPerDb) String() string { return proto.CompactTextString(m) }
 func (*CountPerDb) ProtoMessage()    {}
 func (*CountPerDb) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{8}
+	return fileDescriptor_631e66a01873be02, []int{9}
 }
+
 func (m *CountPerDb) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CountPerDb.Unmarshal(m, b)
 }
 func (m *CountPerDb) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CountPerDb.Marshal(b, m, deterministic)
 }
-func (dst *CountPerDb) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CountPerDb.Merge(dst, src)
+func (m *CountPerDb) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CountPerDb.Merge(m, src)
 }
 func (m *CountPerDb) XXX_Size() int {
 	return xxx_messageInfo_CountPerDb.Size(m)
@@ -480,16 +539,17 @@ func (m *CheckObjectCountRequest) Reset()         { *m = CheckObjectCountRequest
 func (m *CheckObjectCountRequest) String() string { return proto.CompactTextString(m) }
 func (*CheckObjectCountRequest) ProtoMessage()    {}
 func (*CheckObjectCountRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{9}
+	return fileDescriptor_631e66a01873be02, []int{10}
 }
+
 func (m *CheckObjectCountRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckObjectCountRequest.Unmarshal(m, b)
 }
 func (m *CheckObjectCountRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CheckObjectCountRequest.Marshal(b, m, deterministic)
 }
-func (dst *CheckObjectCountRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CheckObjectCountRequest.Merge(dst, src)
+func (m *CheckObjectCountRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckObjectCountRequest.Merge(m, src)
 }
 func (m *CheckObjectCountRequest) XXX_Size() int {
 	return xxx_messageInfo_CheckObjectCountRequest.Size(m)
@@ -501,7 +561,7 @@ func (m *CheckObjectCountRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_CheckObjectCountRequest proto.InternalMessageInfo
 
 type CheckObjectCountReply struct {
-	ListOfCounts         []*CountPerDb `protobuf:"bytes,1,rep,name=ListOfCounts" json:"ListOfCounts,omitempty"`
+	ListOfCounts         []*CountPerDb `protobuf:"bytes,1,rep,name=ListOfCounts,proto3" json:"ListOfCounts,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
 	XXX_unrecognized     []byte        `json:"-"`
 	XXX_sizecache        int32         `json:"-"`
@@ -511,16 +571,17 @@ func (m *CheckObjectCountReply) Reset()         { *m = CheckObjectCountReply{} }
 func (m *CheckObjectCountReply) String() string { return proto.CompactTextString(m) }
 func (*CheckObjectCountReply) ProtoMessage()    {}
 func (*CheckObjectCountReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{10}
+	return fileDescriptor_631e66a01873be02, []int{11}
 }
+
 func (m *CheckObjectCountReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckObjectCountReply.Unmarshal(m, b)
 }
 func (m *CheckObjectCountReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CheckObjectCountReply.Marshal(b, m, deterministic)
 }
-func (dst *CheckObjectCountReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CheckObjectCountReply.Merge(dst, src)
+func (m *CheckObjectCountReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckObjectCountReply.Merge(m, src)
 }
 func (m *CheckObjectCountReply) XXX_Size() int {
 	return xxx_messageInfo_CheckObjectCountReply.Size(m)
@@ -548,16 +609,17 @@ func (m *CheckVersionRequest) Reset()         { *m = CheckVersionRequest{} }
 func (m *CheckVersionRequest) String() string { return proto.CompactTextString(m) }
 func (*CheckVersionRequest) ProtoMessage()    {}
 func (*CheckVersionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{11}
+	return fileDescriptor_631e66a01873be02, []int{12}
 }
+
 func (m *CheckVersionRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckVersionRequest.Unmarshal(m, b)
 }
 func (m *CheckVersionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CheckVersionRequest.Marshal(b, m, deterministic)
 }
-func (dst *CheckVersionRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CheckVersionRequest.Merge(dst, src)
+func (m *CheckVersionRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckVersionRequest.Merge(m, src)
 }
 func (m *CheckVersionRequest) XXX_Size() int {
 	return xxx_messageInfo_CheckVersionRequest.Size(m)
@@ -569,7 +631,7 @@ func (m *CheckVersionRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_CheckVersionRequest proto.InternalMessageInfo
 
 type CheckVersionReply struct {
-	IsVersionCompatible  bool     `protobuf:"varint,1,opt,name=IsVersionCompatible" json:"IsVersionCompatible,omitempty"`
+	IsVersionCompatible  bool     `protobuf:"varint,1,opt,name=IsVersionCompatible,proto3" json:"IsVersionCompatible,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -579,16 +641,17 @@ func (m *CheckVersionReply) Reset()         { *m = CheckVersionReply{} }
 func (m *CheckVersionReply) String() string { return proto.CompactTextString(m) }
 func (*CheckVersionReply) ProtoMessage()    {}
 func (*CheckVersionReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{12}
+	return fileDescriptor_631e66a01873be02, []int{13}
 }
+
 func (m *CheckVersionReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckVersionReply.Unmarshal(m, b)
 }
 func (m *CheckVersionReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CheckVersionReply.Marshal(b, m, deterministic)
 }
-func (dst *CheckVersionReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CheckVersionReply.Merge(dst, src)
+func (m *CheckVersionReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckVersionReply.Merge(m, src)
 }
 func (m *CheckVersionReply) XXX_Size() int {
 	return xxx_messageInfo_CheckVersionReply.Size(m)
@@ -616,16 +679,17 @@ func (m *CheckDiskSpaceRequest) Reset()         { *m = CheckDiskSpaceRequest{} }
 func (m *CheckDiskSpaceRequest) String() string { return proto.CompactTextString(m) }
 func (*CheckDiskSpaceRequest) ProtoMessage()    {}
 func (*CheckDiskSpaceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{13}
+	return fileDescriptor_631e66a01873be02, []int{14}
 }
+
 func (m *CheckDiskSpaceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckDiskSpaceRequest.Unmarshal(m, b)
 }
 func (m *CheckDiskSpaceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CheckDiskSpaceRequest.Marshal(b, m, deterministic)
 }
-func (dst *CheckDiskSpaceRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CheckDiskSpaceRequest.Merge(dst, src)
+func (m *CheckDiskSpaceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckDiskSpaceRequest.Merge(m, src)
 }
 func (m *CheckDiskSpaceRequest) XXX_Size() int {
 	return xxx_messageInfo_CheckDiskSpaceRequest.Size(m)
@@ -637,7 +701,7 @@ func (m *CheckDiskSpaceRequest) XXX_DiscardUnknown() {
 var xxx_messageInfo_CheckDiskSpaceRequest proto.InternalMessageInfo
 
 type CheckDiskSpaceReply struct {
-	SegmentFileSysUsage  []string `protobuf:"bytes,1,rep,name=SegmentFileSysUsage" json:"SegmentFileSysUsage,omitempty"`
+	SegmentFileSysUsage  []string `protobuf:"bytes,1,rep,name=SegmentFileSysUsage,proto3" json:"SegmentFileSysUsage,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -647,16 +711,17 @@ func (m *CheckDiskSpaceReply) Reset()         { *m = CheckDiskSpaceReply{} }
 func (m *CheckDiskSpaceReply) String() string { return proto.CompactTextString(m) }
 func (*CheckDiskSpaceReply) ProtoMessage()    {}
 func (*CheckDiskSpaceReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{14}
+	return fileDescriptor_631e66a01873be02, []int{15}
 }
+
 func (m *CheckDiskSpaceReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_CheckDiskSpaceReply.Unmarshal(m, b)
 }
 func (m *CheckDiskSpaceReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_CheckDiskSpaceReply.Marshal(b, m, deterministic)
 }
-func (dst *CheckDiskSpaceReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_CheckDiskSpaceReply.Merge(dst, src)
+func (m *CheckDiskSpaceReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CheckDiskSpaceReply.Merge(m, src)
 }
 func (m *CheckDiskSpaceReply) XXX_Size() int {
 	return xxx_messageInfo_CheckDiskSpaceReply.Size(m)
@@ -684,16 +749,17 @@ func (m *PrepareInitClusterRequest) Reset()         { *m = PrepareInitClusterReq
 func (m *PrepareInitClusterRequest) String() string { return proto.CompactTextString(m) }
 func (*PrepareInitClusterRequest) ProtoMessage()    {}
 func (*PrepareInitClusterRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{15}
+	return fileDescriptor_631e66a01873be02, []int{16}
 }
+
 func (m *PrepareInitClusterRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PrepareInitClusterRequest.Unmarshal(m, b)
 }
 func (m *PrepareInitClusterRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_PrepareInitClusterRequest.Marshal(b, m, deterministic)
 }
-func (dst *PrepareInitClusterRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PrepareInitClusterRequest.Merge(dst, src)
+func (m *PrepareInitClusterRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PrepareInitClusterRequest.Merge(m, src)
 }
 func (m *PrepareInitClusterRequest) XXX_Size() int {
 	return xxx_messageInfo_PrepareInitClusterRequest.Size(m)
@@ -714,16 +780,17 @@ func (m *PrepareInitClusterReply) Reset()         { *m = PrepareInitClusterReply
 func (m *PrepareInitClusterReply) String() string { return proto.CompactTextString(m) }
 func (*PrepareInitClusterReply) ProtoMessage()    {}
 func (*PrepareInitClusterReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{16}
+	return fileDescriptor_631e66a01873be02, []int{17}
 }
+
 func (m *PrepareInitClusterReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PrepareInitClusterReply.Unmarshal(m, b)
 }
 func (m *PrepareInitClusterReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_PrepareInitClusterReply.Marshal(b, m, deterministic)
 }
-func (dst *PrepareInitClusterReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PrepareInitClusterReply.Merge(dst, src)
+func (m *PrepareInitClusterReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PrepareInitClusterReply.Merge(m, src)
 }
 func (m *PrepareInitClusterReply) XXX_Size() int {
 	return xxx_messageInfo_PrepareInitClusterReply.Size(m)
@@ -736,7 +803,7 @@ var xxx_messageInfo_PrepareInitClusterReply proto.InternalMessageInfo
 
 type Chunk struct {
 	Buffer               []byte     `protobuf:"bytes,1,opt,name=buffer,proto3" json:"buffer,omitempty"`
-	Type                 Chunk_Type `protobuf:"varint,2,opt,name=type,enum=idl.Chunk_Type" json:"type,omitempty"`
+	Type                 Chunk_Type `protobuf:"varint,2,opt,name=type,proto3,enum=idl.Chunk_Type" json:"type,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
 	XXX_sizecache        int32      `json:"-"`
@@ -746,16 +813,17 @@ func (m *Chunk) Reset()         { *m = Chunk{} }
 func (m *Chunk) String() string { return proto.CompactTextString(m) }
 func (*Chunk) ProtoMessage()    {}
 func (*Chunk) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{17}
+	return fileDescriptor_631e66a01873be02, []int{18}
 }
+
 func (m *Chunk) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Chunk.Unmarshal(m, b)
 }
 func (m *Chunk) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Chunk.Marshal(b, m, deterministic)
 }
-func (dst *Chunk) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Chunk.Merge(dst, src)
+func (m *Chunk) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Chunk.Merge(m, src)
 }
 func (m *Chunk) XXX_Size() int {
 	return xxx_messageInfo_Chunk.Size(m)
@@ -794,16 +862,17 @@ func (m *Message) Reset()         { *m = Message{} }
 func (m *Message) String() string { return proto.CompactTextString(m) }
 func (*Message) ProtoMessage()    {}
 func (*Message) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{18}
+	return fileDescriptor_631e66a01873be02, []int{19}
 }
+
 func (m *Message) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Message.Unmarshal(m, b)
 }
 func (m *Message) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Message.Marshal(b, m, deterministic)
 }
-func (dst *Message) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Message.Merge(dst, src)
+func (m *Message) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Message.Merge(m, src)
 }
 func (m *Message) XXX_Size() int {
 	return xxx_messageInfo_Message.Size(m)
@@ -819,13 +888,15 @@ type isMessage_Contents interface {
 }
 
 type Message_Chunk struct {
-	Chunk *Chunk `protobuf:"bytes,1,opt,name=chunk,oneof"`
-}
-type Message_Status struct {
-	Status *UpgradeStepStatus `protobuf:"bytes,2,opt,name=status,oneof"`
+	Chunk *Chunk `protobuf:"bytes,1,opt,name=chunk,proto3,oneof"`
 }
 
-func (*Message_Chunk) isMessage_Contents()  {}
+type Message_Status struct {
+	Status *UpgradeStepStatus `protobuf:"bytes,2,opt,name=status,proto3,oneof"`
+}
+
+func (*Message_Chunk) isMessage_Contents() {}
+
 func (*Message_Status) isMessage_Contents() {}
 
 func (m *Message) GetContents() isMessage_Contents {
@@ -849,83 +920,17 @@ func (m *Message) GetStatus() *UpgradeStepStatus {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Message) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Message_OneofMarshaler, _Message_OneofUnmarshaler, _Message_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*Message) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*Message_Chunk)(nil),
 		(*Message_Status)(nil),
 	}
 }
 
-func _Message_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Message)
-	// contents
-	switch x := m.Contents.(type) {
-	case *Message_Chunk:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Chunk); err != nil {
-			return err
-		}
-	case *Message_Status:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Status); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("Message.Contents has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Message_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Message)
-	switch tag {
-	case 1: // contents.chunk
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Chunk)
-		err := b.DecodeMessage(msg)
-		m.Contents = &Message_Chunk{msg}
-		return true, err
-	case 2: // contents.status
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(UpgradeStepStatus)
-		err := b.DecodeMessage(msg)
-		m.Contents = &Message_Status{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Message_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Message)
-	// contents
-	switch x := m.Contents.(type) {
-	case *Message_Chunk:
-		s := proto.Size(x.Chunk)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *Message_Status:
-		s := proto.Size(x.Status)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
 type SetConfigRequest struct {
-	Name                 string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
-	Value                string   `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -935,16 +940,17 @@ func (m *SetConfigRequest) Reset()         { *m = SetConfigRequest{} }
 func (m *SetConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*SetConfigRequest) ProtoMessage()    {}
 func (*SetConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{19}
+	return fileDescriptor_631e66a01873be02, []int{20}
 }
+
 func (m *SetConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SetConfigRequest.Unmarshal(m, b)
 }
 func (m *SetConfigRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SetConfigRequest.Marshal(b, m, deterministic)
 }
-func (dst *SetConfigRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SetConfigRequest.Merge(dst, src)
+func (m *SetConfigRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SetConfigRequest.Merge(m, src)
 }
 func (m *SetConfigRequest) XXX_Size() int {
 	return xxx_messageInfo_SetConfigRequest.Size(m)
@@ -979,16 +985,17 @@ func (m *SetConfigReply) Reset()         { *m = SetConfigReply{} }
 func (m *SetConfigReply) String() string { return proto.CompactTextString(m) }
 func (*SetConfigReply) ProtoMessage()    {}
 func (*SetConfigReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{20}
+	return fileDescriptor_631e66a01873be02, []int{21}
 }
+
 func (m *SetConfigReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SetConfigReply.Unmarshal(m, b)
 }
 func (m *SetConfigReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SetConfigReply.Marshal(b, m, deterministic)
 }
-func (dst *SetConfigReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SetConfigReply.Merge(dst, src)
+func (m *SetConfigReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SetConfigReply.Merge(m, src)
 }
 func (m *SetConfigReply) XXX_Size() int {
 	return xxx_messageInfo_SetConfigReply.Size(m)
@@ -1000,7 +1007,7 @@ func (m *SetConfigReply) XXX_DiscardUnknown() {
 var xxx_messageInfo_SetConfigReply proto.InternalMessageInfo
 
 type GetConfigRequest struct {
-	Name                 string   `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1010,16 +1017,17 @@ func (m *GetConfigRequest) Reset()         { *m = GetConfigRequest{} }
 func (m *GetConfigRequest) String() string { return proto.CompactTextString(m) }
 func (*GetConfigRequest) ProtoMessage()    {}
 func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{21}
+	return fileDescriptor_631e66a01873be02, []int{22}
 }
+
 func (m *GetConfigRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfigRequest.Unmarshal(m, b)
 }
 func (m *GetConfigRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GetConfigRequest.Marshal(b, m, deterministic)
 }
-func (dst *GetConfigRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetConfigRequest.Merge(dst, src)
+func (m *GetConfigRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetConfigRequest.Merge(m, src)
 }
 func (m *GetConfigRequest) XXX_Size() int {
 	return xxx_messageInfo_GetConfigRequest.Size(m)
@@ -1038,7 +1046,7 @@ func (m *GetConfigRequest) GetName() string {
 }
 
 type GetConfigReply struct {
-	Value                string   `protobuf:"bytes,1,opt,name=value" json:"value,omitempty"`
+	Value                string   `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -1048,16 +1056,17 @@ func (m *GetConfigReply) Reset()         { *m = GetConfigReply{} }
 func (m *GetConfigReply) String() string { return proto.CompactTextString(m) }
 func (*GetConfigReply) ProtoMessage()    {}
 func (*GetConfigReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_cli_to_hub_4274f89103cdeaa0, []int{22}
+	return fileDescriptor_631e66a01873be02, []int{23}
 }
+
 func (m *GetConfigReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetConfigReply.Unmarshal(m, b)
 }
 func (m *GetConfigReply) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GetConfigReply.Marshal(b, m, deterministic)
 }
-func (dst *GetConfigReply) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetConfigReply.Merge(dst, src)
+func (m *GetConfigReply) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetConfigReply.Merge(m, src)
 }
 func (m *GetConfigReply) XXX_Size() int {
 	return xxx_messageInfo_GetConfigReply.Size(m)
@@ -1076,7 +1085,11 @@ func (m *GetConfigReply) GetValue() string {
 }
 
 func init() {
+	proto.RegisterEnum("idl.UpgradeSteps", UpgradeSteps_name, UpgradeSteps_value)
+	proto.RegisterEnum("idl.StepStatus", StepStatus_name, StepStatus_value)
+	proto.RegisterEnum("idl.Chunk_Type", Chunk_Type_name, Chunk_Type_value)
 	proto.RegisterType((*InitializeRequest)(nil), "idl.InitializeRequest")
+	proto.RegisterType((*InitializeCreateClusterRequest)(nil), "idl.InitializeCreateClusterRequest")
 	proto.RegisterType((*ExecuteRequest)(nil), "idl.ExecuteRequest")
 	proto.RegisterType((*FinalizeRequest)(nil), "idl.FinalizeRequest")
 	proto.RegisterType((*RestartAgentsRequest)(nil), "idl.RestartAgentsRequest")
@@ -1099,9 +1112,78 @@ func init() {
 	proto.RegisterType((*SetConfigReply)(nil), "idl.SetConfigReply")
 	proto.RegisterType((*GetConfigRequest)(nil), "idl.GetConfigRequest")
 	proto.RegisterType((*GetConfigReply)(nil), "idl.GetConfigReply")
-	proto.RegisterEnum("idl.UpgradeSteps", UpgradeSteps_name, UpgradeSteps_value)
-	proto.RegisterEnum("idl.StepStatus", StepStatus_name, StepStatus_value)
-	proto.RegisterEnum("idl.Chunk_Type", Chunk_Type_name, Chunk_Type_value)
+}
+
+func init() { proto.RegisterFile("cli_to_hub.proto", fileDescriptor_631e66a01873be02) }
+
+var fileDescriptor_631e66a01873be02 = []byte{
+	// 1046 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0x7f, 0x6f, 0xe2, 0x46,
+	0x10, 0x85, 0x04, 0x02, 0x0c, 0x1c, 0x31, 0x4b, 0x12, 0x08, 0x77, 0x3a, 0x45, 0x3e, 0xf5, 0x1a,
+	0x5d, 0xa5, 0x28, 0xe2, 0xaa, 0x4a, 0x27, 0xf5, 0x1f, 0x62, 0x1c, 0x40, 0x97, 0x18, 0x6b, 0x6d,
+	0x5a, 0x55, 0xaa, 0x84, 0x0c, 0xd9, 0x24, 0x6e, 0x1c, 0xdb, 0x67, 0x2f, 0xd7, 0xd2, 0xaf, 0xd6,
+	0x4f, 0xd2, 0x6f, 0x53, 0xed, 0x7a, 0x8d, 0x7f, 0xc4, 0x27, 0xf5, 0x3f, 0xef, 0x7b, 0x3b, 0x6f,
+	0xd6, 0xe3, 0xb7, 0x33, 0x06, 0x69, 0xed, 0xd8, 0x4b, 0xea, 0x2d, 0x1f, 0x37, 0xab, 0x0b, 0x3f,
+	0xf0, 0xa8, 0x87, 0xf6, 0xed, 0x3b, 0x47, 0xb6, 0xa1, 0x33, 0x73, 0x6d, 0x6a, 0x5b, 0x8e, 0xfd,
+	0x37, 0xc1, 0xe4, 0xcb, 0x86, 0x84, 0x14, 0xbd, 0x81, 0x86, 0xe7, 0xdc, 0x5d, 0xd9, 0xee, 0xd8,
+	0x0e, 0xfa, 0xe5, 0xb3, 0xf2, 0x79, 0x03, 0x27, 0x00, 0x63, 0x5d, 0xf2, 0xa7, 0x60, 0xf7, 0x22,
+	0x76, 0x07, 0xa0, 0x3e, 0xd4, 0x3c, 0xe7, 0x4e, 0xf7, 0x02, 0xda, 0xdf, 0x3f, 0x2b, 0x9f, 0x57,
+	0x71, 0xbc, 0x94, 0xcf, 0xe0, 0x6d, 0x92, 0x4a, 0x09, 0x88, 0x45, 0x89, 0xe2, 0x6c, 0x42, 0x4a,
+	0x02, 0x91, 0x57, 0x96, 0xa0, 0xad, 0xfe, 0x45, 0xd6, 0x1b, 0x1a, 0x9f, 0x44, 0xee, 0xc0, 0xe1,
+	0xb5, 0xed, 0xa6, 0x0f, 0x27, 0x9f, 0xc0, 0x11, 0x26, 0x21, 0xb5, 0x02, 0x3a, 0x7a, 0x20, 0x2e,
+	0x0d, 0x63, 0xfc, 0x47, 0x40, 0x39, 0xdc, 0x77, 0xb6, 0xe8, 0x2d, 0x80, 0xc5, 0x96, 0x53, 0x2f,
+	0xa4, 0x61, 0xbf, 0x7c, 0xb6, 0x7f, 0xde, 0xc0, 0x29, 0x44, 0x3e, 0x86, 0xae, 0x41, 0x3d, 0xdf,
+	0x20, 0xc1, 0x57, 0x7b, 0x4d, 0x76, 0x62, 0x5d, 0xe8, 0x64, 0x61, 0xdf, 0xd9, 0xca, 0x6b, 0xe8,
+	0x2c, 0xfc, 0x87, 0xc0, 0xba, 0x23, 0x06, 0x25, 0xbe, 0x41, 0x2d, 0xba, 0x09, 0xd1, 0x77, 0x50,
+	0x09, 0x29, 0xf1, 0x79, 0x99, 0xda, 0xc3, 0xce, 0x85, 0x7d, 0xe7, 0x5c, 0xa4, 0x76, 0x85, 0x98,
+	0xd3, 0xe8, 0x7b, 0x38, 0x08, 0x79, 0x00, 0xaf, 0x58, 0x7b, 0x78, 0xc8, 0x37, 0x26, 0x3a, 0x58,
+	0xd0, 0xf2, 0xef, 0x00, 0x8a, 0xb7, 0x71, 0xa9, 0x4e, 0x82, 0xf1, 0x0a, 0x9d, 0xc0, 0xc1, 0x78,
+	0xa5, 0x59, 0xcf, 0x44, 0x7c, 0x06, 0xb1, 0x62, 0x55, 0x1e, 0x79, 0x7c, 0x1f, 0xd7, 0xab, 0xe2,
+	0x78, 0xc9, 0xbe, 0xce, 0x94, 0x58, 0x7e, 0xc4, 0x45, 0x5f, 0x20, 0x01, 0xe4, 0x53, 0xe8, 0x29,
+	0x8f, 0x64, 0xfd, 0x34, 0x5f, 0xfd, 0x41, 0xd6, 0x94, 0x63, 0xf1, 0x2b, 0xdf, 0xc0, 0xf1, 0x4b,
+	0x8a, 0x95, 0xf0, 0x23, 0xb4, 0x6e, 0xec, 0x90, 0xce, 0xef, 0x39, 0x16, 0x15, 0xb1, 0x29, 0x5e,
+	0x20, 0x39, 0x2a, 0xce, 0x6c, 0x62, 0x75, 0xe5, 0x6a, 0xbf, 0x90, 0x20, 0xb4, 0x3d, 0x37, 0x4e,
+	0xa2, 0x42, 0x27, 0x0b, 0xb3, 0x04, 0x97, 0xd0, 0x9d, 0x85, 0x02, 0x51, 0xbc, 0x67, 0xdf, 0xa2,
+	0xf6, 0xca, 0x89, 0xde, 0xb8, 0x8e, 0x8b, 0x28, 0xb9, 0x27, 0xce, 0x3a, 0xb6, 0xc3, 0x27, 0xc3,
+	0xb7, 0xd6, 0x3b, 0x73, 0x4c, 0x44, 0xda, 0x14, 0x21, 0x32, 0x18, 0xe4, 0xe1, 0x99, 0xb8, 0xf4,
+	0xda, 0x76, 0x88, 0xb1, 0x0d, 0x17, 0xa1, 0xf5, 0x40, 0x84, 0x1d, 0x8a, 0x28, 0xf9, 0x35, 0x9c,
+	0xea, 0x01, 0xf1, 0xad, 0x80, 0x30, 0xcf, 0xe6, 0x7c, 0x7a, 0x0a, 0xbd, 0x22, 0x92, 0x79, 0xe4,
+	0x0b, 0x54, 0x95, 0xc7, 0x8d, 0xfb, 0xc4, 0xbe, 0xdc, 0x6a, 0x73, 0x7f, 0x4f, 0xa2, 0x0b, 0xd4,
+	0xc2, 0x62, 0x85, 0xde, 0x41, 0x85, 0x6e, 0x7d, 0x92, 0xb1, 0x01, 0x8f, 0xb8, 0x30, 0xb7, 0x3e,
+	0xc1, 0x9c, 0x94, 0x7f, 0x80, 0x0a, 0x5b, 0xa1, 0x26, 0xd4, 0x16, 0xda, 0x67, 0x6d, 0xfe, 0xab,
+	0x26, 0x95, 0x10, 0xc0, 0x81, 0x61, 0x8e, 0xe7, 0x0b, 0x53, 0x2a, 0x8b, 0x67, 0x15, 0x63, 0x69,
+	0x4f, 0x7e, 0x82, 0xda, 0x2d, 0x09, 0xd9, 0xa9, 0x91, 0x0c, 0xd5, 0x35, 0xd3, 0xe2, 0x39, 0x9b,
+	0x43, 0x48, 0xd4, 0xa7, 0x25, 0x1c, 0x51, 0xe8, 0x32, 0xe3, 0xc4, 0xe6, 0xf0, 0x24, 0x6f, 0xd9,
+	0xc8, 0x90, 0xd3, 0x52, 0x6c, 0xc9, 0x2b, 0x80, 0xfa, 0xda, 0x73, 0x29, 0xbb, 0x54, 0xf2, 0xcf,
+	0x20, 0x19, 0x84, 0x2a, 0x9e, 0x7b, 0x6f, 0x3f, 0xc4, 0xed, 0x02, 0x41, 0xc5, 0x4d, 0x2c, 0xca,
+	0x9f, 0xd1, 0x11, 0x54, 0xbf, 0x5a, 0xce, 0x86, 0x88, 0x06, 0x11, 0x2d, 0xd8, 0x05, 0x4f, 0x45,
+	0xb3, 0x7a, 0xbd, 0x07, 0x69, 0xf2, 0x3f, 0xf4, 0xe4, 0xf7, 0xd0, 0x9e, 0x64, 0x22, 0x93, 0x0c,
+	0xe5, 0x54, 0x86, 0x0f, 0xff, 0xec, 0x41, 0x2b, 0x7d, 0xfd, 0x90, 0x04, 0x2d, 0x51, 0xc2, 0xa5,
+	0x61, 0xaa, 0x7a, 0x54, 0x47, 0x65, 0xae, 0x5d, 0xcf, 0x26, 0x52, 0x99, 0xb1, 0x86, 0x39, 0xc2,
+	0xe6, 0x72, 0x34, 0x51, 0x35, 0xd3, 0x90, 0xf6, 0x50, 0x0f, 0xba, 0x33, 0x6d, 0x66, 0x2e, 0xcd,
+	0x11, 0x9e, 0xa8, 0xe6, 0x52, 0xb9, 0x59, 0x18, 0xa6, 0x8a, 0xa5, 0x7d, 0xf4, 0x1a, 0x7a, 0xc6,
+	0x74, 0x61, 0x8e, 0x99, 0x52, 0x8e, 0xac, 0x30, 0x1d, 0x65, 0xaa, 0x2a, 0x9f, 0x97, 0xb7, 0x23,
+	0x8e, 0x54, 0x51, 0x17, 0x0e, 0x23, 0x44, 0xc7, 0xb3, 0xdb, 0x11, 0x9e, 0xa9, 0x86, 0x74, 0x80,
+	0x06, 0x70, 0x82, 0xd5, 0x28, 0x61, 0x4e, 0xa2, 0x86, 0x8e, 0xa1, 0xb3, 0xd3, 0x17, 0xa8, 0x21,
+	0xd5, 0x11, 0x82, 0xf6, 0x42, 0x9f, 0xe0, 0xd1, 0x58, 0x8d, 0xb5, 0x1b, 0xe8, 0x10, 0x9a, 0xca,
+	0x5c, 0xff, 0x2d, 0x06, 0x80, 0xc5, 0xc6, 0x9b, 0x92, 0x74, 0x4d, 0xd4, 0x87, 0xa3, 0xc2, 0x64,
+	0x2d, 0x16, 0x80, 0xd5, 0xa8, 0x0a, 0x0b, 0xac, 0x2e, 0xf5, 0x39, 0x36, 0x0d, 0xe9, 0xd5, 0x07,
+	0x13, 0x20, 0xd5, 0xda, 0x58, 0xea, 0x5d, 0xe9, 0x46, 0xe6, 0xc2, 0x90, 0x4a, 0xcc, 0x91, 0xba,
+	0xaa, 0x8d, 0x67, 0x1a, 0xab, 0x5e, 0x13, 0x6a, 0x78, 0xa1, 0x69, 0x6c, 0xb1, 0x87, 0x5a, 0x50,
+	0x57, 0xe6, 0xb7, 0xfa, 0x8d, 0x6a, 0xaa, 0xd2, 0x3e, 0x2b, 0xf2, 0xf5, 0x68, 0x76, 0xa3, 0x8e,
+	0xa5, 0xca, 0xf0, 0xdf, 0x2a, 0xd4, 0x15, 0xc7, 0x36, 0xbd, 0xe9, 0x66, 0x85, 0x34, 0x90, 0xf2,
+	0x6d, 0x06, 0xbd, 0x11, 0x3e, 0x2d, 0x6c, 0x4c, 0x83, 0xc1, 0x37, 0x58, 0x66, 0x9f, 0x12, 0xba,
+	0x82, 0x56, 0xba, 0xa3, 0xa0, 0x7e, 0xb2, 0x3b, 0xdb, 0x7b, 0x06, 0x27, 0x05, 0x4c, 0xa4, 0x31,
+	0x85, 0x76, 0xb6, 0x6b, 0xa0, 0x54, 0xce, 0x7c, 0x8f, 0x19, 0xf4, 0x0b, 0xb9, 0x48, 0xe9, 0x27,
+	0x80, 0x64, 0xc6, 0xa1, 0x28, 0xe3, 0x8b, 0xf9, 0x3a, 0x68, 0x71, 0x5c, 0x5c, 0x5a, 0xb9, 0x74,
+	0x59, 0x46, 0x3a, 0xf4, 0xbe, 0x31, 0x1b, 0xd1, 0xbb, 0x9c, 0x48, 0xd1, 0xe4, 0x2c, 0x50, 0xbc,
+	0x84, 0x9a, 0x98, 0xa5, 0xa8, 0xcb, 0xc9, 0xec, 0x64, 0x2d, 0x88, 0x18, 0x42, 0x3d, 0x9e, 0xb5,
+	0xe8, 0x88, 0xb3, 0xb9, 0xd1, 0x5b, 0x10, 0xf3, 0x09, 0x1a, 0xbb, 0x0b, 0x8d, 0x8e, 0xa3, 0x99,
+	0x96, 0xbb, 0xce, 0x83, 0x6e, 0x1e, 0x8e, 0x4a, 0xf5, 0x09, 0x1a, 0x93, 0x5c, 0xe8, 0xa4, 0x38,
+	0x74, 0x92, 0x0f, 0x55, 0xe1, 0x55, 0x66, 0xd4, 0xa3, 0x53, 0xbe, 0xaf, 0xe8, 0xb7, 0x60, 0xd0,
+	0x2b, 0xa2, 0x76, 0xd6, 0x49, 0x0f, 0x79, 0x61, 0x9d, 0x82, 0xdf, 0x01, 0x61, 0x9d, 0x97, 0x7f,
+	0x04, 0xa5, 0xd5, 0x01, 0xff, 0x97, 0xfa, 0xf8, 0x5f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x7a, 0x52,
+	0x8f, 0xeb, 0x5f, 0x09, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1112,13 +1194,15 @@ var _ grpc.ClientConn
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion4
 
-// Client API for CliToHub service
-
+// CliToHubClient is the client API for CliToHub service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type CliToHubClient interface {
 	CheckObjectCount(ctx context.Context, in *CheckObjectCountRequest, opts ...grpc.CallOption) (*CheckObjectCountReply, error)
 	CheckVersion(ctx context.Context, in *CheckVersionRequest, opts ...grpc.CallOption) (*CheckVersionReply, error)
 	CheckDiskSpace(ctx context.Context, in *CheckDiskSpaceRequest, opts ...grpc.CallOption) (*CheckDiskSpaceReply, error)
 	Initialize(ctx context.Context, in *InitializeRequest, opts ...grpc.CallOption) (CliToHub_InitializeClient, error)
+	InitializeCreateCluster(ctx context.Context, in *InitializeCreateClusterRequest, opts ...grpc.CallOption) (CliToHub_InitializeCreateClusterClient, error)
 	Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (CliToHub_ExecuteClient, error)
 	Finalize(ctx context.Context, in *FinalizeRequest, opts ...grpc.CallOption) (CliToHub_FinalizeClient, error)
 	SetConfig(ctx context.Context, in *SetConfigRequest, opts ...grpc.CallOption) (*SetConfigReply, error)
@@ -1137,7 +1221,7 @@ func NewCliToHubClient(cc *grpc.ClientConn) CliToHubClient {
 
 func (c *cliToHubClient) CheckObjectCount(ctx context.Context, in *CheckObjectCountRequest, opts ...grpc.CallOption) (*CheckObjectCountReply, error) {
 	out := new(CheckObjectCountReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/CheckObjectCount", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/CheckObjectCount", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1146,7 +1230,7 @@ func (c *cliToHubClient) CheckObjectCount(ctx context.Context, in *CheckObjectCo
 
 func (c *cliToHubClient) CheckVersion(ctx context.Context, in *CheckVersionRequest, opts ...grpc.CallOption) (*CheckVersionReply, error) {
 	out := new(CheckVersionReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/CheckVersion", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/CheckVersion", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1155,7 +1239,7 @@ func (c *cliToHubClient) CheckVersion(ctx context.Context, in *CheckVersionReque
 
 func (c *cliToHubClient) CheckDiskSpace(ctx context.Context, in *CheckDiskSpaceRequest, opts ...grpc.CallOption) (*CheckDiskSpaceReply, error) {
 	out := new(CheckDiskSpaceReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/CheckDiskSpace", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/CheckDiskSpace", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1163,7 +1247,7 @@ func (c *cliToHubClient) CheckDiskSpace(ctx context.Context, in *CheckDiskSpaceR
 }
 
 func (c *cliToHubClient) Initialize(ctx context.Context, in *InitializeRequest, opts ...grpc.CallOption) (CliToHub_InitializeClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_CliToHub_serviceDesc.Streams[0], c.cc, "/idl.CliToHub/Initialize", opts...)
+	stream, err := c.cc.NewStream(ctx, &_CliToHub_serviceDesc.Streams[0], "/idl.CliToHub/Initialize", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1194,8 +1278,40 @@ func (x *cliToHubInitializeClient) Recv() (*Message, error) {
 	return m, nil
 }
 
+func (c *cliToHubClient) InitializeCreateCluster(ctx context.Context, in *InitializeCreateClusterRequest, opts ...grpc.CallOption) (CliToHub_InitializeCreateClusterClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_CliToHub_serviceDesc.Streams[1], "/idl.CliToHub/InitializeCreateCluster", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &cliToHubInitializeCreateClusterClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type CliToHub_InitializeCreateClusterClient interface {
+	Recv() (*Message, error)
+	grpc.ClientStream
+}
+
+type cliToHubInitializeCreateClusterClient struct {
+	grpc.ClientStream
+}
+
+func (x *cliToHubInitializeCreateClusterClient) Recv() (*Message, error) {
+	m := new(Message)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *cliToHubClient) Execute(ctx context.Context, in *ExecuteRequest, opts ...grpc.CallOption) (CliToHub_ExecuteClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_CliToHub_serviceDesc.Streams[1], c.cc, "/idl.CliToHub/Execute", opts...)
+	stream, err := c.cc.NewStream(ctx, &_CliToHub_serviceDesc.Streams[2], "/idl.CliToHub/Execute", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1227,7 +1343,7 @@ func (x *cliToHubExecuteClient) Recv() (*Message, error) {
 }
 
 func (c *cliToHubClient) Finalize(ctx context.Context, in *FinalizeRequest, opts ...grpc.CallOption) (CliToHub_FinalizeClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_CliToHub_serviceDesc.Streams[2], c.cc, "/idl.CliToHub/Finalize", opts...)
+	stream, err := c.cc.NewStream(ctx, &_CliToHub_serviceDesc.Streams[3], "/idl.CliToHub/Finalize", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1260,7 +1376,7 @@ func (x *cliToHubFinalizeClient) Recv() (*Message, error) {
 
 func (c *cliToHubClient) SetConfig(ctx context.Context, in *SetConfigRequest, opts ...grpc.CallOption) (*SetConfigReply, error) {
 	out := new(SetConfigReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/SetConfig", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/SetConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1269,7 +1385,7 @@ func (c *cliToHubClient) SetConfig(ctx context.Context, in *SetConfigRequest, op
 
 func (c *cliToHubClient) GetConfig(ctx context.Context, in *GetConfigRequest, opts ...grpc.CallOption) (*GetConfigReply, error) {
 	out := new(GetConfigReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/GetConfig", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/GetConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1278,7 +1394,7 @@ func (c *cliToHubClient) GetConfig(ctx context.Context, in *GetConfigRequest, op
 
 func (c *cliToHubClient) RestartAgents(ctx context.Context, in *RestartAgentsRequest, opts ...grpc.CallOption) (*RestartAgentsReply, error) {
 	out := new(RestartAgentsReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/RestartAgents", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/RestartAgents", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1287,26 +1403,64 @@ func (c *cliToHubClient) RestartAgents(ctx context.Context, in *RestartAgentsReq
 
 func (c *cliToHubClient) StopServices(ctx context.Context, in *StopServicesRequest, opts ...grpc.CallOption) (*StopServicesReply, error) {
 	out := new(StopServicesReply)
-	err := grpc.Invoke(ctx, "/idl.CliToHub/StopServices", in, out, c.cc, opts...)
+	err := c.cc.Invoke(ctx, "/idl.CliToHub/StopServices", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// Server API for CliToHub service
-
+// CliToHubServer is the server API for CliToHub service.
 type CliToHubServer interface {
 	CheckObjectCount(context.Context, *CheckObjectCountRequest) (*CheckObjectCountReply, error)
 	CheckVersion(context.Context, *CheckVersionRequest) (*CheckVersionReply, error)
 	CheckDiskSpace(context.Context, *CheckDiskSpaceRequest) (*CheckDiskSpaceReply, error)
 	Initialize(*InitializeRequest, CliToHub_InitializeServer) error
+	InitializeCreateCluster(*InitializeCreateClusterRequest, CliToHub_InitializeCreateClusterServer) error
 	Execute(*ExecuteRequest, CliToHub_ExecuteServer) error
 	Finalize(*FinalizeRequest, CliToHub_FinalizeServer) error
 	SetConfig(context.Context, *SetConfigRequest) (*SetConfigReply, error)
 	GetConfig(context.Context, *GetConfigRequest) (*GetConfigReply, error)
 	RestartAgents(context.Context, *RestartAgentsRequest) (*RestartAgentsReply, error)
 	StopServices(context.Context, *StopServicesRequest) (*StopServicesReply, error)
+}
+
+// UnimplementedCliToHubServer can be embedded to have forward compatible implementations.
+type UnimplementedCliToHubServer struct {
+}
+
+func (*UnimplementedCliToHubServer) CheckObjectCount(ctx context.Context, req *CheckObjectCountRequest) (*CheckObjectCountReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckObjectCount not implemented")
+}
+func (*UnimplementedCliToHubServer) CheckVersion(ctx context.Context, req *CheckVersionRequest) (*CheckVersionReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckVersion not implemented")
+}
+func (*UnimplementedCliToHubServer) CheckDiskSpace(ctx context.Context, req *CheckDiskSpaceRequest) (*CheckDiskSpaceReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckDiskSpace not implemented")
+}
+func (*UnimplementedCliToHubServer) Initialize(req *InitializeRequest, srv CliToHub_InitializeServer) error {
+	return status.Errorf(codes.Unimplemented, "method Initialize not implemented")
+}
+func (*UnimplementedCliToHubServer) InitializeCreateCluster(req *InitializeCreateClusterRequest, srv CliToHub_InitializeCreateClusterServer) error {
+	return status.Errorf(codes.Unimplemented, "method InitializeCreateCluster not implemented")
+}
+func (*UnimplementedCliToHubServer) Execute(req *ExecuteRequest, srv CliToHub_ExecuteServer) error {
+	return status.Errorf(codes.Unimplemented, "method Execute not implemented")
+}
+func (*UnimplementedCliToHubServer) Finalize(req *FinalizeRequest, srv CliToHub_FinalizeServer) error {
+	return status.Errorf(codes.Unimplemented, "method Finalize not implemented")
+}
+func (*UnimplementedCliToHubServer) SetConfig(ctx context.Context, req *SetConfigRequest) (*SetConfigReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetConfig not implemented")
+}
+func (*UnimplementedCliToHubServer) GetConfig(ctx context.Context, req *GetConfigRequest) (*GetConfigReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConfig not implemented")
+}
+func (*UnimplementedCliToHubServer) RestartAgents(ctx context.Context, req *RestartAgentsRequest) (*RestartAgentsReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RestartAgents not implemented")
+}
+func (*UnimplementedCliToHubServer) StopServices(ctx context.Context, req *StopServicesRequest) (*StopServicesReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StopServices not implemented")
 }
 
 func RegisterCliToHubServer(s *grpc.Server, srv CliToHubServer) {
@@ -1385,6 +1539,27 @@ type cliToHubInitializeServer struct {
 }
 
 func (x *cliToHubInitializeServer) Send(m *Message) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _CliToHub_InitializeCreateCluster_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(InitializeCreateClusterRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(CliToHubServer).InitializeCreateCluster(m, &cliToHubInitializeCreateClusterServer{stream})
+}
+
+type CliToHub_InitializeCreateClusterServer interface {
+	Send(*Message) error
+	grpc.ServerStream
+}
+
+type cliToHubInitializeCreateClusterServer struct {
+	grpc.ServerStream
+}
+
+func (x *cliToHubInitializeCreateClusterServer) Send(m *Message) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -1542,6 +1717,11 @@ var _CliToHub_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 		{
+			StreamName:    "InitializeCreateCluster",
+			Handler:       _CliToHub_InitializeCreateCluster_Handler,
+			ServerStreams: true,
+		},
+		{
 			StreamName:    "Execute",
 			Handler:       _CliToHub_Execute_Handler,
 			ServerStreams: true,
@@ -1553,72 +1733,4 @@ var _CliToHub_serviceDesc = grpc.ServiceDesc{
 		},
 	},
 	Metadata: "cli_to_hub.proto",
-}
-
-func init() { proto.RegisterFile("cli_to_hub.proto", fileDescriptor_cli_to_hub_4274f89103cdeaa0) }
-
-var fileDescriptor_cli_to_hub_4274f89103cdeaa0 = []byte{
-	// 987 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x56, 0xff, 0x6e, 0xe2, 0x46,
-	0x10, 0x86, 0x04, 0x02, 0x0c, 0x94, 0x33, 0x4b, 0x7e, 0x10, 0x7a, 0xaa, 0x22, 0x57, 0xbd, 0x46,
-	0x57, 0x29, 0x8a, 0xb8, 0xaa, 0xd2, 0x49, 0xfd, 0x87, 0x18, 0xc7, 0xa0, 0x26, 0xc6, 0x5a, 0xdb,
-	0xad, 0x2a, 0x55, 0x42, 0x86, 0x6c, 0x12, 0x37, 0x8e, 0xed, 0xb3, 0xd7, 0xd7, 0xa6, 0x2f, 0xd0,
-	0x87, 0xec, 0xcb, 0x54, 0xbb, 0x5e, 0x83, 0xed, 0xb8, 0x52, 0xff, 0x63, 0xbe, 0x6f, 0x66, 0x3e,
-	0xef, 0xec, 0xcc, 0x0e, 0x20, 0x6d, 0x3c, 0x77, 0x45, 0x83, 0xd5, 0x63, 0xb2, 0xbe, 0x08, 0xa3,
-	0x80, 0x06, 0x68, 0xdf, 0xbd, 0xf3, 0x64, 0x17, 0x06, 0x0b, 0xdf, 0xa5, 0xae, 0xe3, 0xb9, 0x7f,
-	0x11, 0x4c, 0x3e, 0x25, 0x24, 0xa6, 0xe8, 0x2d, 0x74, 0x02, 0xef, 0xee, 0xca, 0xf5, 0x67, 0x6e,
-	0x34, 0xaa, 0x9f, 0xd5, 0xcf, 0x3b, 0x78, 0x07, 0x30, 0xd6, 0x27, 0x7f, 0x08, 0x76, 0x2f, 0x65,
-	0xb7, 0x00, 0x1a, 0x41, 0x2b, 0xf0, 0xee, 0x8c, 0x20, 0xa2, 0xa3, 0xfd, 0xb3, 0xfa, 0x79, 0x13,
-	0x67, 0xa6, 0x2c, 0x41, 0x5f, 0xfd, 0x93, 0x6c, 0x12, 0x9a, 0xe9, 0xc8, 0x03, 0x78, 0x73, 0xed,
-	0xfa, 0x79, 0x69, 0xf9, 0x18, 0x0e, 0x31, 0x89, 0xa9, 0x13, 0xd1, 0xe9, 0x03, 0xf1, 0x69, 0x9c,
-	0xe1, 0xdf, 0x03, 0x2a, 0xe1, 0xa1, 0xf7, 0x82, 0xbe, 0x02, 0x70, 0x98, 0x39, 0x0f, 0x62, 0x1a,
-	0x8f, 0xea, 0x67, 0xfb, 0xe7, 0x1d, 0x9c, 0x43, 0xe4, 0x23, 0x18, 0x9a, 0x34, 0x08, 0x4d, 0x12,
-	0x7d, 0x76, 0x37, 0x64, 0x9b, 0x6c, 0x08, 0x83, 0x22, 0x1c, 0x7a, 0x2f, 0xf2, 0x06, 0x06, 0x76,
-	0xf8, 0x10, 0x39, 0x77, 0xc4, 0xa4, 0x24, 0x34, 0xa9, 0x43, 0x93, 0x18, 0x7d, 0x03, 0x8d, 0x98,
-	0x92, 0x90, 0x17, 0xa1, 0x3f, 0x19, 0x5c, 0xb8, 0x77, 0xde, 0x45, 0xce, 0x2b, 0xc6, 0x9c, 0x46,
-	0xdf, 0xc2, 0x41, 0xcc, 0x03, 0x78, 0x3d, 0xfa, 0x93, 0x37, 0xdc, 0x71, 0x97, 0x07, 0x0b, 0x5a,
-	0xfe, 0x0d, 0x40, 0x09, 0x12, 0x9f, 0x1a, 0x24, 0x9a, 0xad, 0xd1, 0x31, 0x1c, 0xcc, 0xd6, 0xba,
-	0xf3, 0x4c, 0x44, 0x91, 0x85, 0xc5, 0x6a, 0x38, 0x0d, 0xb8, 0x1f, 0xcf, 0xd7, 0xc4, 0x99, 0xc9,
-	0x6a, 0x3f, 0x27, 0x4e, 0x98, 0x72, 0x69, 0x7d, 0x77, 0x80, 0x7c, 0x0a, 0x27, 0xca, 0x23, 0xd9,
-	0x3c, 0x2d, 0xd7, 0xbf, 0x93, 0x0d, 0xe5, 0x58, 0x76, 0xe4, 0x1b, 0x38, 0x7a, 0x4d, 0xb1, 0x12,
-	0x7e, 0x80, 0xde, 0x8d, 0x1b, 0xd3, 0xe5, 0x3d, 0xc7, 0xd2, 0x22, 0x76, 0xc5, 0x01, 0x76, 0x9f,
-	0x8a, 0x0b, 0x4e, 0xac, 0xae, 0x3c, 0xdb, 0xcf, 0x24, 0x8a, 0xdd, 0xc0, 0xcf, 0x44, 0x54, 0x18,
-	0x14, 0x61, 0x26, 0x70, 0x09, 0xc3, 0x45, 0x2c, 0x10, 0x25, 0x78, 0x0e, 0x1d, 0xea, 0xae, 0xbd,
-	0xf4, 0xc4, 0x6d, 0x5c, 0x45, 0xc9, 0x27, 0xe2, 0x5b, 0x67, 0x6e, 0xfc, 0x64, 0x86, 0xce, 0x66,
-	0xdb, 0x1c, 0x9a, 0x90, 0xcd, 0x11, 0x42, 0xc1, 0x24, 0x0f, 0xcf, 0xc4, 0xa7, 0xd7, 0xae, 0x47,
-	0xcc, 0x97, 0xd8, 0x8e, 0x9d, 0x07, 0x22, 0xda, 0xa1, 0x8a, 0x92, 0xbf, 0x84, 0x53, 0x23, 0x22,
-	0xa1, 0x13, 0x11, 0xd6, 0xfc, 0x8a, 0x97, 0xc4, 0x94, 0x44, 0x99, 0xca, 0x29, 0x9c, 0x54, 0x91,
-	0xac, 0x47, 0x3e, 0x41, 0x53, 0x79, 0x4c, 0xfc, 0x27, 0x76, 0x73, 0xeb, 0xe4, 0xfe, 0x9e, 0xa4,
-	0xe3, 0xd1, 0xc3, 0xc2, 0x42, 0x5f, 0x43, 0x83, 0xbe, 0x84, 0xa4, 0xd0, 0x06, 0x3c, 0xe2, 0xc2,
-	0x7a, 0x09, 0x09, 0xe6, 0xa4, 0xfc, 0x1d, 0x34, 0x98, 0x85, 0xba, 0xd0, 0xb2, 0xf5, 0x9f, 0xf4,
-	0xe5, 0x2f, 0xba, 0x54, 0x43, 0x00, 0x07, 0xa6, 0x35, 0x5b, 0xda, 0x96, 0x54, 0x17, 0xbf, 0x55,
-	0x8c, 0xa5, 0x3d, 0xf9, 0x09, 0x5a, 0xb7, 0x24, 0x66, 0x5f, 0x8d, 0x64, 0x68, 0x6e, 0x58, 0x2e,
-	0xae, 0xd9, 0x9d, 0xc0, 0x2e, 0xfb, 0xbc, 0x86, 0x53, 0x0a, 0x5d, 0x16, 0x3a, 0xb1, 0x3b, 0x39,
-	0x2e, 0xb7, 0x6c, 0xda, 0x90, 0xf3, 0x5a, 0xd6, 0x92, 0x57, 0x00, 0xed, 0x4d, 0xe0, 0x53, 0x36,
-	0x54, 0xf2, 0x8f, 0x20, 0x99, 0x84, 0x2a, 0x81, 0x7f, 0xef, 0x3e, 0x64, 0x8f, 0x01, 0x82, 0x86,
-	0xbf, 0x6b, 0x51, 0xfe, 0x1b, 0x1d, 0x42, 0xf3, 0xb3, 0xe3, 0x25, 0x44, 0x8c, 0x7f, 0x6a, 0xb0,
-	0x01, 0xcf, 0x45, 0xb3, 0x7a, 0xbd, 0x03, 0x49, 0xfb, 0x1f, 0xf9, 0xe4, 0x77, 0xd0, 0xd7, 0x0a,
-	0x91, 0x3b, 0x85, 0x7a, 0x4e, 0xe1, 0xfd, 0x3f, 0x75, 0xe8, 0xe5, 0xc7, 0x0f, 0x49, 0xd0, 0x13,
-	0x25, 0x5c, 0x99, 0x96, 0x6a, 0xa4, 0x75, 0x54, 0x96, 0xfa, 0xf5, 0x42, 0x93, 0xea, 0x8c, 0x35,
-	0xad, 0x29, 0xb6, 0x56, 0x53, 0x4d, 0xd5, 0x2d, 0x53, 0xda, 0x43, 0x27, 0x30, 0x5c, 0xe8, 0x0b,
-	0x6b, 0x65, 0x4d, 0xb1, 0xa6, 0x5a, 0x2b, 0xe5, 0xc6, 0x36, 0x2d, 0x15, 0x4b, 0xfb, 0xe8, 0x08,
-	0x06, 0xe6, 0xdc, 0xb6, 0x66, 0x2c, 0x93, 0x40, 0x4d, 0xa9, 0x81, 0x10, 0xf4, 0x6d, 0x43, 0xc3,
-	0xd3, 0x99, 0xba, 0xba, 0x9d, 0x72, 0xd7, 0x26, 0x7a, 0x03, 0x5d, 0x65, 0x69, 0xfc, 0x9a, 0x01,
-	0x07, 0x2c, 0x36, 0x73, 0x32, 0xf0, 0xe2, 0x76, 0x8a, 0x17, 0xaa, 0x29, 0xb5, 0xd0, 0x08, 0x0e,
-	0x53, 0xf5, 0x92, 0x58, 0x9b, 0x05, 0x60, 0x35, 0xfd, 0x4a, 0x1b, 0xab, 0x2b, 0x63, 0x89, 0x2d,
-	0x53, 0xea, 0xbc, 0xb7, 0x00, 0x72, 0x4f, 0x0f, 0x93, 0xde, 0x1e, 0x6d, 0x6a, 0xd9, 0xa6, 0x54,
-	0x63, 0x1d, 0x63, 0xa8, 0xfa, 0x6c, 0xa1, 0xb3, 0xd3, 0x75, 0xa1, 0x85, 0x6d, 0x5d, 0x67, 0xc6,
-	0x1e, 0xea, 0x41, 0x5b, 0x59, 0xde, 0x1a, 0x37, 0xaa, 0xa5, 0x4a, 0xfb, 0xac, 0x08, 0xd7, 0xd3,
-	0xc5, 0x8d, 0x3a, 0x93, 0x1a, 0x93, 0xbf, 0x9b, 0xd0, 0x56, 0x3c, 0xd7, 0x0a, 0xe6, 0xc9, 0x1a,
-	0xe9, 0x20, 0x95, 0x9f, 0x01, 0xf4, 0x56, 0xf4, 0x51, 0xe5, 0xc3, 0x31, 0x1e, 0xff, 0x07, 0xcb,
-	0xae, 0xb7, 0x86, 0xae, 0xa0, 0x97, 0x9f, 0x78, 0x34, 0xda, 0x79, 0x17, 0xdf, 0x86, 0xf1, 0x71,
-	0x05, 0x93, 0xe6, 0x98, 0x43, 0xbf, 0x38, 0xd5, 0x28, 0xa7, 0x59, 0x7e, 0x03, 0xc6, 0xa3, 0x4a,
-	0x2e, 0xcd, 0xf4, 0x03, 0xc0, 0x6e, 0x99, 0xa1, 0x54, 0xf1, 0xd5, 0x76, 0x1b, 0xf7, 0x38, 0x2e,
-	0x86, 0x4a, 0xae, 0x5d, 0xd6, 0xd1, 0x25, 0xb4, 0xc4, 0x66, 0x42, 0x43, 0x4e, 0x16, 0xf7, 0x54,
-	0x45, 0xc4, 0x04, 0xda, 0xd9, 0xe6, 0x42, 0x87, 0x9c, 0x2d, 0x2d, 0xb2, 0x8a, 0x98, 0x8f, 0xd0,
-	0xd9, 0x8e, 0x07, 0x3a, 0x4a, 0x37, 0x44, 0x69, 0x38, 0xc6, 0xc3, 0x32, 0x9c, 0x1e, 0xec, 0x23,
-	0x74, 0xb4, 0x52, 0xa8, 0x56, 0x1d, 0xaa, 0x95, 0x43, 0x55, 0xf8, 0xa2, 0xb0, 0x38, 0xd1, 0x29,
-	0xf7, 0xab, 0x5a, 0xb2, 0xe3, 0x93, 0x2a, 0x6a, 0x7b, 0xd1, 0xf9, 0x95, 0x29, 0x2e, 0xba, 0x62,
-	0xb9, 0x8a, 0x8b, 0x7e, 0xbd, 0x5f, 0x6b, 0xeb, 0x03, 0xfe, 0xbf, 0xe3, 0xc3, 0xbf, 0x01, 0x00,
-	0x00, 0xff, 0xff, 0xb7, 0x3c, 0x7d, 0x8c, 0x8b, 0x08, 0x00, 0x00,
 }

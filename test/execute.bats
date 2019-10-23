@@ -39,6 +39,8 @@ upgrade_datadir() {
     echo "$dir/$base"
 }
 
+# TODO: we actually need to run execute here to get this test to work
+#   what are we actually testing here?
 @test "gpupgrade execute runs gpinitsystem based on the source cluster" {
     skip_if_no_gpdb
 

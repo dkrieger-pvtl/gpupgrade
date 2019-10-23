@@ -36,7 +36,7 @@ func init() {
 
 var _ = Describe("UpgradeSegments", func() {
 	var (
-		segments []Segment
+		segments     []Segment
 		sourceBinDir string
 		targetBinDir string
 	)
@@ -82,6 +82,7 @@ var _ = Describe("UpgradeSegments", func() {
 				oldPort := fs.Int("old-port", -1, "")
 				newPort := fs.Int("new-port", -1, "")
 				mode := fs.String("mode", "", "")
+				checkOnly := fs.Bool("check", false, "")
 
 				err := fs.Parse(args)
 				Expect(err).NotTo(HaveOccurred())
@@ -93,12 +94,13 @@ var _ = Describe("UpgradeSegments", func() {
 				Expect(*oldPort).To(Equal(int(segments[0].OldPort)))
 				Expect(*newPort).To(Equal(int(segments[0].NewPort)))
 				Expect(*mode).To(Equal("segment"))
+				Expect(*checkOnly).To(Equal(false))
 
 				// No other arguments should be passed.
 				Expect(fs.Args()).To(BeEmpty())
 			})
 
-		err := UpgradeSegments("/old/bin", "/new/bin", segments)
+		err := UpgradeSegments("/old/bin", "/new/bin", segments, "", false)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -115,7 +117,7 @@ var _ = Describe("UpgradeSegments", func() {
 		execCommand = exectest.NewCommand(EnvironmentMain)
 
 		var buf bytes.Buffer
-		err := UpgradeSegments("/old/bin", "/new/bin", segments)
+		err := UpgradeSegments("/old/bin", "/new/bin", segments, "", false)
 		Expect(err).NotTo(HaveOccurred())
 
 		scanner := bufio.NewScanner(&buf)

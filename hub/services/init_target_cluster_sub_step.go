@@ -21,7 +21,7 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
-func (h *Hub) CreateTargetCluster(stream messageSender, log io.Writer) error {
+func (h *Hub) CreateTargetCluster(stream messageSender, log io.Writer, inputs ...string) error {
 	sourceDBConn := db.NewDBConn("localhost", int(h.source.MasterPort()), "template1")
 
 	targetDBConn, err := h.InitTargetCluster(stream, log, sourceDBConn)
