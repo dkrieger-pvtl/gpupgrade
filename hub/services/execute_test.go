@@ -162,7 +162,7 @@ func TestStreaming(t *testing.T) {
 
 		execCommand = exectest.NewCommand(StreamingMain)
 
-		err := pair.ConvertMaster(mockStream, ioutil.Discard, "")
+		err := pair.ConvertMaster(mockStream, ioutil.Discard, "", MASTER_UPGRADE)
 		g.Expect(err).NotTo(HaveOccurred())
 
 		g.Expect(stdout.String()).To(Equal(StreamingMainStdout))
@@ -182,7 +182,7 @@ func TestStreaming(t *testing.T) {
 		execCommand = exectest.NewCommand(TenByteMain)
 
 		var buf bytes.Buffer
-		err := pair.ConvertMaster(mockStream, &buf, "")
+		err := pair.ConvertMaster(mockStream, &buf, "", MASTER_UPGRADE)
 		g.Expect(err).NotTo(HaveOccurred())
 
 		// Stdout and stderr are not guaranteed to interleave in any particular
@@ -218,7 +218,7 @@ func TestStreaming(t *testing.T) {
 		execCommand = exectest.NewCommand(BlindlyWritingMain)
 
 		expectedErr := errors.New("write failed!")
-		err := pair.ConvertMaster(mockStream, NewFailingWriter(expectedErr), "")
+		err := pair.ConvertMaster(mockStream, NewFailingWriter(expectedErr), "", MASTER_UPGRADE)
 
 		g.Expect(err).To(Equal(expectedErr))
 	})
@@ -238,7 +238,7 @@ func TestStreaming(t *testing.T) {
 		execCommand = exectest.NewCommand(TenByteMain)
 
 		var buf bytes.Buffer
-		err := pair.ConvertMaster(mockStream, &buf, "")
+		err := pair.ConvertMaster(mockStream, &buf, "", MASTER_UPGRADE)
 		g.Expect(err).NotTo(HaveOccurred())
 
 		// The Writer should not have been affected in any way.
@@ -268,7 +268,7 @@ func TestExecuteSubStep(t *testing.T) {
 
 	expected := errors.New("ahhhh")
 	err := hub.ExecuteSubStep(stream, "my substep",
-		func(_ messageSender, _ io.Writer) error {
+		func(_ messageSender, _ io.Writer, _ ...string) error {
 			return expected
 		})
 

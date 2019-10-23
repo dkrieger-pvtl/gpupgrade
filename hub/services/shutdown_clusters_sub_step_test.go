@@ -19,10 +19,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func StopClusterCmd() {}
-
+func StartClusterCmd()        {}
+func StopClusterCmd()         {}
 func IsPostmasterRunningCmd() {}
-
 func IsPostmasterRunningCmd_Errors() {
 	os.Stderr.WriteString("exit status 2")
 	os.Exit(2)
@@ -30,13 +29,14 @@ func IsPostmasterRunningCmd_Errors() {
 
 func init() {
 	exectest.RegisterMains(
+		StartClusterCmd,
 		StopClusterCmd,
 		IsPostmasterRunningCmd,
 		IsPostmasterRunningCmd_Errors,
 	)
 }
 
-func TestShutdownClusters(t *testing.T) {
+func TestShutdownStartClusters(t *testing.T) {
 	g := NewGomegaWithT(t)
 	ctrl := gomock.NewController(GinkgoT())
 	defer ctrl.Finish()
@@ -58,12 +58,12 @@ func TestShutdownClusters(t *testing.T) {
 	utils.System.RemoveAll = func(s string) error { return nil }
 	utils.System.MkdirAll = func(s string, perm os.FileMode) error { return nil }
 
+	startStopClusterCmd = nil
 	isPostmasterRunningCmd = nil
-	stopClusterCmd = nil
 
 	defer func() {
+		startStopClusterCmd = exec.Command
 		isPostmasterRunningCmd = exec.Command
-		stopClusterCmd = exec.Command
 	}()
 
 	t.Run("isPostmasterRunning succeeds", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestShutdownClusters(t *testing.T) {
 				g.Expect(args).To(Equal([]string{"-c", "pgrep -F basedir/seg-1/postmaster.pid"}))
 			})
 
-		stopClusterCmd = exectest.NewCommandWithVerifier(StopClusterCmd,
+		startStopClusterCmd = exectest.NewCommandWithVerifier(StopClusterCmd,
 			func(path string, args ...string) {
 				g.Expect(path).To(Equal("bash"))
 				g.Expect(args).To(Equal([]string{"-c", "source /source/bindir/../greenplum_path.sh " +
@@ -106,7 +106,7 @@ func TestShutdownClusters(t *testing.T) {
 		isPostmasterRunningCmd = exectest.NewCommand(IsPostmasterRunningCmd_Errors)
 
 		var skippedStopClusterCommand = true
-		stopClusterCmd = exectest.NewCommandWithVerifier(IsPostmasterRunningCmd,
+		startStopClusterCmd = exectest.NewCommandWithVerifier(IsPostmasterRunningCmd,
 			func(path string, args ...string) {
 				skippedStopClusterCommand = false
 			})
@@ -115,4 +115,5 @@ func TestShutdownClusters(t *testing.T) {
 		g.Expect(err).To(HaveOccurred())
 		g.Expect(skippedStopClusterCommand).To(Equal(true))
 	})
+
 }

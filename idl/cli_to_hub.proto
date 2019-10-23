@@ -7,6 +7,7 @@ service CliToHub {
     rpc CheckVersion (CheckVersionRequest) returns (CheckVersionReply) {}
     rpc CheckDiskSpace (CheckDiskSpaceRequest) returns (CheckDiskSpaceReply) {}
     rpc Initialize(InitializeRequest) returns (stream Message) {}
+    rpc InitializeCreateCluster(InitializeCreateClusterRequest) returns (stream Message) {}
     rpc Execute(ExecuteRequest) returns (stream Message) {}
     rpc Finalize(FinalizeRequest) returns (stream Message) {}
     rpc SetConfig (SetConfigRequest) returns (SetConfigReply) {}
@@ -20,6 +21,8 @@ message InitializeRequest {
     string newBinDir = 2;
     int32 oldPort = 3;
 }
+message InitializeCreateClusterRequest {}
+
 message ExecuteRequest {}
 message FinalizeRequest {}
 
@@ -43,12 +46,14 @@ enum UpgradeSteps {
     CREATE_TARGET_CONFIG = 3;
     SHUTDOWN_SOURCE_CLUSTER = 4;
     INIT_TARGET_CLUSTER = 5;
-    SHUTDOWN_TARGET_CLUSTER = 6;
-    UPGRADE_MASTER = 7;
-    COPY_MASTER = 8;
-    UPGRADE_PRIMARIES = 9;
-    START_TARGET_CLUSTER = 10;
-    RECONFIGURE_PORTS = 11;
+    CHECK_MASTER = 6;
+    CHECK_PRIMARIES = 7;
+    SHUTDOWN_CLUSTERS = 8;
+    UPGRADE_MASTER = 9;
+    COPY_MASTER = 10;
+    UPGRADE_PRIMARIES = 11;
+    START_TARGET_CLUSTER = 12;
+    RECONFIGURE_PORTS = 13;
 }
 
 enum StepStatus {

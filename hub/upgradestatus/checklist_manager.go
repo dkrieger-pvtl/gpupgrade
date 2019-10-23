@@ -17,6 +17,8 @@ const (
 	CREATE_TARGET_CONFIG    = "create-target-config"
 	SHUTDOWN_SOURCE_CLUSTER = "shutdown-source-cluster"
 	INIT_TARGET_CLUSTER     = "init-target-cluster"
+	CHECK_MASTER            = "check-master"
+	CHECK_PRIMARIES         = "check-primaries"
 	SHUTDOWN_TARGET_CLUSTER = "shutdown-target-cluster"
 	UPGRADE_MASTER          = "upgrade-master"
 	COPY_MASTER             = "copy-master"

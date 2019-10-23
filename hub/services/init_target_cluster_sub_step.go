@@ -26,15 +26,6 @@ func (h *Hub) GenerateInitsystemConfig() error {
 	return h.writeConf(sourceDBConn)
 }
 
-func (h *Hub) CreateTargetCluster(stream messageSender, log io.Writer) error {
-	targetDBConn, err := h.InitTargetCluster(stream, log)
-	if err != nil {
-		return err
-	}
-
-	return ReloadAndCommitCluster(h.target, targetDBConn)
-}
-
 func (h *Hub) initsystemConfPath() string {
 	return filepath.Join(h.conf.StateDir, "gpinitsystem_config")
 }
@@ -61,8 +52,36 @@ func (h *Hub) writeConf(sourceDBConn *dbconn.DBConn) error {
 	return WriteInitsystemFile(gpinitsystemConfig, h.initsystemConfPath())
 }
 
-func (h *Hub) InitTargetCluster(stream messageSender, log io.Writer) (*dbconn.DBConn, error) {
-	agentConns, err := h.AgentConns()
+func (h *Hub) CreateTargetCluster(stream messageSender, log io.Writer, inputs ...string) error {
+	sourceDBConn := db.NewDBConn("localhost", int(h.source.MasterPort()), "template1")
+
+	targetDBConn, err := h.InitTargetCluster(stream, log, sourceDBConn)
+	if err != nil {
+		return errors.Wrap(err, "failed to connect to old database")
+	}
+
+	return ReloadAndCommitCluster(h.target, targetDBConn)
+}
+
+func (h *Hub) InitTargetCluster(stream messageSender, log io.Writer, sourceDBConn *dbconn.DBConn) (*dbconn.DBConn, error) {
+	err := sourceDBConn.Connect(1)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not connect to database")
+	}
+	defer sourceDBConn.Close()
+
+	gpinitsystemConfig, err := CreateInitialInitsystemConfig(h.source.MasterDataDir())
+	if err != nil {
+		return nil, err
+	}
+
+	gpinitsystemConfig, err = GetCheckpointSegmentsAndEncoding(gpinitsystemConfig, sourceDBConn)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConns := []*Connection{}
+	agentConns, err = h.AgentConns()
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not get/create agents")
 	}

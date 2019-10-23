@@ -93,3 +93,16 @@ func IsHubRunning() (bool, error) {
 
 	return true, nil
 }
+
+func RunPreGpInitSystemChecks() error {
+	var err error
+	s := Substep("Running pre-gpinitsystem checks...")
+	defer s.Finish(&err)
+	return err
+}
+func RunPostGpInitSystemChecks() error {
+	var err error
+	s := Substep("Running post-gpinitsystem checks...")
+	defer s.Finish(&err)
+	return err
+}

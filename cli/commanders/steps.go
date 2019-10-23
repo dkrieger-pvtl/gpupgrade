@@ -21,9 +21,11 @@ var lines = map[idl.UpgradeSteps]string{
 	idl.UpgradeSteps_CONFIG:                  "Retrieving configs...",
 	idl.UpgradeSteps_START_AGENTS:            "Starting agents...",
 	idl.UpgradeSteps_CREATE_TARGET_CONFIG:    "Generating new cluster configuration...",
-	idl.UpgradeSteps_SHUTDOWN_SOURCE_CLUSTER: "Stopping old cluster...",
 	idl.UpgradeSteps_INIT_TARGET_CLUSTER:     "Creating new cluster...",
-	idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER: "Stopping new cluster...",
+	idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER: "Shutting down upgraded cluster...",
+	idl.UpgradeSteps_CHECK_MASTER:            "Checking master...",
+	idl.UpgradeSteps_CHECK_PRIMARIES:         "Checking primaries...",
+	idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER: "Stopping target cluster...",
 	idl.UpgradeSteps_UPGRADE_MASTER:          "Upgrading master...",
 	idl.UpgradeSteps_COPY_MASTER:             "Copying master to segments...",
 	idl.UpgradeSteps_UPGRADE_PRIMARIES:       "Upgrading segments...",
@@ -38,6 +40,7 @@ var indicators = map[idl.StepStatus]string{
 }
 
 func Initialize(client idl.CliToHubClient, oldBinDir, newBinDir string, oldPort int) (err error) {
+
 	request := &idl.InitializeRequest{
 		OldBinDir: oldBinDir,
 		NewBinDir: newBinDir,
@@ -52,6 +55,20 @@ func Initialize(client idl.CliToHubClient, oldBinDir, newBinDir string, oldPort 
 	err = UILoop(stream, false)
 	if err != nil {
 		return xerrors.Errorf("Initialize: %w", err)
+	}
+
+	return nil
+}
+
+func InitializeCreateCluster(client idl.CliToHubClient) (err error) {
+	stream, err := client.InitializeCreateCluster(context.Background(), &idl.InitializeCreateClusterRequest{})
+	if err != nil {
+		return errors.Wrap(err, "initializing hub2")
+	}
+
+	err = UILoop(stream, false)
+	if err != nil {
+		return xerrors.Errorf("InitializeCreateCluster: %w", err)
 	}
 
 	return nil

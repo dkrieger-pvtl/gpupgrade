@@ -264,6 +264,7 @@ var version = &cobra.Command{
 func initialize() *cobra.Command {
 	var oldBinDir, newBinDir string
 	var oldPort int
+	var onlyRunPreInit bool
 
 	subInit := &cobra.Command{
 		Use:   "initialize",
@@ -302,10 +303,23 @@ This step can be reverted.
 			}
 
 			client := connectToHub()
+
 			err = commanders.Initialize(client, oldBinDir, newBinDir, oldPort)
 			if err != nil {
 				return errors.Wrap(err, "initializing hub")
 			}
+			if onlyRunPreInit {
+				return nil
+			}
+
+			_ = commanders.RunPreGpInitSystemChecks()
+
+			err = commanders.InitializeCreateCluster(client)
+			if err != nil {
+				return errors.Wrap(err, "initializing cluster")
+			}
+
+			_ = commanders.RunPostGpInitSystemChecks()
 
 			// TODO: how do we rollback here?
 			err = commanders.NewVersionChecker(client).Execute()
@@ -330,6 +344,8 @@ If you would like to return the cluster to its original state, run
 	subInit.MarkPersistentFlagRequired("new-bindir")
 	subInit.PersistentFlags().IntVar(&oldPort, "old-port", 0, "master port for old gpdb cluster")
 	subInit.MarkPersistentFlagRequired("old-port")
+	subInit.PersistentFlags().BoolVar(&onlyRunPreInit, "only-run-pre-init", false, "only run up to pre-init")
+	subInit.PersistentFlags().MarkHidden("only-run-pre-init")
 
 	return subInit
 }
