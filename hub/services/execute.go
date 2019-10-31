@@ -62,7 +62,7 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 
 	err = h.ExecuteSubStep(executeStream, upgradestatus.UPGRADE_PRIMARIES,
 		func(_ messageSender, _ io.Writer, _ ...string) error {
-			return h.ConvertPrimaries(true)
+			return h.ConvertPrimaries(false)
 		})
 	if err != nil {
 		return err
