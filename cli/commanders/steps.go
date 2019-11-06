@@ -25,7 +25,6 @@ var lines = map[idl.UpgradeSteps]string{
 	idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER: "Shutting down upgraded cluster...",
 	idl.UpgradeSteps_CHECK_MASTER:            "Checking master...",
 	idl.UpgradeSteps_CHECK_PRIMARIES:         "Checking primaries...",
-	idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER: "Stopping target cluster...",
 	idl.UpgradeSteps_UPGRADE_MASTER:          "Upgrading master...",
 	idl.UpgradeSteps_COPY_MASTER:             "Copying master to segments...",
 	idl.UpgradeSteps_UPGRADE_PRIMARIES:       "Upgrading segments...",
