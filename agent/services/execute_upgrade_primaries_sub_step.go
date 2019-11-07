@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"sync"
 
+	"golang.org/x/xerrors"
+
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -96,44 +98,44 @@ func UpgradeSegments(sourceBinDir string, targetBinDir string, segments []Segmen
 			cmd.Env = append(cmd.Env, fmt.Sprintf("LD_LIBRARY_PATH=%s", path))
 		}
 
-		//myContent := segment.Content
+		myContent := segment.Content
 		go func() {
 			defer wg.Done()
 
-			//if checkOnly {
-			//	//TODO: put this in the "official" segment dir location
-			//	stdout, err := utils.System.OpenFile(
-			//		filepath.Join(stateDir, fmt.Sprintf("pg_upgrade_check_stdout_seg_%d.log", myContent)),
-			//		os.O_WRONLY|os.O_CREATE,
-			//		0600,
-			//	)
-			//	if err != nil {
-			//		agentErrs <- errors.Wrap(err, "could not open stdout log file")
-			//		return
-			//	}
-			//	stderr, err := utils.System.OpenFile(
-			//		filepath.Join(stateDir, fmt.Sprintf("pg_upgrade_check_stderr_seg_%d.log", myContent)),
-			//		os.O_WRONLY|os.O_CREATE,
-			//		0600,
-			//	)
-			//	if err != nil {
-			//		agentErrs <- errors.Wrap(err, "could not open stderr log file")
-			//		return
-			//	}
-			//	defer func() {
-			//		if closeErr := stdout.Close(); closeErr != nil {
-			//			err = multierror.Append(err,
-			//				xerrors.Errorf("failed to close pg_upgrade_check_stdout log: %w", closeErr))
-			//		}
-			//		if closeErr := stderr.Close(); closeErr != nil {
-			//			err = multierror.Append(err,
-			//				xerrors.Errorf("failed to close pg_upgrade_check_stderr log: %w", closeErr))
-			//		}
-			//	}()
-			//
-			//	cmd.Stdout = stdout
-			//	cmd.Stderr = stderr
-			//}
+			if checkOnly {
+				//TODO: put this in the "official" segment dir location
+				stdout, err := utils.System.OpenFile(
+					filepath.Join(stateDir, fmt.Sprintf("pg_upgrade_check_stdout_seg_%d.log", myContent)),
+					os.O_WRONLY|os.O_CREATE,
+					0600,
+				)
+				if err != nil {
+					agentErrs <- errors.Wrap(err, "could not open stdout log file")
+					return
+				}
+				stderr, err := utils.System.OpenFile(
+					filepath.Join(stateDir, fmt.Sprintf("pg_upgrade_check_stderr_seg_%d.log", myContent)),
+					os.O_WRONLY|os.O_CREATE,
+					0600,
+				)
+				if err != nil {
+					agentErrs <- errors.Wrap(err, "could not open stderr log file")
+					return
+				}
+				defer func() {
+					if closeErr := stdout.Close(); closeErr != nil {
+						err = multierror.Append(err,
+							xerrors.Errorf("failed to close pg_upgrade_check_stdout log: %w", closeErr))
+					}
+					if closeErr := stderr.Close(); closeErr != nil {
+						err = multierror.Append(err,
+							xerrors.Errorf("failed to close pg_upgrade_check_stderr log: %w", closeErr))
+					}
+				}()
+
+				cmd.Stdout = stdout
+				cmd.Stderr = stderr
+			}
 
 			err := cmd.Run()
 			if err != nil {
