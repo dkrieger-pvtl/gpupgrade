@@ -47,14 +47,14 @@ func StartCluster(stream messageSender, log io.Writer, cluster *utils.Cluster) e
 }
 
 func startStopCluster(stream messageSender, log io.Writer, cluster *utils.Cluster, stop bool) error {
-	err := IsPostmasterRunning(stream, log, cluster)
+	// TODO: why can't we call IsPostmasterRunning for the !stop case?  If we do, we get this on the pipeline:
+	// Usage: pgrep [-flvx] [-d DELIM] [-n|-o] [-P PPIDLIST] [-g PGRPLIST] [-s SIDLIST]
+	// [-u EUIDLIST] [-U UIDLIST] [-G GIDLIST] [-t TERMLIST] [PATTERN]
+	//  pgrep: pidfile not valid
 	if stop {
+		err := IsPostmasterRunning(stream, log, cluster)
 		if err != nil {
 			return err
-		}
-	} else {
-		if err == nil {
-			return errors.New("cluster already up")
 		}
 	}
 
