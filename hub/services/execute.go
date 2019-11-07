@@ -45,11 +45,6 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 		return xerrors.Errorf("failed writing to execute log: %w", err)
 	}
 
-	err = h.ExecuteSubStep(executeStream, upgradestatus.SHUTDOWN_SOURCE_CLUSTER, h.ShutdownClusters)
-	if err != nil {
-		return err
-	}
-
 	err = h.ExecuteSubStep(executeStream, upgradestatus.UPGRADE_MASTER, h.UpgradeMaster, MASTER_UPGRADE)
 	if err != nil {
 		return err

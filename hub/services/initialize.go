@@ -86,6 +86,22 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 		return xerrors.Errorf("failed writing to initialize log for hub: %w", err)
 	}
 
+	err = h.InitializeSubStep(initializeStream, upgradestatus.CREATE_TARGET_CONFIG,
+		func(_ messageSender, _ io.Writer, _ ...string) error {
+			return h.GenerateInitsystemConfig()
+		})
+	if err != nil {
+		return err
+	}
+
+	err = h.InitializeSubStep(initializeStream, upgradestatus.SHUTDOWN_SOURCE_CLUSTER,
+		func(stream messageSender, log io.Writer, _ ...string) error {
+			return StopCluster(stream, log, h.source)
+		})
+	if err != nil {
+		return err
+	}
+
 	err = h.InitializeSubStep(initializeStream, upgradestatus.INIT_TARGET_CLUSTER, h.CreateTargetCluster)
 	if err != nil {
 		return err
