@@ -51,17 +51,16 @@ func startStopCluster(stream messageSender, log io.Writer, cluster *utils.Cluste
 	// Usage: pgrep [-flvx] [-d DELIM] [-n|-o] [-P PPIDLIST] [-g PGRPLIST] [-s SIDLIST]
 	// [-u EUIDLIST] [-U UIDLIST] [-G GIDLIST] [-t TERMLIST] [PATTERN]
 	//  pgrep: pidfile not valid
+	// TODO: should we actually return an error if we try to gpstop an already stopped cluster?
+	cmdName := "gpstart"
 	if stop {
+		cmdName = "gpstop"
 		err := IsPostmasterRunning(stream, log, cluster)
 		if err != nil {
 			return err
 		}
 	}
 
-	cmdName := "gpstart"
-	if stop {
-		cmdName = "gpstop"
-	}
 	cmd := startStopClusterCmd("bash", "-c",
 		fmt.Sprintf("source %[1]s/../greenplum_path.sh && %[1]s/%[2]s -a -d %[3]s",
 			cluster.BinDir,

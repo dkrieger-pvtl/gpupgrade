@@ -20,7 +20,6 @@ const (
 	SHUTDOWN_TARGET_CLUSTER = "shutdown-target-cluster"
 	CHECK_MASTER            = "check-master"
 	CHECK_PRIMARIES         = "check-primaries"
-	START_SOURCE_CLUSTER    = "start-source-cluster"
 	UPGRADE_MASTER          = "upgrade-master"
 	COPY_MASTER             = "copy-master"
 	UPGRADE_PRIMARIES       = "upgrade-primaries"
