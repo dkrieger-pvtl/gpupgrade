@@ -2,15 +2,13 @@ package checklist
 
 import (
 	"errors"
+	"fmt"
 )
-
-type Tree struct {
-	Root *Node
-}
 
 type Action func(val int) error
 
 type Node struct {
+	name     string
 	done     bool
 	children []*Node
 	execute  Action
@@ -20,16 +18,17 @@ func unset_func(val int) error {
 	return errors.New("node action unset")
 }
 
-func NewTree() Tree {
-	var n = NewNode()
-	var t = Tree{n}
-	return t
-}
-
 func NewNode() *Node {
-	var n = Node{done: false, children: nil, execute: unset_func}
+	var n = Node{name: "---", done: false, children: nil, execute: unset_func}
 	n.children = make([]*Node, 0)
 	return &n
+}
+func (n *Node) String() string {
+	return fmt.Sprintf("name: %s done: %v numChildren: %d",
+		n.name, n.done, len(n.children))
+}
+func (n *Node) SetName(name string) {
+	n.name = name
 }
 func (n *Node) SetDone(val bool) {
 	n.done = val
@@ -48,4 +47,15 @@ func (n *Node) ExecuteAll() error {
 		}
 	}
 	return nil
+}
+
+func (n *Node) WalkInOrder() {
+	if len(n.children) == 0 {
+		n.SetDone(true)
+		fmt.Println(n)
+		return
+	}
+	for _, c := range n.children {
+		c.WalkInOrder()
+	}
 }

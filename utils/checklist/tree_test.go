@@ -1,16 +1,10 @@
 package checklist
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 )
-
-func TestNewTree(t *testing.T) {
-	tree := NewTree()
-	err := tree.Root.execute(1)
-	if err == nil {
-		t.Errorf("new tree function does not produce error")
-	}
-}
 
 func TestNewNode(t *testing.T) {
 	node := NewNode()
@@ -19,6 +13,14 @@ func TestNewNode(t *testing.T) {
 	}
 	if len(node.children) != 0 {
 		t.Errorf("new node has children")
+	}
+}
+
+func TestNode_SetName(t *testing.T) {
+	node := NewNode()
+	node.SetName("test")
+	if node.name != "test" {
+		t.Errorf("SetName did not set name")
 	}
 }
 
@@ -55,4 +57,30 @@ func TestNode_ExecuteAll(t *testing.T) {
 	if err != nil {
 		t.Errorf("ExecuteAll failed")
 	}
+}
+
+func TestNode_WalkInOrder(t *testing.T) {
+	node := NewNode()
+	node.SetAction(func(a int) error { return nil })
+
+	for i := 1; i <= 4; i++ {
+		ni := NewNode()
+		node.AddNode(ni)
+		ni.SetName("-")
+		for j := 1; j <= 3; j++ {
+			nj := NewNode()
+			ni.AddNode(nj)
+			nj.SetName("--")
+			for k := 1; k <= 2; k++ {
+				nk := NewNode()
+				nj.AddNode(nk)
+				id := strconv.Itoa(i) + "-" + strconv.Itoa(j) + "-" + strconv.Itoa(k)
+				nk.SetName(id)
+				fmt.Println("INDEX:", id)
+			}
+		}
+	}
+
+	node.WalkInOrder()
+
 }
