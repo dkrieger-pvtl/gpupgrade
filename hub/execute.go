@@ -36,6 +36,7 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 		return xerrors.Errorf("failed writing to execute log: %w", err)
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.UPGRADE_MASTER, idl.UpgradeSteps_UPGRADE_MASTER)
 	err = h.Substep(executeStream, upgradestatus.UPGRADE_MASTER,
 		func(streams OutStreams) error {
 			return h.UpgradeMaster(streams, false)
@@ -44,11 +45,13 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.COPY_MASTER, idl.UpgradeSteps_COPY_MASTER)
 	err = h.Substep(executeStream, upgradestatus.COPY_MASTER, h.CopyMasterDataDir)
 	if err != nil {
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.UPGRADE_PRIMARIES, idl.UpgradeSteps_UPGRADE_PRIMARIES)
 	err = h.Substep(executeStream, upgradestatus.UPGRADE_PRIMARIES,
 		func(_ OutStreams) error {
 			return h.ConvertPrimaries(false)
@@ -57,6 +60,7 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.START_TARGET_CLUSTER, idl.UpgradeSteps_START_TARGET_CLUSTER)
 	err = h.Substep(executeStream, upgradestatus.START_TARGET_CLUSTER,
 		func(streams OutStreams) error {
 			return StartCluster(streams, h.target)

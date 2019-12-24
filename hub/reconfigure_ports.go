@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/greenplum-db/gpupgrade/idl"
+
 	"github.com/greenplum-db/gpupgrade/utils"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -17,6 +19,7 @@ import (
 func (h *Hub) UpgradeReconfigurePortsSubStep(stream *multiplexedStream) error {
 	gplog.Info("starting %s", upgradestatus.RECONFIGURE_PORTS)
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.RECONFIGURE_PORTS, idl.UpgradeSteps_RECONFIGURE_PORTS)
 	step, err := h.InitializeStep(upgradestatus.RECONFIGURE_PORTS, stream.stream)
 	if err != nil {
 		gplog.Error(err.Error())

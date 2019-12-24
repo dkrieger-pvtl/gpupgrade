@@ -42,6 +42,7 @@ func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initiali
 		return xerrors.Errorf("failed writing to initialize log: %w", err)
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.CONFIG, idl.UpgradeSteps_CONFIG)
 	err = h.Substep(initializeStream, upgradestatus.CONFIG,
 		func(stream OutStreams) error {
 			return h.fillClusterConfigsSubStep(stream, in.OldBinDir, in.NewBinDir, int(in.OldPort))
@@ -50,6 +51,7 @@ func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initiali
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.START_AGENTS, idl.UpgradeSteps_START_AGENTS)
 	err = h.Substep(initializeStream, upgradestatus.START_AGENTS, h.startAgentsSubStep)
 	if err != nil {
 		return err
@@ -82,6 +84,7 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 	}
 
 	var targetMasterPort int
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.CREATE_TARGET_CONFIG, idl.UpgradeSteps_CREATE_TARGET_CONFIG)
 	err = h.Substep(initializeStream, upgradestatus.CREATE_TARGET_CONFIG,
 		func(_ OutStreams) error {
 			var err error
@@ -92,6 +95,7 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.SHUTDOWN_SOURCE_CLUSTER, idl.UpgradeSteps_SHUTDOWN_SOURCE_CLUSTER)
 	err = h.Substep(initializeStream, upgradestatus.SHUTDOWN_SOURCE_CLUSTER,
 		func(stream OutStreams) error {
 			return StopCluster(stream, h.source)
@@ -100,6 +104,7 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.INIT_TARGET_CLUSTER, idl.UpgradeSteps_INIT_TARGET_CLUSTER)
 	err = h.Substep(initializeStream, upgradestatus.INIT_TARGET_CLUSTER,
 		func(stream OutStreams) error {
 			return h.CreateTargetCluster(stream, targetMasterPort)
@@ -108,6 +113,7 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.SHUTDOWN_TARGET_CLUSTER, idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER)
 	err = h.Substep(initializeStream, upgradestatus.SHUTDOWN_TARGET_CLUSTER,
 		func(stream OutStreams) error {
 			return h.ShutdownCluster(stream, false)
@@ -116,6 +122,7 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 		return err
 	}
 
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.CHECK_UPGRADE, idl.UpgradeSteps_CHECK_UPGRADE)
 	return h.Substep(initializeStream, upgradestatus.CHECK_UPGRADE, h.CheckUpgrade)
 }
 
