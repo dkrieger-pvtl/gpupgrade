@@ -151,6 +151,10 @@ type StepWriter struct {
 	code    idl.UpgradeSteps // the gRPC code associated with this step
 }
 
+func NewStepWriter(stepdir string, code idl.UpgradeSteps) *StepWriter {
+	return &StepWriter{stepdir, code}
+}
+
 // FIXME: none of these operations are atomic on the FS; just move the progress
 // file from name to name instead
 func (sw StepWriter) MarkFailed() error {
