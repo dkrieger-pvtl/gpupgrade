@@ -3,8 +3,9 @@ package hub
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
+
+	"github.com/greenplum-db/gp-common-go-libs/gplog"
+	"github.com/greenplum-db/gpupgrade/hub/upgradestatus"
 
 	"github.com/greenplum-db/gp-common-go-libs/cluster"
 	multierror "github.com/hashicorp/go-multierror"
@@ -12,29 +13,30 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/idl"
-	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 func (h *Hub) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeServer) (err error) {
-	log, err := utils.System.OpenFile(
-		filepath.Join(utils.GetStateDir(), "finalize.log"),
-		os.O_WRONLY|os.O_CREATE,
-		0600,
-	)
+	substeps, err := BeginStep(h.conf.StateDir, "finalize", stream)
 	if err != nil {
 		return err
 	}
+
 	defer func() {
-		if closeErr := log.Close(); closeErr != nil {
-			err = multierror.Append(err,
-				xerrors.Errorf("failed to close finalize log: %w", closeErr))
+		if ferr := FinishStep(substeps); ferr != nil {
+			err = multierror.Append(err, ferr).ErrorOrNil()
+		}
+
+		if err != nil {
+			gplog.Error(fmt.Sprintf("finalize: %s", err))
 		}
 	}()
 
-	finalizeStream := newMultiplexedStream(stream, log)
+	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.RECONFIGURE_PORTS, idl.UpgradeSteps_RECONFIGURE_PORTS)
+	substeps.Run(idl.UpgradeSteps_RECONFIGURE_PORTS, func(streams OutStreams) error {
+		return h.reconfigurePorts(streams)
+	})
 
-	err = h.UpgradeReconfigurePortsSubStep(finalizeStream)
-	return err
+	return Err(substeps)
 }
 
 // ClonePortsFromCluster will modify the gp_segment_configuration of the passed

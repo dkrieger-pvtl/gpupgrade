@@ -5,49 +5,20 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/greenplum-db/gpupgrade/idl"
-
 	"github.com/greenplum-db/gpupgrade/utils"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
-	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/hub/upgradestatus"
 )
 
-func (h *Hub) UpgradeReconfigurePortsSubStep(stream *multiplexedStream) error {
-	gplog.Info("starting %s", upgradestatus.RECONFIGURE_PORTS)
-
-	h.checklist.(*upgradestatus.ChecklistManager).AddWritableStep(upgradestatus.RECONFIGURE_PORTS, idl.UpgradeSteps_RECONFIGURE_PORTS)
-	step, err := h.InitializeStep(upgradestatus.RECONFIGURE_PORTS, stream.stream)
-	if err != nil {
-		gplog.Error(err.Error())
-		return err
-	}
-
-	if err := h.reconfigurePorts(stream); err != nil {
-		gplog.Error(err.Error())
-
-		// Log any stderr from failed commands.
-		var exitErr *exec.ExitError
-		if xerrors.As(err, &exitErr) {
-			gplog.Debug(string(exitErr.Stderr))
-		}
-
-		step.MarkFailed()
-		return err
-	}
-
-	step.MarkComplete()
-	return nil
-}
-
 // reconfigurePorts executes the tricky sequence of operations required to
 // change the ports on a cluster.
 //
 // TODO: this method needs test coverage.
-func (h *Hub) reconfigurePorts(stream *multiplexedStream) (err error) {
+func (h *Hub) reconfigurePorts(stream OutStreams) (err error) {
 	// 1). bring down the cluster
 	err = StopCluster(stream, h.target)
 	if err != nil {
