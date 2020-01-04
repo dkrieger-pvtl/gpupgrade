@@ -2,8 +2,11 @@ package commanders
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"reflect"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -108,4 +111,58 @@ func TestStartHubFails(t *testing.T) {
 	execCommandHubStart = exectest.NewCommand(GpupgradeHub_bad_Main)
 	err := StartHub()
 	g.Expect(err).ToNot(BeNil())
+}
+
+func TestCreateStateDirAndClusterConfigs(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", t.Name())
+	if err != nil {
+		t.Fatalf("failed creating temp dir %#v", err)
+	}
+
+	oldHome, isSet := os.LookupEnv("GPUGRADE_HOME")
+	defer func() {
+		if isSet {
+			os.Setenv("GPUPGRADE_HOME", oldHome)
+		}
+	}()
+	err = os.Setenv("GPUPGRADE_HOME", filepath.Join(tmpDir, "home"))
+	if err != nil {
+		t.Fatalf("failed to set GPUPGRADE_HOME %#v", err)
+	}
+
+	// creates initial files if none exist or fails
+	if _, err := os.Stat(tmpDir); os.IsExist(err) {
+		t.Errorf("expected GPUPGRADE_HOME to not exist. got unexpected error %#v", err)
+	}
+
+	err = CreateStateDirAndClusterConfigs("/source/bin/dir", "target/bin/dir")
+	if err != nil {
+		t.Fatalf("unexpected error %#v", err)
+	}
+
+	var infoOld os.FileInfo
+	if infoOld, err = os.Stat(tmpDir); os.IsNotExist(err) {
+		t.Errorf("expected GPUPGRADE_HOME to exist. got unexpected error %#v", err)
+	}
+
+	// test idempotence
+	err = CreateStateDirAndClusterConfigs("/source/bin/dir", "target/bin/dir")
+	if err != nil {
+		t.Fatalf("unexpected error %#v", err)
+	}
+
+	var infoNew os.FileInfo
+	if infoNew, err = os.Stat(tmpDir); os.IsNotExist(err) {
+		t.Errorf("expected GPUPGRADE_HOME to exist. got unexpected error %#v", err)
+	}
+
+	if !reflect.DeepEqual(infoOld, infoNew) {
+		t.Error("want fileInfo before to match fileInfo new")
+	}
+
+	// ensure no errors on re-run
+	err = CreateStateDirAndClusterConfigs("/source/bin/dir", "target/bin/dir")
+	if err != nil {
+		t.Fatalf("unexpected error %#v", err)
+	}
 }

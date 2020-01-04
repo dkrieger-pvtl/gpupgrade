@@ -98,7 +98,10 @@ func (s *StepData) Run(subStep idl.UpgradeSteps, f func(OutStreams) error) {
 	}
 
 	dir := filepath.Join(s.dir, strings.ToLower(subStep.String()))
-	writer := upgradestatus.NewStepWriter(dir, subStep)
+	writer := streamStepWriter{
+		upgradestatus.NewStepWriter(dir, subStep),
+		s.stream.stream,
+	}
 
 	err = writer.ResetStateDir()
 	if err != nil {
