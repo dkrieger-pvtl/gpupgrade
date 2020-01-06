@@ -69,6 +69,16 @@ func StartHub() (err error) {
 	s := Substep("Starting hub...")
 	defer s.Finish(&err)
 
+	running, err := IsHubRunning()
+	if err != nil {
+		gplog.Error("failed to determine if hub already running")
+		return err
+	}
+	if running {
+		gplog.Debug("gpupgrade hub already running...")
+		return nil
+	}
+
 	cmd := execCommandHubStart("gpupgrade", "hub", "--daemonize")
 	stdout, cmdErr := cmd.Output()
 	if cmdErr != nil {

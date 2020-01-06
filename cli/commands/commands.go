@@ -277,16 +277,6 @@ This step can be reverted.
 				return errors.Wrap(err, "tried to create state directory")
 			}
 
-			running, err := commanders.IsHubRunning()
-			if err != nil {
-				gplog.Error("failed to determine if hub already running")
-				return err
-			}
-			if running {
-				gplog.Error("gpupgrade hub process already running")
-				return errors.New("gpupgrade hub process already running")
-			}
-
 			err = commanders.StartHub()
 			if err != nil {
 				return errors.Wrap(err, "starting hub")
