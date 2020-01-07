@@ -46,6 +46,8 @@ func Initialize(client idl.CliToHubClient, oldBinDir, newBinDir string, oldPort 
 		OldPort:   int32(oldPort),
 	}
 
+	// TODO: consider tracking steps(vs all substeps) so we can return quickly here if Initialize succeeded
+
 	stream, err := client.Initialize(context.Background(), request)
 	if err != nil {
 		return errors.Wrap(err, "initializing hub")
