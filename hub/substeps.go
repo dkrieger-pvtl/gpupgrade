@@ -77,7 +77,15 @@ type StepData struct {
 
 var ErrSkip = errors.New("skipping completed substep")
 
-func (s *StepData) Run(subStep idl.UpgradeSteps, f func(OutStreams) error) {
+func (s *StepData) Run(subStep idl.UpgradeSteps, subStep2 string, stepReader func(string) upgradestatus.StateReader, f func(OutStreams) error) {
+	reader := stepReader(subStep2)
+	status := reader.Status()
+	// Only run a task if has not already run (ie: not completed).
+	// On crashes only re-run tasks that have failed or were running.
+	if status == idl.StepStatus_COMPLETE {
+		return
+	}
+
 	if s.errChain != nil {
 		// Short-circuit remaining elements in the chain.
 		return

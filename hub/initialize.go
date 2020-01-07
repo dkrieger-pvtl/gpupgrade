@@ -6,6 +6,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/greenplum-db/gpupgrade/hub/upgradestatus"
+
 	"github.com/greenplum-db/gp-common-go-libs/cluster"
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -33,11 +35,12 @@ func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initiali
 		}
 	}()
 
-	substeps.Run(idl.UpgradeSteps_CONFIG, func(stream OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_CONFIG, upgradestatus.CONFIG, h.checklist.GetStepReader, func(stream OutStreams) error {
+		_, err = fmt.Fprintf(stream.Stdout(), "\n***** LOOK AT ME *** \n")
 		return h.fillClusterConfigsSubStep(stream, in.OldBinDir, in.NewBinDir, int(in.OldPort))
 	})
 
-	substeps.Run(idl.UpgradeSteps_START_AGENTS, func(stream OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_START_AGENTS, upgradestatus.START_AGENTS, h.checklist.GetStepReader, func(stream OutStreams) error {
 		return h.startAgentsSubStep(stream)
 	})
 
@@ -61,25 +64,25 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 	}()
 
 	var targetMasterPort int
-	substeps.Run(idl.UpgradeSteps_CREATE_TARGET_CONFIG, func(_ OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_CREATE_TARGET_CONFIG, upgradestatus.CREATE_TARGET_CONFIG, h.checklist.GetStepReader, func(_ OutStreams) error {
 		var err error
 		targetMasterPort, err = h.GenerateInitsystemConfig(in.Ports)
 		return err
 	})
 
-	substeps.Run(idl.UpgradeSteps_SHUTDOWN_SOURCE_CLUSTER, func(stream OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_SHUTDOWN_SOURCE_CLUSTER, upgradestatus.SHUTDOWN_SOURCE_CLUSTER, h.checklist.GetStepReader, func(stream OutStreams) error {
 		return StopCluster(stream, h.source)
 	})
 
-	substeps.Run(idl.UpgradeSteps_INIT_TARGET_CLUSTER, func(stream OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_INIT_TARGET_CLUSTER, upgradestatus.INIT_TARGET_CLUSTER, h.checklist.GetStepReader, func(stream OutStreams) error {
 		return h.CreateTargetCluster(stream, targetMasterPort)
 	})
 
-	substeps.Run(idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER, func(stream OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_SHUTDOWN_TARGET_CLUSTER, upgradestatus.SHUTDOWN_TARGET_CLUSTER, h.checklist.GetStepReader, func(stream OutStreams) error {
 		return h.ShutdownCluster(stream, false)
 	})
 
-	substeps.Run(idl.UpgradeSteps_CHECK_UPGRADE, func(stream OutStreams) error {
+	substeps.Run(idl.UpgradeSteps_CHECK_UPGRADE, upgradestatus.CHECK_UPGRADE, h.checklist.GetStepReader, func(stream OutStreams) error {
 		return h.CheckUpgrade(stream)
 	})
 
@@ -87,7 +90,13 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 }
 
 // create old/new clusters, write to disk and re-read from disk to make sure it is "durable"
-func (h *Hub) fillClusterConfigsSubStep(_ OutStreams, oldBinDir, newBinDir string, oldPort int) error {
+func (h *Hub) fillClusterConfigsSubStep(stream OutStreams, oldBinDir, newBinDir string, oldPort int) error {
+	stream.Stdout().Write([]byte("I am in side the func"))
+
+	fmt.Fprintf(stream.Stdout(), "\n***** fillClusterConfigsSubStep *** \n")
+
+	println("hihihi")
+
 	source := &utils.Cluster{BinDir: path.Clean(oldBinDir), ConfigPath: filepath.Join(h.conf.StateDir, utils.SOURCE_CONFIG_FILENAME)}
 	dbConn := db.NewDBConn("localhost", oldPort, "template1")
 	defer dbConn.Close()

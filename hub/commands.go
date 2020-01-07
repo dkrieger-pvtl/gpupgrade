@@ -84,6 +84,8 @@ func Command() *cobra.Command {
 			// fully exercised in end-to-end tests. It feels like we should be able to
 			// pull these into a Hub method or helper function, but currently the
 			// interfaces aren't well componentized.
+			cm.AddWritableStep(upgradestatus.CONFIG, idl.UpgradeSteps_CONFIG)
+			cm.AddWritableStep(upgradestatus.START_AGENTS, idl.UpgradeSteps_START_AGENTS)
 			cm.AddWritableStep(upgradestatus.CREATE_TARGET_CONFIG, idl.UpgradeSteps_CREATE_TARGET_CONFIG)
 			cm.AddWritableStep(upgradestatus.SHUTDOWN_SOURCE_CLUSTER, idl.UpgradeSteps_SHUTDOWN_SOURCE_CLUSTER)
 			cm.AddWritableStep(upgradestatus.INIT_TARGET_CLUSTER, idl.UpgradeSteps_INIT_TARGET_CLUSTER)
