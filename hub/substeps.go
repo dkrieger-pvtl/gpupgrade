@@ -41,8 +41,10 @@ func BeginStep(stateDir string, name string, stream messageSender) (*StepData, e
 	}
 
 	// TODO move to global initialization
-	dir := filepath.Join(stateDir, "status")
-	if err = utils.System.MkdirAll(dir, 0700); err != nil {
+	// TODO: what is our path supposed to be?  The checklist_manager does not expect "status"
+	//   to be in the path.
+	//dir := filepath.Join(stateDir, "status")
+	if err = utils.System.MkdirAll(stateDir, 0700); err != nil {
 		log.Close()
 		return nil, xerrors.Errorf(`creating status directory: %w`, err)
 	}
@@ -51,7 +53,7 @@ func BeginStep(stateDir string, name string, stream messageSender) (*StepData, e
 		name:   name,
 		stream: newMultiplexedStream(stream, log),
 		log:    log,
-		dir:    dir,
+		dir:    stateDir,
 	}, nil
 }
 
