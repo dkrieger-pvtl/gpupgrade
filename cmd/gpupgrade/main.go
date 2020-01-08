@@ -16,6 +16,8 @@ import (
 func main() {
 	setUpLogging()
 
+	fmt.Println("STARTING>>>>")
+
 	confirmValidCommand()
 
 	root := commands.BuildRootCommand()

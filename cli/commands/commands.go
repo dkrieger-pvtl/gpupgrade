@@ -286,7 +286,7 @@ This step can be reverted.
 
 			err = commanders.Initialize(client, oldBinDir, newBinDir, oldPort, verbose)
 			if err != nil {
-				return errors.Wrap(err, "initializing hub")
+				return errors.Wrap(err, "commands: initializing hub")
 			}
 
 			err = commanders.RunPreChecks(client, diskFreeRatio)

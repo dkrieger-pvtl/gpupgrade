@@ -50,12 +50,12 @@ func Initialize(client idl.CliToHubClient, oldBinDir, newBinDir string, oldPort 
 
 	stream, err := client.Initialize(context.Background(), request)
 	if err != nil {
-		return errors.Wrap(err, "initializing hub")
+		return errors.Wrap(err, "error: initializing hub")
 	}
 
 	err = UILoop(stream, verbose)
 	if err != nil {
-		return xerrors.Errorf("Initialize: %w", err)
+		return xerrors.Errorf("error: Initialize UILoop: %w", err)
 	}
 
 	return nil

@@ -41,7 +41,7 @@ type Hub struct {
 	source     *utils.Cluster
 	target     *utils.Cluster
 	grpcDialer Dialer
-	checklist  upgradestatus.Checklist
+	checklist  *upgradestatus.ChecklistManager
 
 	mu     sync.Mutex
 	server *grpc.Server
@@ -73,7 +73,7 @@ type Config struct {
 	LogDir         string
 }
 
-func New(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, grpcDialer Dialer, conf *Config, checklist upgradestatus.Checklist) *Hub {
+func New(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, grpcDialer Dialer, conf *Config, checklist *upgradestatus.ChecklistManager) *Hub {
 	h := &Hub{
 		stopped:    make(chan struct{}, 1),
 		conf:       conf,
@@ -82,6 +82,8 @@ func New(sourceCluster *utils.Cluster, targetCluster *utils.Cluster, grpcDialer 
 		grpcDialer: grpcDialer,
 		checklist:  checklist,
 	}
+
+	//fmt.Println("STARTING>>>>   HUB")
 
 	return h
 }
@@ -97,6 +99,8 @@ func (h *Hub) Start() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to listen")
 	}
+
+	//fmt.Println("HUB>>>>>>>>>>>>>>>")
 
 	// Set up an interceptor function to log any panics we get from request
 	// handlers.
