@@ -16,6 +16,16 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
+type AgentStarter interface {
+	StartAgent(hostname, stateDir string) (err error)
+}
+type agentStarter struct{}
+
+func (a *agentStarter) StartAgent(hostname, stateDir string) (err error) {
+	fmt.Printf("starting agent on host %s using stateDir %s", hostname, stateDir)
+	return nil
+}
+
 func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_InitializeServer) (err error) {
 	s, err := BeginStep(h.StateDir, "initialize", stream)
 	if err != nil {
@@ -37,7 +47,7 @@ func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initiali
 	})
 
 	s.Run(idl.Substep_START_AGENTS, func(stream step.OutStreams) error {
-		return h.startAgentsSubStep(stream)
+		return StartAgentsSubStep(h.Source.GetHostnames(), h.StateDir, &agentStarter{})
 	})
 
 	return s.Err()
@@ -116,13 +126,38 @@ func getAgentPath() (string, error) {
 }
 
 // TODO: use the implementation in RestartAgents() for this function and combine them
-func (h *Hub) startAgentsSubStep(stream step.OutStreams) error {
-	source := h.Source
-	stateDir := h.StateDir
+func StartAgentsSubStep(hostnames []string, stateDir string, agentStarter AgentStarter) (err error) {
 
 	// XXX If there are failures, does it matter what agents have successfully
 	// started, or do we just want to stop all of them and kick back to the
 	// user?
+	for _, host := range hostnames {
+		nErr := agentStarter.StartAgent(host, stateDir)
+		if nErr != nil {
+			err = multierror.Append(err, nErr).ErrorOrNil()
+		}
+	}
+	return err
+
+	//
+	//for _, seg := range source.Segments {
+	//	hostname := seg.Hostname
+	//	ssh hostname -c "gpupgrade agent ...."
+	//	cmd := exec.Command("gpupgrade", "agent", "--daemonize", "--state-direcotory",
+	//	stateDir)
+	//	stdout, cmdErr := cmd.Output()
+	//	if cmdErr != nil{
+	//	err := fmt.Errorf("failed to start hub (%s)", cmdErr)
+	//	if exitErr, ok := cmdErr.(*exec.ExitError); ok{
+	//	// Annotate with the Stderr capture, if we have it.
+	//	err = fmt.Errorf("%s: %s", err, exitErr.Stderr)
+	//}
+	//	return err
+	//}
+	//}
+}
+
+func startAgents(source *utils.Cluster, stateDir string) error {
 	logStr := "start agents on master and hosts"
 
 	agentPath, err := getAgentPath()
