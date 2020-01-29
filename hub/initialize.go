@@ -1,9 +1,16 @@
 package hub
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
+	"time"
+
+	"google.golang.org/grpc"
 
 	"github.com/greenplum-db/gp-common-go-libs/cluster"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -20,11 +27,6 @@ type AgentStarter interface {
 	StartAgent(hostname, stateDir string) (err error)
 }
 type agentStarter struct{}
-
-func (a *agentStarter) StartAgent(hostname, stateDir string) (err error) {
-	fmt.Printf("starting agent on host %s using stateDir %s", hostname, stateDir)
-	return nil
-}
 
 func (h *Hub) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_InitializeServer) (err error) {
 	s, err := BeginStep(h.StateDir, "initialize", stream)
@@ -128,9 +130,6 @@ func getAgentPath() (string, error) {
 // TODO: use the implementation in RestartAgents() for this function and combine them
 func StartAgentsSubStep(hostnames []string, stateDir string, agentStarter AgentStarter) (err error) {
 
-	// XXX If there are failures, does it matter what agents have successfully
-	// started, or do we just want to stop all of them and kick back to the
-	// user?
 	for _, host := range hostnames {
 		nErr := agentStarter.StartAgent(host, stateDir)
 		if nErr != nil {
@@ -138,65 +137,73 @@ func StartAgentsSubStep(hostnames []string, stateDir string, agentStarter AgentS
 		}
 	}
 	return err
-
-	//
-	//for _, seg := range source.Segments {
-	//	hostname := seg.Hostname
-	//	ssh hostname -c "gpupgrade agent ...."
-	//	cmd := exec.Command("gpupgrade", "agent", "--daemonize", "--state-direcotory",
-	//	stateDir)
-	//	stdout, cmdErr := cmd.Output()
-	//	if cmdErr != nil{
-	//	err := fmt.Errorf("failed to start hub (%s)", cmdErr)
-	//	if exitErr, ok := cmdErr.(*exec.ExitError); ok{
-	//	// Annotate with the Stderr capture, if we have it.
-	//	err = fmt.Errorf("%s: %s", err, exitErr.Stderr)
-	//}
-	//	return err
-	//}
-	//}
 }
 
-func startAgents(source *utils.Cluster, stateDir string) error {
-	logStr := "start agents on master and hosts"
+func (a *agentStarter) StartAgent(hostname, stateDir string) (err error) {
+	fmt.Printf("starting agent on host %s using stateDir %s", hostname, stateDir)
+	err = RestartAgents2(context.Background(), nil, hostname, 6416, stateDir)
+	return err
+}
 
-	agentPath, err := getAgentPath()
-	if err != nil {
-		return errors.Errorf("failed to get the hub executable path %v", err)
-	}
+func RestartAgents2(ctx context.Context,
+	dialer func(context.Context, string) (net.Conn, error),
+	hostname string,
+	port int,
+	stateDir string) error {
 
-	// XXX State directory handling on agents needs to be improved. See issue
-	// #127: all agents will silently recreate that directory if it doesn't
-	// already exist. Plus, ExecuteOnAllHosts() doesn't let us control whether
-	// we execute locally or via SSH for the master, so we don't know whether
-	// GPUPGRADE_HOME is going to be inherited.
-	runAgentCmd := func(contentID int) string {
-		return agentPath + " agent --daemonize --state-directory " + stateDir
-	}
+	var wg sync.WaitGroup
+	errs := make(chan error, 1)
 
-	errStr := "Failed to start all gpupgrade agents"
+	wg.Add(1)
+	go func(host string) {
+		defer wg.Done()
 
-	remoteOutput, err := source.ExecuteOnAllHosts(logStr, runAgentCmd)
-	if err != nil {
-		return errors.Wrap(err, errStr)
-	}
-
-	errMessage := func(contentID int) string {
-		return fmt.Sprintf("Could not start gpupgrade agent on segment with contentID %d", contentID)
-	}
-	source.CheckClusterError(remoteOutput, errStr, errMessage, true)
-
-	// Agents print their port and PID to stdout; log them for posterity.
-	for content, output := range remoteOutput.Stdouts {
-		if remoteOutput.Errors[content] == nil {
-			gplog.Info("[%s] %s", source.Segments[content].Hostname, output)
+		address := host + ":" + strconv.Itoa(port)
+		timeoutCtx, cancelFunc := context.WithTimeout(ctx, 3*time.Second)
+		opts := []grpc.DialOption{
+			grpc.WithBlock(),
+			grpc.WithInsecure(),
+			grpc.FailOnNonTempDialError(true),
 		}
+		if dialer != nil {
+			opts = append(opts, grpc.WithContextDialer(dialer))
+		}
+		conn, err := grpc.DialContext(timeoutCtx, address, opts...)
+		cancelFunc()
+		if err == nil {
+			err = conn.Close()
+			if err != nil {
+				gplog.Error("failed to close agent connection to %s: %+v", host, err)
+			}
+			return
+		}
+
+		gplog.Debug("failed to dial agent on %s: %+v", host, err)
+		gplog.Info("starting agent on %s", host)
+
+		agentPath, err := getAgentPath()
+		if err != nil {
+			errs <- err
+			return
+		}
+		cmd := execCommand("ssh", host,
+			fmt.Sprintf("bash -c \"%s agent --daemonize --state-directory %s\"", agentPath, stateDir))
+		stdout, err := cmd.Output()
+		if err != nil {
+			errs <- err
+			return
+		}
+
+		gplog.Debug(string(stdout))
+	}(hostname)
+
+	wg.Wait()
+	close(errs)
+
+	var multiErr *multierror.Error
+	for err := range errs {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
-	if remoteOutput.NumErrors > 0 {
-		// CheckClusterError() will have already logged each error.
-		return errors.New("could not start agents on segment hosts; see log for details")
-	}
-
-	return nil
+	return multiErr.ErrorOrNil()
 }
