@@ -67,6 +67,15 @@ type Connection struct {
 	CancelContext func()
 }
 
+func getAgentPath() (string, error) {
+	hubPath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(filepath.Dir(hubPath), "gpupgrade"), nil
+}
+
 func New(conf *Config, grpcDialer Dialer, stateDir string) *Hub {
 	h := &Hub{
 		Config:     conf,
