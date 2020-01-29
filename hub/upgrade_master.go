@@ -2,6 +2,9 @@ package hub
 
 import (
 	"os/exec"
+	"path/filepath"
+
+	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/upgrade"
@@ -10,6 +13,9 @@ import (
 
 // Allow exec.Command to be mocked out by exectest.NewCommand.
 var execCommand = exec.Command
+var execCommandRsync = exec.Command
+
+const backupTargetDirName = "master.bak"
 
 // XXX this makes more sense as a Hub method, but it's so difficult to stub a
 // Hub that the parameters have been split out for testing. Revisit if/when the
@@ -19,6 +25,12 @@ func UpgradeMaster(source, target *utils.Cluster, stateDir string, stream step.O
 	err := utils.System.MkdirAll(wd, 0700)
 	if err != nil {
 		return err
+	}
+
+	sourceDir := filepath.Join(stateDir, backupTargetDirName) + "/"
+	err = RsyncMasterDataDir(stream, sourceDir, target.MasterDataDir())
+	if err != nil {
+		return xerrors.Errorf("rsync %q to %q: %w", sourceDir, target.MasterDataDir(), err)
 	}
 
 	pair := upgrade.SegmentPair{
@@ -49,4 +61,19 @@ func masterSegmentFromCluster(cluster *utils.Cluster) *upgrade.Segment {
 		DBID:    cluster.GetDbidForContent(-1),
 		Port:    cluster.MasterPort(),
 	}
+}
+
+func RsyncMasterDataDir(stream step.OutStreams, sourceDir, targetDir string) error {
+	// TODO: Once we have removed the need for duplication of execCommand injection
+	// update it with the execCommand call
+	cmd := execCommandRsync("rsync", "--archive", "--exclude=pg_log/*", sourceDir, targetDir)
+
+	cmd.Stdout = stream.Stdout()
+	cmd.Stderr = stream.Stderr()
+
+	err := cmd.Run()
+	if err != nil {
+		return xerrors.Errorf("rsync source directory %q, target directory %q: %w", sourceDir, targetDir, err)
+	}
+	return nil
 }

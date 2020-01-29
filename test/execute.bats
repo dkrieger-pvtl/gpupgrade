@@ -80,9 +80,20 @@ reset_master_and_primary_pg_control_files() {
     done
 }
 
+delete_datadirs() {
+    local datadir=$1
+    rm -rf "${datadir}"/qddir_upgrade
+    rm -rf "${datadir}"/dbfast1_upgrade
+    rm -rf "${datadir}"/dbfast2_upgrade
+    rm -rf "${datadir}"/dbfast3_upgrade
+}
+
 @test "gpupgrade execute should remember that link mode was specified in initialize" {
     require_gnu_stat
     set_master_and_primary_datadirs
+
+    local datadir=$(dirname $(dirname "${MASTER_DATA_DIRECTORY}"))
+    delete_datadirs "$datadir
 
     $PSQL postgres -c "drop table if exists test_linking; create table test_linking (a int);"
 
@@ -103,4 +114,32 @@ reset_master_and_primary_pg_control_files() {
     TEARDOWN_FUNCTIONS+=( reset_master_and_primary_pg_control_files )
 
     PGPORT=50432 ensure_hardlinks_for_relfilenode_on_master_and_segments 'test_linking' 2
+}
+
+@test "gpupgrade execute step to upgrade master should always rsync the master data dir from backup" {
+    require_gnu_stat
+    set_master_and_primary_datadirs
+
+    local datadir=$(dirname $(dirname "${MASTER_DATA_DIRECTORY}"))
+    delete_datadirs "$datadir
+
+    gpupgrade initialize \
+        --old-bindir="$GPHOME/bin" \
+        --new-bindir="$GPHOME/bin" \
+        --old-port="${PGPORT}" \
+        --link \
+        --disk-free-ratio 0 \
+        --verbose
+
+    NEW_CLUSTER="${datadir}/qddir_upgrade/demoDataDir-1"
+
+    # Initialize creates a backup of the target master data dir, during execute
+    # upgrade master steps refreshes the content of the target master data dir
+    # with the existing backup. Remove the target master data directory to
+    # ensure that initialize created a backup and upgrade master refreshed the
+    # target master data directory with the backup.
+    rm -rf "${datadir}"/qddir_upgrade/demoDataDir-1/*
+    gpupgrade execute --verbose
+    TEARDOWN_FUNCTIONS+=( reset_master_and_primary_pg_control_files )
+
 }
