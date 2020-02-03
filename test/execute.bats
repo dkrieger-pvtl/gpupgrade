@@ -80,20 +80,11 @@ reset_master_and_primary_pg_control_files() {
     done
 }
 
-delete_datadirs() {
-    local datadir=$1
-    rm -rf "${datadir}"/qddir_upgrade
-    rm -rf "${datadir}"/dbfast1_upgrade
-    rm -rf "${datadir}"/dbfast2_upgrade
-    rm -rf "${datadir}"/dbfast3_upgrade
-}
-
 @test "gpupgrade execute should remember that link mode was specified in initialize" {
     require_gnu_stat
     set_master_and_primary_datadirs
 
-    local datadir=$(dirname $(dirname "${MASTER_DATA_DIRECTORY}"))
-    delete_datadirs "$datadir
+    delete_target_datadirs "${MASTER_DATA_DIRECTORY}"
 
     $PSQL postgres -c "drop table if exists test_linking; create table test_linking (a int);"
 
@@ -120,8 +111,7 @@ delete_datadirs() {
     require_gnu_stat
     set_master_and_primary_datadirs
 
-    local datadir=$(dirname $(dirname "${MASTER_DATA_DIRECTORY}"))
-    delete_datadirs "$datadir
+    delete_target_datadirs "${MASTER_DATA_DIRECTORY}"
 
     gpupgrade initialize \
         --old-bindir="$GPHOME/bin" \
@@ -131,6 +121,7 @@ delete_datadirs() {
         --disk-free-ratio 0 \
         --verbose
 
+    local datadir=$(dirname $(dirname "${MASTER_DATA_DIRECTORY}"))
     NEW_CLUSTER="${datadir}/qddir_upgrade/demoDataDir-1"
 
     # Initialize creates a backup of the target master data dir, during execute

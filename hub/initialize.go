@@ -93,7 +93,7 @@ func (h *Hub) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest, st
 	})
 
 	s.Run(idl.Substep_BACKUP_TARGET_MASTER, func(stream step.OutStreams) error {
-		sourceDir := h.Target.MasterDataDir() + "/"
+		sourceDir := h.Target.MasterDataDir()
 		targetDir := filepath.Join(h.StateDir, backupTargetDirName)
 		return RsyncMasterDataDir(stream, sourceDir, targetDir)
 	})

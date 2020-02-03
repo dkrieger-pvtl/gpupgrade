@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -15,7 +16,7 @@ import (
 var execCommand = exec.Command
 var execCommandRsync = exec.Command
 
-const backupTargetDirName = "master.bak"
+const backupTargetDirName = "masterBackup"
 
 // XXX this makes more sense as a Hub method, but it's so difficult to stub a
 // Hub that the parameters have been split out for testing. Revisit if/when the
@@ -27,10 +28,10 @@ func UpgradeMaster(source, target *utils.Cluster, stateDir string, stream step.O
 		return err
 	}
 
-	sourceDir := filepath.Join(stateDir, backupTargetDirName) + "/"
+	sourceDir := filepath.Join(stateDir, backupTargetDirName)
 	err = RsyncMasterDataDir(stream, sourceDir, target.MasterDataDir())
 	if err != nil {
-		return xerrors.Errorf("rsync %q to %q: %w", sourceDir, target.MasterDataDir(), err)
+		return err
 	}
 
 	pair := upgrade.SegmentPair{
@@ -64,16 +65,15 @@ func masterSegmentFromCluster(cluster *utils.Cluster) *upgrade.Segment {
 }
 
 func RsyncMasterDataDir(stream step.OutStreams, sourceDir, targetDir string) error {
-	// TODO: Once we have removed the need for duplication of execCommand injection
-	// update it with the execCommand call
-	cmd := execCommandRsync("rsync", "--archive", "--exclude=pg_log/*", sourceDir, targetDir)
+	sourceDirRsync := filepath.Clean(sourceDir) + string(os.PathSeparator)
+	cmd := execCommandRsync("rsync", "--archive", "--exclude=pg_log/*", sourceDirRsync, targetDir)
 
 	cmd.Stdout = stream.Stdout()
 	cmd.Stderr = stream.Stderr()
 
 	err := cmd.Run()
 	if err != nil {
-		return xerrors.Errorf("rsync source directory %q, target directory %q: %w", sourceDir, targetDir, err)
+		return xerrors.Errorf("rsync %q to %q: %w", sourceDirRsync, targetDir, err)
 	}
 	return nil
 }

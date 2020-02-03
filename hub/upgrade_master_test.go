@@ -20,6 +20,9 @@ import (
 )
 
 func Success() {}
+func Failure() {
+	os.Exit(1)
+}
 
 const StreamingMainStdout = "expected\nstdout\n"
 const StreamingMainStderr = "process\nstderr\n"
@@ -52,6 +55,7 @@ func init() {
 		Success,
 		StreamingMain,
 		BlindlyWritingMain,
+		Failure,
 	)
 }
 
@@ -211,6 +215,22 @@ func TestUpgradeMaster(t *testing.T) {
 		if !xerrors.Is(err, expectedErr) {
 			t.Errorf("returned error %+v, want %+v", err, expectedErr)
 		}
+	})
+
+	t.Run("rsync during upgrade master errors out", func(t *testing.T) {
+		SetExecCommand(exectest.NewCommand(StreamingMain))
+		defer ResetExecCommand()
+
+		SetRsyncExecCommand(exectest.NewCommand(Failure))
+		defer ResetRsyncExecCommand()
+
+		stream := new(bufferedStreams)
+
+		err := UpgradeMaster(source, target, tempDir, stream, false, false)
+		if err == nil {
+			t.Errorf("expected error, returned nil")
+		}
+
 	})
 }
 
