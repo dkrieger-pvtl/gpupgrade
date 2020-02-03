@@ -16,7 +16,7 @@ import (
 var execCommand = exec.Command
 var execCommandRsync = exec.Command
 
-const backupTargetDirName = "masterBackup"
+const masterBackup = "master.bak"
 
 // XXX this makes more sense as a Hub method, but it's so difficult to stub a
 // Hub that the parameters have been split out for testing. Revisit if/when the
@@ -28,7 +28,7 @@ func UpgradeMaster(source, target *utils.Cluster, stateDir string, stream step.O
 		return err
 	}
 
-	sourceDir := filepath.Join(stateDir, backupTargetDirName)
+	sourceDir := filepath.Join(stateDir, masterBackup)
 	err = RsyncMasterDataDir(stream, sourceDir, target.MasterDataDir())
 	if err != nil {
 		return err
