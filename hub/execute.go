@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
@@ -40,6 +41,26 @@ func (h *Hub) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_ExecuteSe
 	s.Run(idl.Substep_UPGRADE_PRIMARIES, func(_ step.OutStreams) error {
 		return h.ConvertPrimaries(false)
 	})
+
+	{
+		// TODO: this is only needed on a 5X source cluster
+		s.Run(idl.Substep_START_SOURCE_CLUSTER, func(stream step.OutStreams) error {
+			err := StartCluster(stream, h.Source)
+			if _, ok := err.(*exec.ExitError); ok {
+				gplog.Info("exit error on start, hopefully due to mirrors being down")
+				return nil
+			}
+			return err
+		})
+
+		s.Run(idl.Substep_SOURCE_RECOVERSEG, func(stream step.OutStreams) error {
+			return Recoverseg(stream, h.Source)
+		})
+
+		s.AlwaysRun(idl.Substep_SHUTDOWN_SOURCE_CLUSTER, func(stream step.OutStreams) error {
+			return StopCluster(stream, h.Source)
+		})
+	}
 
 	s.Run(idl.Substep_START_TARGET_CLUSTER, func(streams step.OutStreams) error {
 		return StartCluster(streams, h.Target)

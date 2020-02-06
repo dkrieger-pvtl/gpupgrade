@@ -29,6 +29,8 @@ var lines = map[idl.Substep]string{
 	idl.Substep_UPGRADE_MASTER:          "Upgrading master...",
 	idl.Substep_COPY_MASTER:             "Copying master to segments...",
 	idl.Substep_UPGRADE_PRIMARIES:       "Upgrading segments...",
+	idl.Substep_SOURCE_RECOVERSEG:       "Recoverseg old cluster...",
+	idl.Substep_START_SOURCE_CLUSTER:    "Starting old cluster...",
 	idl.Substep_START_TARGET_CLUSTER:    "Starting new cluster...",
 	idl.Substep_RECONFIGURE_PORTS:       "Changing cluster ports...",
 }
