@@ -131,13 +131,20 @@ func WriteInitsystemFile(gpinitsystemConfig []string, gpinitsystemFilepath strin
 }
 
 func upgradeDataDir(path string) string {
+	return dataDirWithSuffix(path, "_upgrade")
+}
+
+func oldDataDir(path string) string {
+	return dataDirWithSuffix(path, "_old")
+}
+
+func dataDirWithSuffix(path string, suffix string) string {
 	// e.g.
 	//   /data/primary/seg1
 	// becomes
-	//   /data/primary_upgrade/seg1
+	//   /data/primary_suffix/seg1
 	path = filepath.Clean(path)
-	parent := fmt.Sprintf("%s_upgrade", filepath.Dir(path))
-	return filepath.Join(parent, filepath.Base(path))
+	return filepath.Join(filepath.Dir(path), suffix, filepath.Base(path))
 }
 
 // sanitize sorts and deduplicates a slice of port numbers.

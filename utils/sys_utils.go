@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -40,6 +41,7 @@ type SystemFunctions struct {
 	Rename       func(oldpath, newpath string) error
 	ReadFile     func(filename string) ([]byte, error)
 	WriteFile    func(filename string, data []byte, perm os.FileMode) error
+	WriteString  func(w io.Writer, s string) (n int, err error)
 	Stat         func(name string) (os.FileInfo, error)
 	FilePathGlob func(pattern string) ([]string, error)
 	Create       func(name string) (*os.File, error)
@@ -64,6 +66,7 @@ func InitializeSystemFunctions() *SystemFunctions {
 		FilePathGlob: filepath.Glob,
 		ReadFile:     ioutil.ReadFile,
 		WriteFile:    ioutil.WriteFile,
+		WriteString:  io.WriteString,
 		Create:       os.Create,
 		Mkdir:        os.Mkdir,
 	}

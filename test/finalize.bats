@@ -42,7 +42,7 @@ teardown() {
     fi
 }
 
-@test "finalize modifies ports on the live target cluster" {
+@test "finalize modifies data directories ports on the live target cluster" {
 
     # To avoid spinning up an entire upgrade just to test finalize, we instead
     # create a new cluster for the test and fake the configurations to point at
@@ -73,6 +73,21 @@ EOF
     gpinitsystem -ac "$STATE_DIR/gpinitsystem_config" 3>&- || true
     NEW_CLUSTER="$STATE_DIR/_upgrade/demoDataDir-1"
 
+    # Mimic the old cluster datadirs, which relies on the above hardcoded
+    # gpinitsytem_config
+    OLD_DATADIRS="${STATE_DIR}/_/demoDataDir-1
+${STATE_DIR}/_/demoDataDir0
+${STATE_DIR}/_/demoDataDir1
+${STATE_DIR}/_/demoDataDir2"
+
+    while IFS= read -r datadir; do
+        echo "mkdir -p $datadir"
+    done <<< "$OLD_DATADIRS"
+
+    # Create a marker file for testing to verify old and new clusters actually
+    # got reconfigured.
+    touch ${STATE_DIR}/_/source.cluster
+
     # Generate a new target cluster configuration that the hub can use, then
     # restart the hub.
     PGPORT=40000 go run ./testutils/insert_target_config "$GPHOME/bin" "$GPUPGRADE_HOME/config.json"
@@ -80,16 +95,19 @@ EOF
     gpupgrade hub --daemonize 3>&-
 
     gpupgrade finalize
-
-    # Sanity check: make sure the "new cluster" is really the new cluster by
-    # verifying the master data directory location.
-    datadir=$(psql -At postgres -c "select datadir from gp_segment_configuration
-                                    where content = -1 and role = 'p'")
-    [ "$datadir" = "$STATE_DIR/_upgrade/demoDataDir-1" ] || fail "actual master datadir: $datadir"
+    # Reset NEW_CLUSTER for cleanup since finalize reconfigures the datadirs.
+    NEW_CLUSTER="$STATE_DIR/_/demoDataDir-1"
 
     # Check to make sure the new cluster's ports match the old one.
     local new_ports=$(get_ports)
     [ "$OLD_PORTS" = "$new_ports" ] || fail "actual ports: $new_ports"
+
+    # Ensure the new cluster's data dirs match the old one.
+    local new_datadirs=$(get_datadirs)
+    [ "$OLD_DATADIRS" = "$new_datadirs" ] || fail "actual datadirs: $new_datadirs, expected datadirs: $OLD_DATADIRS"
+
+    [ -f ${STATE_DIR}/_old/source.cluster ] || fail "expected source.cluster marker file to be in source datadir: ${STATE_DIR}/_old"
+    [ ! -f ${STATE_DIR}/_/source.cluster ] || fail "unexpecetd source.cluster marker file in target datadir: ${STATE_DIR}/_"
 }
 
 # Writes the primary ports from the cluster pointed to by $PGPORT to stdout, one
@@ -98,4 +116,24 @@ get_ports() {
     PSQL="$GPHOME"/bin/psql
     $PSQL -At postgres \
         -c "select port from gp_segment_configuration where role = 'p' order by content"
+}
+
+# Writes the datadirs from the cluster pointed to by $PGPORT to stdout, one per
+# line, sorted by content ID.
+get_datadirs() {
+    PSQL="$GPHOME"/bin/psql
+    local version=$("$GPHOME"/bin/postgres --gp-version)
+    local prefix="postgres (Greenplum Database) "
+
+    if [[ $version == ${prefix}"5"* ]]; then
+         $PSQL -At postgres \
+                -c "SELECT fselocation
+        FROM pg_catalog.gp_segment_configuration
+        JOIN pg_catalog.pg_filespace_entry on (dbid = fsedbid)
+        JOIN pg_catalog.pg_filespace fs on (fsefsoid = fs.oid)
+        ORDER BY content DESC, fs.oid;"
+    else
+        $PSQL -At postgres \
+            -c "select datadir from gp_segment_configuration where role = 'p' order by content"
+    fi
 }
