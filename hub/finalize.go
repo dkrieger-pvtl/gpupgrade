@@ -34,6 +34,10 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 		return s.ReconfigurePorts(stream)
 	})
 
+	st.Run(idl.Substep_RECONFIGURE_DATADIRS, func(streams step.OutStreams) error {
+		return s.ReconfigureDatadirs(streams)
+	})
+
 	return st.Err()
 }
 
