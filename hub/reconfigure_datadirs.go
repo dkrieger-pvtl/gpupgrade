@@ -31,7 +31,7 @@ func (s *Server) ReconfigureDatadirs(stream step.OutStreams) (err error) {
 		return xerrors.Errorf("getting stdin pipe for reconfigure datadirs: %w", err)
 	}
 
-	errs := make(chan error, 1)
+	errs := make(chan error, 2)
 	go func() {
 		defer stdin.Close()
 		_, err = io.WriteString(stdin, "UPDATE gp_segment_configuration SET datadir = datadir || '_old';")
@@ -43,28 +43,27 @@ func (s *Server) ReconfigureDatadirs(stream step.OutStreams) (err error) {
 		errs <- xerrors.Errorf("reconfiguring datadirs: %w", err)
 	}
 
-	var multiErr multierror.Error
-	for err := range errs {
-		multiErr = *multierror.Append(&multiErr, err)
+	for cErr := range errs {
+		err = multierror.Append(err, cErr).ErrorOrNil()
 	}
 
-	noop := func(path string) string {
-		return path
-	}
+	//noop := func(path string) string {
+	//	return path
+	//}
 
-	// rename the target cluster datadirs. _upgrade -> _
-	err = renameDataDirectories(s.agentConns, s.Target, upgradeDataDir, noop)
-	if err != nil {
-		return xerrors.Errorf("renaming target directories: %w")
-	}
+	//// rename the target cluster datadirs. _upgrade -> _
+	//err = renameDataDirectories(s.agentConns, s.Target, upgradeDataDir, noop)
+	//if err != nil {
+	//	return xerrors.Errorf("renaming target directories: %w")
+	//}
+	//
+	//// rename the source cluster datadirs. _ -> _old
+	//err = renameDataDirectories(s.agentConns, s.Source, noop, oldDataDir)
+	//if err != nil {
+	//	return xerrors.Errorf("renaming source directories: %w")
+	//}
 
-	// rename the source cluster datadirs. _ -> _old
-	err = renameDataDirectories(s.agentConns, s.Source, noop, oldDataDir)
-	if err != nil {
-		return xerrors.Errorf("renaming source directories: %w")
-	}
-
-	return multiErr.ErrorOrNil()
+	return err
 }
 
 func renameDataDirectories(agentConns []*Connection,

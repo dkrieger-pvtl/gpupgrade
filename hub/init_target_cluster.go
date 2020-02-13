@@ -152,8 +152,17 @@ func dataDirWithSuffix(path string, suffix string) string {
 	//   /data/primary/seg1
 	// becomes
 	//   /data/primary_suffix/seg1
-	path = filepath.Clean(path)
-	return filepath.Join(filepath.Dir(path), suffix, filepath.Base(path))
+	fullpath := filepath.Clean(path)
+
+	start_newdir := filepath.Dir(filepath.Dir(fullpath))
+
+	penultimate_dir := filepath.Base(filepath.Dir(fullpath))
+	penultimate_newdir := penultimate_dir + suffix
+
+	end_newdir := filepath.Base(fullpath)
+
+	return filepath.Join(start_newdir, penultimate_newdir, end_newdir)
+
 }
 
 // sanitize sorts and deduplicates a slice of port numbers.

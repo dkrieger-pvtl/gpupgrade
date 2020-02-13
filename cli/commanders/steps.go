@@ -31,6 +31,7 @@ var lines = map[idl.Substep]string{
 	idl.Substep_UPGRADE_PRIMARIES:       "Upgrading segments...",
 	idl.Substep_START_TARGET_CLUSTER:    "Starting new cluster...",
 	idl.Substep_RECONFIGURE_PORTS:       "Changing cluster ports...",
+	idl.Substep_RECONFIGURE_DATADIRS:    "Changing cluster datadirs...",
 }
 
 var indicators = map[idl.Status]string{

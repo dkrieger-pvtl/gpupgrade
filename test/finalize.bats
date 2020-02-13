@@ -81,7 +81,7 @@ ${STATE_DIR}/_/demoDataDir1
 ${STATE_DIR}/_/demoDataDir2"
 
     while IFS= read -r datadir; do
-        echo "mkdir -p $datadir"
+        mkdir -p $datadir
     done <<< "$OLD_DATADIRS"
 
     # Create a marker file for testing to verify old and new clusters actually
