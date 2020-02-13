@@ -8,6 +8,7 @@ service Agent {
     rpc CheckDiskSpace (CheckSegmentDiskSpaceRequest) returns (CheckDiskSpaceReply) {}
     rpc UpgradePrimaries (UpgradePrimariesRequest) returns (UpgradePrimariesReply) {}
     rpc CreateSegmentDataDirectories (CreateSegmentDataDirRequest) returns (CreateSegmentDataDirReply) {}
+    rpc ReconfigureDataDirectories (ReconfigureDataDirRequest) returns (ReconfigureDataDirReply) {}
     rpc StopAgent(StopAgentRequest) returns (StopAgentReply) {}
 }
 
@@ -37,6 +38,18 @@ message CreateSegmentDataDirRequest {
 }
 
 message CreateSegmentDataDirReply {}
+
+// TODO: Find a better name
+message Pair {
+  string OriginDataDir = 1;
+  string DestinationDataDir = 2;
+}
+
+message ReconfigureDataDirRequest{
+  repeated Pair Pair = 1;
+}
+
+message ReconfigureDataDirReply{}
 
 message StopAgentRequest {}
 message StopAgentReply {}
