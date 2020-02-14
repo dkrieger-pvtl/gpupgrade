@@ -155,27 +155,36 @@ func ClonePortsFromCluster(db *sql.DB, src *utils.Cluster) (err error) {
 	return nil
 }
 
-func UpdateCatalogWithPortInformation(source, target *utils.Cluster) error {
-	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path=", target.MasterPort())
-	targetDB, err := sql.Open("pgx", connURI)
-	defer func() {
-		closeErr := targetDB.Close()
-		if closeErr != nil {
-			closeErr = xerrors.Errorf("closing connection to new master db: %w", closeErr)
-			err = multierror.Append(err, closeErr)
-		}
-	}()
-	if err != nil {
-		return xerrors.Errorf("%s failed to open connection to utility master: %w",
-			idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, err)
-	}
-	err = ClonePortsFromCluster(targetDB, source)
+func UpdateCatalogWithPortInformation(source, target *utils.Cluster) (err error) {
+	err = withinDbConnection(target, func(conn *sql.DB) error {
+		return ClonePortsFromCluster(conn, source)
+	})
 	if err != nil {
 		return xerrors.Errorf("%s failed to clone ports: %w",
 			idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, err)
 	}
 
 	return nil
+}
+
+func withinDbConnection(cluster *utils.Cluster, f func(connection *sql.DB) error) (err error) {
+	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path=", cluster.MasterPort())
+	targetDBConnection, err := sql.Open("pgx", connURI)
+
+	if err != nil {
+		return xerrors.Errorf("%s failed to open connection to utility master: %w",
+			idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, err)
+	}
+
+	defer func() {
+		closeErr := targetDBConnection.Close()
+		if closeErr != nil {
+			closeErr = xerrors.Errorf("closing connection to new master db: %w", closeErr)
+			err = multierror.Append(err, closeErr)
+		}
+	}()
+
+	return f(targetDBConnection)
 }
 
 func UpdateMasterPostgresqlConf(source, target *utils.Cluster) error {
