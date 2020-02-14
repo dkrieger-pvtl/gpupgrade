@@ -156,7 +156,7 @@ func ClonePortsFromCluster(db *sql.DB, src *utils.Cluster) (err error) {
 }
 
 func UpdateCatalogWithPortInformation(source, target *utils.Cluster) (err error) {
-	err = withinDbConnection(target, func(conn *sql.DB) error {
+	err = WithinDbConnection(target, func(conn *sql.DB) error {
 		return ClonePortsFromCluster(conn, source)
 	})
 	if err != nil {
@@ -167,24 +167,49 @@ func UpdateCatalogWithPortInformation(source, target *utils.Cluster) (err error)
 	return nil
 }
 
-func withinDbConnection(cluster *utils.Cluster, f func(connection *sql.DB) error) (err error) {
-	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path=", cluster.MasterPort())
-	targetDBConnection, err := sql.Open("pgx", connURI)
+const connectionString = "postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path="
+
+func WithinDbConnection(cluster *utils.Cluster, operation func(connection *sql.DB) error) (err error) {
+	connURI := fmt.Sprintf(connectionString, cluster.MasterPort())
+	connection, err := sql.Open("pgx", connURI)
+
+	fmt.Printf("%v", connectionString)
+	fmt.Printf("%v", connURI)
 
 	if err != nil {
-		return xerrors.Errorf("%s failed to open connection to utility master: %w",
-			idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, err)
+		return xerrors.Errorf("Failed to open connection to utility master: %w", err)
 	}
 
 	defer func() {
-		closeErr := targetDBConnection.Close()
+		closeErr := connection.Close()
 		if closeErr != nil {
 			closeErr = xerrors.Errorf("closing connection to new master db: %w", closeErr)
 			err = multierror.Append(err, closeErr)
 		}
 	}()
 
-	return f(targetDBConnection)
+	return operation(connection)
+}
+
+func WithinDbTransaction(cluster *utils.Cluster, operation func(transaction *sql.Tx) error) (err error) {
+	return WithinDbConnection(cluster, func(connection *sql.DB) error {
+		transaction, err := connection.Begin()
+		if err != nil {
+			return err
+		}
+
+		err = operation(transaction)
+		if err != nil {
+			return err
+		}
+
+		err = connection.Close()
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func UpdateMasterPostgresqlConf(source, target *utils.Cluster) error {
