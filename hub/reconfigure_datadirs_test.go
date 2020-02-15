@@ -26,6 +26,10 @@ func TestRenameDataDirsInDatabase(t *testing.T) {
 		}
 	})
 
+	t.Run("it rolls back on a failure", func(t *testing.T) {
+		t.Error("need to handle errors")
+	})
+
 	t.Run("it alters a database", func(t *testing.T) {
 		c := hub.MustCreateCluster(t, []utils.SegConfig{
 			{
@@ -37,6 +41,7 @@ func TestRenameDataDirsInDatabase(t *testing.T) {
 
 		err := hub.ModifySegmentCatalog(c, []utils.SegConfig{
 			{DbID: 1, DataDir: "/some/data/dir"},
+			{DbID: 2, DataDir: "/some/other/data/dir"},
 		})
 
 		if err != nil {
@@ -44,16 +49,22 @@ func TestRenameDataDirsInDatabase(t *testing.T) {
 		}
 
 		hub.WithinDbTransaction(c, func(transaction *sql.Tx) error {
-			row := transaction.QueryRow("select * from gp_segment_configuration where dbid=1;")
-			value := "dbid"
-			err = row.Scan(&value)
-
+			dir, err := getDataDir(transaction, 1)
 			if err != nil {
 				t.Errorf("error: %v", err)
 			}
 
-			if value != "foo" {
-				t.Errorf("got %v", value)
+			if dir != "/some/data/dir" {
+				t.Errorf("got %v", dir)
+			}
+
+			dir, err = getDataDir(transaction, 2)
+			if err != nil {
+				t.Errorf("error: %v", err)
+			}
+
+			if dir != "/some/other/data/dir" {
+				t.Errorf("got %v", dir)
 			}
 
 			return nil
@@ -94,6 +105,16 @@ func TestRenameDataDirsInDatabase(t *testing.T) {
 				expectedDataDir)
 		}
 	})
+}
+
+func getDataDir(transaction *sql.Tx, dbid int) (string, error) {
+	row := transaction.QueryRow(
+		"select datadir from gp_segment_configuration where dbid=$1;",
+		dbid)
+
+	value := ""
+	err := row.Scan(&value)
+	return value, err
 }
 
 //func TestRenameDataDirsInDatabase(t *testing.T) {

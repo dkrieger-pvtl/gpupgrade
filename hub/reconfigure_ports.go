@@ -203,6 +203,11 @@ func WithinDbTransaction(cluster *utils.Cluster, operation func(transaction *sql
 			return err
 		}
 
+		err = transaction.Commit()
+		if err != nil {
+			return nil
+		}
+
 		err = connection.Close()
 		if err != nil {
 			return err

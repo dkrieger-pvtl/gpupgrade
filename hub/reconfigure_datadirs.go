@@ -27,11 +27,9 @@ func ModifySegmentCatalog(cluster *utils.Cluster, modifications []utils.SegConfi
 	}
 
 	return WithinDbTransaction(cluster, func(transaction *sql.Tx) error {
-		_, err := transaction.Exec("update gp_segment_configuration set datadir = ?",
-			modifications[0].DataDir)
-
-		if err != nil {
-			return err
+		for _, mod := range modifications {
+			_, _ = transaction.Exec("update gp_segment_configuration set datadir = $1 where dbid = $2",
+				mod.DataDir, mod.DbID)
 		}
 
 		return nil
