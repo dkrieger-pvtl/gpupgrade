@@ -43,6 +43,7 @@ teardown() {
     # TODO: ensure upgrading from 5x works
     # TODO: gpperfmon?
     # TODO: ensure old cluster can still start
+    # TODO: push segment work to the agent
 }
 
 place_marker_file_in_source_cluster() {
