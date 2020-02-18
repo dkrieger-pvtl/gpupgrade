@@ -40,9 +40,8 @@ teardown() {
     [ -f "${source_cluster_master_data_directory}/source-cluster.test-marker" ] || fail "expected source-cluster.test-marker marker file to be in source datadir: ${STATE_DIR}/base/demoDataDir-1"
     [ ! -f "${target_cluster_master_data_directory}/source-cluster.test-marker" ] || fail "unexpected source-cluster.test-marker marker file in target datadir: ${STATE_DIR}/base/demoDataDir-1"
 
-#    Ensure the new cluster's data dirs match the old one.
-#    local new_datadirs=$(get_datadirs_from_gp_segment_configuration)
-#    [ "$OLD_DATADIRS" = "$new_datadirs" ] || fail "actual datadirs: $new_datadirs, expected datadirs: $OLD_DATADIRS"
+    # TODO: ensure 5x works
+    # TODO: gpperfmon?
 
 }
 
@@ -62,6 +61,7 @@ teardown_new_cluster() {
         delete_finalized_cluster $NEW_CLUSTER
     fi
 }
+
 
 ## Writes the datadirs from the cluster pointed to by $PGPORT to stdout, one per
 ## line, sorted by content ID.
