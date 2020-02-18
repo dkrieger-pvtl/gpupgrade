@@ -115,7 +115,7 @@ func commitOrRollback(tx *sql.Tx, err error) error {
 // As a reminder to developers, we don't have any mirrors up at this point on
 // the target cluster. We copy only the primary information. Good thing too,
 // because utils.Cluster doesn't give us mirror info.
-func ClonePortsFromCluster(db *sql.DB, src *utils.Cluster) (err error) {
+func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *utils.Cluster) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
 		return xerrors.Errorf("starting transaction for port clone: %w", err)
@@ -126,14 +126,16 @@ func ClonePortsFromCluster(db *sql.DB, src *utils.Cluster) (err error) {
 
 	// Make sure the content IDs in gp_segment_configuration match the source
 	// cluster exactly.
-	if err := sanityCheckContentIDs(tx, src); err != nil {
+	if err := sanityCheckContentIDs(tx, source); err != nil {
 		return err
 	}
 
-	for _, content := range src.ContentIDs {
-		port := src.Primaries[content].Port
-		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = $1 WHERE content = $2",
-			port, content)
+	for _, content := range source.ContentIDs {
+		port := source.Primaries[content].Port
+		dataDir := target.Primaries[content].DataDir
+
+		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = $1, datadir = $2 WHERE content = $3",
+			port, dataDir, content)
 		if err != nil {
 			return xerrors.Errorf("updating segment configuration: %w", err)
 		}
@@ -155,66 +157,17 @@ func ClonePortsFromCluster(db *sql.DB, src *utils.Cluster) (err error) {
 	return nil
 }
 
-func UpdateCatalogWithPortInformation(source, target *utils.Cluster) (err error) {
+func UpdateCatalog(source, target *utils.Cluster) (err error) {
 	err = WithinDbConnection(target, func(conn *sql.DB) error {
-		return ClonePortsFromCluster(conn, source)
+		return UpdateGpSegmentConfiguration(conn, source, target)
 	})
+
 	if err != nil {
 		return xerrors.Errorf("%s failed to clone ports: %w",
 			idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, err)
 	}
 
 	return nil
-}
-
-const connectionString = "postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path="
-
-func WithinDbConnection(cluster *utils.Cluster, operation func(connection *sql.DB) error) (err error) {
-	connURI := fmt.Sprintf(connectionString, cluster.MasterPort())
-	connection, err := sql.Open("pgx", connURI)
-
-	fmt.Printf("%v", connectionString)
-	fmt.Printf("%v", connURI)
-
-	if err != nil {
-		return xerrors.Errorf("Failed to open connection to utility master: %w", err)
-	}
-
-	defer func() {
-		closeErr := connection.Close()
-		if closeErr != nil {
-			closeErr = xerrors.Errorf("closing connection to new master db: %w", closeErr)
-			err = multierror.Append(err, closeErr)
-		}
-	}()
-
-	return operation(connection)
-}
-
-func WithinDbTransaction(cluster *utils.Cluster, operation func(transaction *sql.Tx) error) (err error) {
-	return WithinDbConnection(cluster, func(connection *sql.DB) error {
-		transaction, err := connection.Begin()
-		if err != nil {
-			return err
-		}
-
-		err = operation(transaction)
-		if err != nil {
-			return err
-		}
-
-		err = transaction.Commit()
-		if err != nil {
-			return nil
-		}
-
-		err = connection.Close()
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
 }
 
 func UpdateMasterPostgresqlConf(source, target *utils.Cluster) error {

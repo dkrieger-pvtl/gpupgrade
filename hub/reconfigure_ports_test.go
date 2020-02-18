@@ -74,7 +74,7 @@ func TestClonePortsFromCluster(t *testing.T) {
 
 		mock.ExpectCommit()
 
-		err = ClonePortsFromCluster(db, src)
+		err = UpdateGpSegmentConfiguration(db, src, target)
 		if err != nil {
 			t.Fatalf("returned error %#v", err)
 		}
@@ -262,7 +262,7 @@ func TestClonePortsFromCluster(t *testing.T) {
 			// prepare() sets up any mock expectations.
 			c.prepare(mock)
 
-			err = ClonePortsFromCluster(db, src)
+			err = UpdateGpSegmentConfiguration(db, src, target)
 
 			// Make sure the error is the one we expect.
 			c.verify(t, err)

@@ -50,7 +50,7 @@ teardown() {
     #
     # XXX we assume three primaries (demo cluster layout)
     # XXX we hardcode ports here, so we'll fail if there are any conflicts.
-    mkdir "$STATE_DIR/_upgrade"
+    mkdir "$STATE_DIR/base_upgrade"
     echo localhost > "$STATE_DIR/hostfile"
     cat - > "$STATE_DIR/gpinitsystem_config" <<EOF
 ARRAY_NAME="gpupgrade test cluster"
@@ -61,8 +61,8 @@ MASTER_PORT=40000
 PORT_BASE=50000
 
 SEG_PREFIX=demoDataDir
-MASTER_DIRECTORY="$STATE_DIR/_upgrade"
-declare -a DATA_DIRECTORY=("$STATE_DIR/_upgrade" "$STATE_DIR/_upgrade" "$STATE_DIR/_upgrade")
+MASTER_DIRECTORY="$STATE_DIR/base_upgrade"
+declare -a DATA_DIRECTORY=("$STATE_DIR/base_upgrade" "$STATE_DIR/base_upgrade" "$STATE_DIR/base_upgrade")
 
 TRUSTED_SHELL=ssh
 CHECK_POINT_SEGMENTS=8
@@ -71,22 +71,18 @@ EOF
 
     # XXX There are always warnings, so ignore them...
     gpinitsystem -ac "$STATE_DIR/gpinitsystem_config" 3>&- || true
-    NEW_CLUSTER="$STATE_DIR/_upgrade/demoDataDir-1"
+    NEW_CLUSTER="$STATE_DIR/base_upgrade/demoDataDir-1"
 
     # Mimic the old cluster datadirs, which relies on the above hardcoded
     # gpinitsytem_config
-    OLD_DATADIRS="${STATE_DIR}/_/demoDataDir-1
-${STATE_DIR}/_/demoDataDir0
-${STATE_DIR}/_/demoDataDir1
-${STATE_DIR}/_/demoDataDir2"
+#    OLD_DATADIRS="${STATE_DIR}/base/demoDataDir-1
+#${STATE_DIR}/base/demoDataDir0
+#${STATE_DIR}/base/demoDataDir1
+#${STATE_DIR}/base/demoDataDir2"
 
-    while IFS= read -r datadir; do
-        mkdir -p $datadir
-    done <<< "$OLD_DATADIRS"
-
-    # Create a marker file for testing to verify old and new clusters actually
-    # got reconfigured.
-    touch ${STATE_DIR}/_/source.cluster
+#    while IFS= read -r datadir; do
+#        mkdir -p $datadir
+#    done <<< "$OLD_DATADIRS"
 
     # Generate a new target cluster configuration that the hub can use, then
     # restart the hub.
@@ -96,18 +92,12 @@ ${STATE_DIR}/_/demoDataDir2"
 
     gpupgrade finalize
     # Reset NEW_CLUSTER for cleanup since finalize reconfigures the datadirs.
-    NEW_CLUSTER="$STATE_DIR/_/demoDataDir-1"
+    NEW_CLUSTER="$STATE_DIR/base/demoDataDir-1"
 
     # Check to make sure the new cluster's ports match the old one.
     local new_ports=$(get_ports)
     [ "$OLD_PORTS" = "$new_ports" ] || fail "actual ports: $new_ports"
 
-    # Ensure the new cluster's data dirs match the old one.
-    local new_datadirs=$(get_datadirs)
-    [ "$OLD_DATADIRS" = "$new_datadirs" ] || fail "actual datadirs: $new_datadirs, expected datadirs: $OLD_DATADIRS"
-
-    [ -f ${STATE_DIR}/_old/source.cluster ] || fail "expected source.cluster marker file to be in source datadir: ${STATE_DIR}/_old"
-    [ ! -f ${STATE_DIR}/_/source.cluster ] || fail "unexpecetd source.cluster marker file in target datadir: ${STATE_DIR}/_"
 }
 
 # Writes the primary ports from the cluster pointed to by $PGPORT to stdout, one
@@ -116,24 +106,4 @@ get_ports() {
     PSQL="$GPHOME"/bin/psql
     $PSQL -At postgres \
         -c "select port from gp_segment_configuration where role = 'p' order by content"
-}
-
-# Writes the datadirs from the cluster pointed to by $PGPORT to stdout, one per
-# line, sorted by content ID.
-get_datadirs() {
-    PSQL="$GPHOME"/bin/psql
-    local version=$("$GPHOME"/bin/postgres --gp-version)
-    local prefix="postgres (Greenplum Database) "
-
-    if [[ $version == ${prefix}"5"* ]]; then
-         $PSQL -At postgres \
-                -c "SELECT fselocation
-        FROM pg_catalog.gp_segment_configuration
-        JOIN pg_catalog.pg_filespace_entry on (dbid = fsedbid)
-        JOIN pg_catalog.pg_filespace fs on (fsefsoid = fs.oid)
-        ORDER BY content DESC, fs.oid;"
-    else
-        $PSQL -At postgres \
-            -c "select datadir from gp_segment_configuration where role = 'p' order by content"
-    fi
 }

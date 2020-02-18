@@ -56,6 +56,32 @@ delete_cluster() {
     delete_target_datadirs "${masterdir}"
 }
 
+delete_finalized_cluster() {
+    local masterdir="$1"
+
+    # Sanity check.
+    local old_qddir_path="$masterdir/../demoDataDir-1_old"
+    if [[ ! -d "$old_qddir_path" ]]; then
+        abort "cowardly refusing to delete $masterdir which does not look like an upgraded demo data directory. expected old directory of
+            $old_qddir_path"
+    fi
+
+    # Look up the master port (fourth line of the postmaster PID file).
+    local port=$(awk 'NR == 4 { print $0 }' < "$masterdir/postmaster.pid")
+
+    local gpdeletesystem="$GPHOME"/bin/gpdeletesystem
+
+    # XXX gpdeletesystem returns 1 if there are warnings. There are always
+    # warnings. So we ignore the exit code...
+    yes | PGPORT="$port" "$gpdeletesystem" -fd "$masterdir" || true
+
+    # put source directories back into place
+    for source_dir in `find "$masterdir" -name "*_old"`; do
+        local new_dirname=$(basename $source_dir _old)
+        mv $source_dir $new_dirname
+    done
+}
+
 delete_target_datadirs() {
     local masterdir="$1"
     local datadir=$(dirname $(dirname "$masterdir"))
