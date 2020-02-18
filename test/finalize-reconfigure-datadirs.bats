@@ -40,9 +40,9 @@ teardown() {
     [ -f "${source_cluster_master_data_directory}/source-cluster.test-marker" ] || fail "expected source-cluster.test-marker marker file to be in source datadir: ${STATE_DIR}/base/demoDataDir-1"
     [ ! -f "${target_cluster_master_data_directory}/source-cluster.test-marker" ] || fail "unexpected source-cluster.test-marker marker file in target datadir: ${STATE_DIR}/base/demoDataDir-1"
 
-    # TODO: ensure 5x works
+    # TODO: ensure upgrading from 5x works
     # TODO: gpperfmon?
-
+    # TODO: ensure old cluster can still start
 }
 
 place_marker_file_in_source_cluster() {
