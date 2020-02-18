@@ -42,6 +42,14 @@ func TestClonePortsFromCluster(t *testing.T) {
 		{ContentID: 1, Port: 345, Role: "p"},
 		{ContentID: 2, Port: 456, Role: "p"},
 	})
+
+	target, err := utils.NewCluster([]utils.SegConfig{
+		{ContentID: -1, Port: 456, Role: "p", DataDir: "/some/target/datadir-1"},
+		{ContentID: 0, Port: 456, Role: "p", DataDir: "/some/target/datadir0"},
+		{ContentID: 1, Port: 456, Role: "p", DataDir: "/some/target/datadir1"},
+		{ContentID: 2, Port: 456, Role: "p", DataDir: "/some/target/datadir2"},
+	})
+
 	if err != nil {
 		t.Fatalf("constructing test cluster: %+v", err)
 	}
@@ -67,8 +75,10 @@ func TestClonePortsFromCluster(t *testing.T) {
 		// range over the contents instead.
 		for _, content := range src.ContentIDs {
 			conf := src.Primaries[content]
-			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+) WHERE content = (.+)").
-				WithArgs(conf.Port, content).
+			expectedDataDir := target.Primaries[content].DataDir
+
+			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
+				WithArgs(conf.Port, expectedDataDir, content).
 				WillReturnResult(sqlmock.NewResult(0, 1))
 		}
 
@@ -127,8 +137,8 @@ func TestClonePortsFromCluster(t *testing.T) {
 			mock.ExpectBegin()
 			mock.ExpectQuery("SELECT content FROM gp_segment_configuration").
 				WillReturnRows(contents)
-			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+) WHERE content = (.+)").
-				WithArgs(src.Primaries[-1].Port, -1).
+			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
+				WithArgs(src.Primaries[-1].Port, target.Primaries[-1].DataDir, -1).
 				WillReturnError(ErrSentinel)
 			mock.ExpectRollback()
 		},
@@ -147,8 +157,8 @@ func TestClonePortsFromCluster(t *testing.T) {
 
 			for _, content := range src.ContentIDs {
 				conf := src.Primaries[content]
-				mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+) WHERE content = (.+)").
-					WithArgs(conf.Port, content).
+				mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
+					WithArgs(conf.Port, target.Primaries[content].DataDir, content).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			}
 
@@ -238,7 +248,7 @@ func TestClonePortsFromCluster(t *testing.T) {
 			mock.ExpectQuery("SELECT content FROM gp_segment_configuration").
 				WillReturnRows(contents)
 
-			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+) WHERE content = (.+)").
+			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
 				WillReturnResult(sqlmock.NewResult(0, 2))
 
 			mock.ExpectRollback()
