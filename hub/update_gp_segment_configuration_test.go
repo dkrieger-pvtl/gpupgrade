@@ -35,7 +35,7 @@ func finishMock(mock sqlmock.Sqlmock, t *testing.T) {
 	}
 }
 
-func TestClonePortsFromCluster(t *testing.T) {
+func TestUpdateGpSegmentConfiguration(t *testing.T) {
 	src, err := utils.NewCluster([]utils.SegConfig{
 		{ContentID: -1, Port: 123, Role: "p"},
 		{ContentID: 0, Port: 234, Role: "p"},
