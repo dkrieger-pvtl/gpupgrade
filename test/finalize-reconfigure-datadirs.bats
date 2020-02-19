@@ -5,6 +5,8 @@ load helpers
 setup() {
     skip_if_no_gpdb
 
+    [ ! -z $GPHOME ]
+    GPHOME_NEW=${GPHOME_NEW:-$GPHOME}
     GPHOME_OLD=$GPHOME
 
     setup_state_dir

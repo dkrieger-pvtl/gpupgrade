@@ -35,7 +35,14 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_SWAP_DATA_DIRECTORIES, func(streams step.OutStreams) error {
-		return SwapDataDirectories(s.Config)
+		conns, err := s.AgentConns()
+
+		if err != nil {
+			return err
+		}
+
+		agentBroker := AgentBrokerGRPC{conns}
+		return SwapDataDirectories(MakeHub(s.Config), &agentBroker)
 	})
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_MASTER, func(streams step.OutStreams) error {
@@ -67,4 +74,33 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	return st.Err()
+}
+
+func MakeHub(config *Config) Hub {
+	var segmentPairsByHost = make(map[string][]AgentSegmentPair)
+
+	for contentId, sourceSegment := range config.Source.Primaries {
+		if segmentPairsByHost[sourceSegment.Hostname] == nil {
+			segmentPairsByHost[sourceSegment.Hostname] = []AgentSegmentPair{}
+		}
+
+		segmentPairsByHost[sourceSegment.Hostname] = append(segmentPairsByHost[sourceSegment.Hostname], AgentSegmentPair{
+			source: sourceSegment,
+			target: config.Target.Primaries[contentId],
+		})
+	}
+
+	var configs []AgentConfig
+	for hostname, agentSegmentPairs := range segmentPairsByHost {
+		configs = append(configs, AgentConfig{
+			hostname: hostname,
+			pairs:    agentSegmentPairs,
+		})
+	}
+
+	return Hub{
+		sourceMaster: config.Source.Primaries[-1],
+		targetMaster: config.Target.Primaries[-1],
+		agents:       configs,
+	}
 }

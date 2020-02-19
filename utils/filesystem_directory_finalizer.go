@@ -8,26 +8,20 @@ import (
 )
 
 type FilesystemDirectoryFinalizer struct {
-	multiErr           *multierror.Error
+	MultiErr           *multierror.Error
 	directoryFinalizer *DataDirFinalizer
 }
 
-func (s *FilesystemDirectoryFinalizer) Archive(segment SegConfig) (SegConfig, bool) {
+func (s *FilesystemDirectoryFinalizer) Archive(segment SegConfig) {
 	archivedSegment := s.directoryFinalizer.Archive(segment)
 	err := renameDirectory(segment.DataDir, archivedSegment.DataDir)
-	s.multiErr = multierror.Append(s.multiErr, err)
-	return segment, nil == err
+	s.MultiErr = multierror.Append(s.MultiErr, err)
 }
 
-func (s *FilesystemDirectoryFinalizer) Promote(segment SegConfig, sourceSegment SegConfig) (SegConfig, bool) {
+func (s *FilesystemDirectoryFinalizer) Promote(segment SegConfig, sourceSegment SegConfig) {
 	promotedSegment := s.directoryFinalizer.Promote(segment, sourceSegment)
 	err := renameDirectory(segment.DataDir, promotedSegment.DataDir)
-	s.multiErr = multierror.Append(s.multiErr, err)
-	return segment, nil == err
-}
-
-func (s *FilesystemDirectoryFinalizer) Errors() error {
-	return s.multiErr.ErrorOrNil()
+	s.MultiErr = multierror.Append(s.MultiErr, err)
 }
 
 func renameDirectory(originalName, newName string) error {

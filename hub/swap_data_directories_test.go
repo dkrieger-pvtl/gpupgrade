@@ -2,7 +2,10 @@ package hub_test
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+
+	"github.com/greenplum-db/gpupgrade/idl"
 
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
 
@@ -27,6 +30,19 @@ func (s *renameSpy) Call(i int) *renameCall {
 	return s.calls[i-1]
 }
 
+type AgentBrokerSpy struct {
+	t                *testing.T
+	expectedHostname string
+	calls            map[string][]*idl.RenamePair
+}
+
+type failingAgentBroker struct {
+}
+
+func (f *failingAgentBroker) ReconfigureDataDirectories(hostname string, renamePairs []*idl.RenamePair) error {
+	return errors.New("hi, i'm an error")
+}
+
 func TestSwapDataDirectories(t *testing.T) {
 	testhelper.SetupTestLogger() // init gplog
 
@@ -34,7 +50,7 @@ func TestSwapDataDirectories(t *testing.T) {
 		utils.System = utils.InitializeSystemFunctions()
 	}
 
-	t.Run("it renames data directories for all source and target data dirs", func(t *testing.T) {
+	t.Run("it renames data directories for source and target master data dirs", func(t *testing.T) {
 		spy := &renameSpy{}
 
 		utils.System.Rename = spy.renameFunc()
@@ -54,7 +70,7 @@ func TestSwapDataDirectories(t *testing.T) {
 			Target: target,
 		}
 
-		hub.SwapDataDirectories(config)
+		hub.SwapDataDirectories(hub.MakeHub(config), newAgentBrokerSpy(t))
 
 		if spy.TimesCalled() != 2 {
 			t.Errorf("got Rename called %v times, wanted %v times",
@@ -69,6 +85,18 @@ func TestSwapDataDirectories(t *testing.T) {
 		spy.assertDirectoriesMoved(t,
 			"/some/qddir_upgrade/dataDirectory",
 			"/some/data/directory")
+
+		if source.Primaries[-1].DataDir != "/some/data/directory" {
+			t.Errorf("got %v, wanted it to be unchanged as %v",
+				source.Primaries[-1].DataDir,
+				"/some/data/directory")
+		}
+
+		if target.Primaries[-1].DataDir != "/some/qddir_upgrade/dataDirectory" {
+			t.Errorf("got %v, wanted it to be unchanged as %v",
+				target.Primaries[-1].DataDir,
+				"/some/qddir_upgrade/dataDirectory")
+		}
 	})
 
 	t.Run("it returns an error if the directories cannot be renamed", func(t *testing.T) {
@@ -91,7 +119,7 @@ func TestSwapDataDirectories(t *testing.T) {
 			Target: target,
 		}
 
-		err := hub.SwapDataDirectories(config)
+		err := hub.SwapDataDirectories(hub.MakeHub(config), newAgentBrokerSpy(t))
 
 		if err == nil {
 			t.Fatalf("got nil for an error during SwapDataDirectories, wanted a failure to move directories: %+v", err)
@@ -118,7 +146,7 @@ func TestSwapDataDirectories(t *testing.T) {
 			Target: target,
 		}
 
-		err := hub.SwapDataDirectories(config)
+		err := hub.SwapDataDirectories(hub.MakeHub(config), newAgentBrokerSpy(t))
 
 		if err == nil {
 			t.Fatalf("got nil for an error during SwapDataDirectories, wanted a failure to move directories: %+v", err)
@@ -134,6 +162,96 @@ func TestSwapDataDirectories(t *testing.T) {
 			"/some/data/directory_upgrade",
 		)
 	})
+
+	t.Run("it tells each agent to reconfigure data directories for the segments", func(t *testing.T) {
+		spy := &renameSpy{}
+		utils.System.Rename = spy.renameFunc()
+
+		source := hub.MustCreateCluster(t, []utils.SegConfig{
+			{ContentID: 99, Hostname: "host1", DataDir: "/some/data/directory/99", Role: utils.PrimaryRole},
+			{ContentID: 100, Hostname: "host2", DataDir: "/some/data/directory/100", Role: utils.PrimaryRole},
+		})
+
+		target := hub.MustCreateCluster(t, []utils.SegConfig{
+			{ContentID: 99, Hostname: "host1", DataDir: "/some/data/directory_upgrade/99", Role: utils.PrimaryRole},
+			{ContentID: 100, Hostname: "host2", DataDir: "/some/data/directory_upgrade/100", Role: utils.PrimaryRole},
+		})
+
+		config := &hub.Config{
+			Source: source,
+			Target: target,
+		}
+
+		abSpy := newAgentBrokerSpy(t)
+		h := hub.MakeHub(config)
+
+		err := hub.SwapDataDirectories(h, abSpy)
+
+		if err != nil {
+			t.Errorf("expected no error, got %#v", err)
+		}
+
+		if abSpy.NumCalls() != 2 {
+			t.Errorf("got %d, expected 2", abSpy.NumCalls())
+		}
+
+		abSpy.assertReconfigureDataDirsCalledWith(
+			"host1",
+			[]*idl.RenamePair{
+				{
+					Src: "/some/data/directory_upgrade/99",
+					Dst: "/some/data/directory/99",
+				},
+			},
+		)
+
+		abSpy.assertReconfigureDataDirsCalledWith(
+			"host2",
+			[]*idl.RenamePair{
+				{
+					Src: "/some/data/directory_upgrade/100",
+					Dst: "/some/data/directory/100",
+				},
+			},
+		)
+	})
+
+	t.Run("it tells each agent to reconfigure data directories for the segments", func(t *testing.T) {
+		spy := &renameSpy{}
+		utils.System.Rename = spy.renameFunc()
+
+		source := hub.MustCreateCluster(t, []utils.SegConfig{
+			{ContentID: 99, Hostname: "host1", DataDir: "/some/data/directory/99", Role: utils.PrimaryRole},
+			{ContentID: 100, Hostname: "host2", DataDir: "/some/data/directory/100", Role: utils.PrimaryRole},
+		})
+
+		target := hub.MustCreateCluster(t, []utils.SegConfig{
+			{ContentID: 99, Hostname: "host1", DataDir: "/some/data/directory_upgrade/99", Role: utils.PrimaryRole},
+			{ContentID: 100, Hostname: "host2", DataDir: "/some/data/directory_upgrade/100", Role: utils.PrimaryRole},
+		})
+
+		config := &hub.Config{
+			Source: source,
+			Target: target,
+		}
+
+		abSpy := &failingAgentBroker{}
+		h := hub.MakeHub(config)
+
+		err := hub.SwapDataDirectories(h, abSpy)
+
+		if err == nil {
+			t.Errorf("got no errors from agents, expected an error for each host")
+		}
+	})
+
+}
+
+func newAgentBrokerSpy(t *testing.T) *AgentBrokerSpy {
+	return &AgentBrokerSpy{
+		t:     t,
+		calls: map[string][]*idl.RenamePair{},
+	}
 }
 
 func assertDataDirModified(t *testing.T, newDataDir, expectedDataDir string) {
@@ -174,4 +292,22 @@ func (spy *renameSpy) renameFunc() func(oldpath string, newpath string) error {
 
 		return nil
 	}
+}
+
+func (spy *AgentBrokerSpy) ReconfigureDataDirectories(hostname string, pairs []*idl.RenamePair) error {
+	spy.calls[hostname] = pairs
+	return nil
+}
+
+func (spy *AgentBrokerSpy) assertReconfigureDataDirsCalledWith(expectedHostname string, expectedRenamePairs []*idl.RenamePair) {
+	if !reflect.DeepEqual(spy.calls[expectedHostname], expectedRenamePairs) {
+		spy.t.Errorf("got no calls to agent broker for hostname %v with data dir pairs %v, actually received %+v",
+			expectedHostname,
+			expectedRenamePairs,
+			spy.calls)
+	}
+}
+
+func (spy *AgentBrokerSpy) NumCalls() int {
+	return len(spy.calls)
 }

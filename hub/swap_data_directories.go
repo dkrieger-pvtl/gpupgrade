@@ -1,15 +1,59 @@
 package hub
 
-import "github.com/greenplum-db/gpupgrade/utils"
+import (
+	"github.com/hashicorp/go-multierror"
 
-func SwapDataDirectories(config *Config) error {
-	swapper := utils.FilesystemDirectoryFinalizer{}
+	"github.com/greenplum-db/gpupgrade/idl"
+	"github.com/greenplum-db/gpupgrade/utils"
+)
 
-	sourceMaster := config.Source.Primaries[-1]
-	swapper.Archive(sourceMaster)
+type AgentSegmentPair struct {
+	source utils.SegConfig
+	target utils.SegConfig
+}
 
-	targetMaster := config.Target.Primaries[-1]
-	swapper.Promote(targetMaster, sourceMaster)
+type AgentConfig struct {
+	hostname string
+	pairs    []AgentSegmentPair
+}
 
-	return swapper.Errors()
+type Hub struct {
+	sourceMaster utils.SegConfig
+	targetMaster utils.SegConfig
+	agents       []AgentConfig
+}
+
+func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
+	errors := &multierror.Error{}
+	swapper := utils.FilesystemDirectoryFinalizer{MultiErr: errors}
+
+	swapper.Archive(hub.sourceMaster)
+	swapper.Promote(hub.targetMaster, hub.sourceMaster)
+
+	for _, agent := range hub.agents {
+		// TODO: parallelize
+		err := agentBroker.ReconfigureDataDirectories(agent.hostname, makeRenamePairs(agent.pairs))
+		multierror.Append(errors, err)
+	}
+
+	return errors.ErrorOrNil()
+}
+
+func makeRenamePairs(pairs []AgentSegmentPair) []*idl.RenamePair {
+	var renamePairs []*idl.RenamePair
+
+	for _, pair := range pairs {
+		//// add rename of source to archived
+		//renamePairs = append(renamePairs, &idl.RenamePair{
+		//	Dst: pair.source.DataDir,
+		//	Src: pair.target.DataDir,
+		//})
+
+		renamePairs = append(renamePairs, &idl.RenamePair{
+			Dst: pair.source.DataDir,
+			Src: pair.target.DataDir,
+		})
+	}
+
+	return renamePairs
 }

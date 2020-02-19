@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Server) ReconfigureDataDirectories(ctx context.Context, in *idl.ReconfigureDataDirRequest) (*idl.ReconfigureDataDirReply, error) {
-	gplog.Info("got a request to create segment data directories from the hub")
+	gplog.Info("got a request to move segment data directories from the hub")
 
 	for _, pair := range in.GetPair() {
 		err := utils.System.Rename(pair.Src, pair.Dst)
