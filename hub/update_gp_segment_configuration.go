@@ -116,8 +116,6 @@ func commitOrRollback(tx *sql.Tx, err error) error {
 // the target cluster. We copy only the primary information. Good thing too,
 // because utils.Cluster doesn't give us mirror info.
 func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *utils.Cluster) (err error) {
-	dataDirFinalizer := utils.DataDirFinalizer{}
-
 	tx, err := db.Begin()
 	if err != nil {
 		return xerrors.Errorf("starting transaction for port clone: %w", err)
@@ -135,11 +133,10 @@ func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *uti
 	for _, content := range source.ContentIDs {
 		port := source.Primaries[content].Port
 
-		promotedTargetSegment := dataDirFinalizer.Promote(target.Primaries[content], source.Primaries[content])
-		dataDir := promotedTargetSegment.DataDir
+		promotedTargetSegmentDataDir := target.Primaries[content].PromotionDataDirectory(source.Primaries[content])
 
 		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = $1, datadir = $2 WHERE content = $3",
-			port, dataDir, content)
+			port, promotedTargetSegmentDataDir, content)
 		if err != nil {
 			return xerrors.Errorf("updating segment configuration: %w", err)
 		}

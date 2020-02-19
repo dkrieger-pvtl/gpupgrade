@@ -1,15 +1,9 @@
 package utils
 
-type DataDirFinalizer struct {
+func (segment SegConfig) ArchiveDataDirectory() string {
+	return segment.DataDir + "_old"
 }
 
-func (finalizer *DataDirFinalizer) Archive(segment SegConfig) SegConfig {
-	newPath := segment.DataDir + "_old"
-	segment.DataDir = newPath
-	return segment
-}
-
-func (finalizer *DataDirFinalizer) Promote(segment SegConfig, sourceSegment SegConfig) SegConfig {
-	segment.DataDir = sourceSegment.DataDir
-	return segment
+func (segment SegConfig) PromotionDataDirectory(sourceSegment SegConfig) string {
+	return sourceSegment.DataDir
 }

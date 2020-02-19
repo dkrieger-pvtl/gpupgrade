@@ -36,8 +36,6 @@ func finishMock(mock sqlmock.Sqlmock, t *testing.T) {
 }
 
 func TestUpdateGpSegmentConfiguration(t *testing.T) {
-	finalizer := utils.DataDirFinalizer{}
-
 	src, err := utils.NewCluster([]utils.SegConfig{
 		{ContentID: -1, Port: 123, Role: "p"},
 		{ContentID: 0, Port: 234, Role: "p"},
@@ -77,7 +75,7 @@ func TestUpdateGpSegmentConfiguration(t *testing.T) {
 		// range over the contents instead.
 		for _, content := range src.ContentIDs {
 			sourceSegment := src.Primaries[content]
-			expectedDataDir := finalizer.Promote(target.Primaries[content], sourceSegment).DataDir
+			expectedDataDir := target.Primaries[content].PromotionDataDirectory(sourceSegment)
 
 			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
 				WithArgs(sourceSegment.Port, expectedDataDir, content).
@@ -140,7 +138,7 @@ func TestUpdateGpSegmentConfiguration(t *testing.T) {
 			mock.ExpectQuery("SELECT content FROM gp_segment_configuration").
 				WillReturnRows(contents)
 			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
-				WithArgs(src.Primaries[-1].Port, finalizer.Promote(target.Primaries[-1], src.Primaries[-1]).DataDir, -1).
+				WithArgs(src.Primaries[-1].Port, target.Primaries[-1].PromotionDataDirectory(src.Primaries[-1]), -1).
 				WillReturnError(ErrSentinel)
 			mock.ExpectRollback()
 		},
@@ -160,7 +158,7 @@ func TestUpdateGpSegmentConfiguration(t *testing.T) {
 			for _, content := range src.ContentIDs {
 				sourceSegment := src.Primaries[content]
 				mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
-					WithArgs(sourceSegment.Port, finalizer.Promote(target.Primaries[content], sourceSegment).DataDir, content).
+					WithArgs(sourceSegment.Port, target.Primaries[content].PromotionDataDirectory(sourceSegment), content).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			}
 
