@@ -5,13 +5,11 @@ import "github.com/greenplum-db/gpupgrade/utils"
 func SwapDataDirectories(config *Config) error {
 	swapper := utils.FilesystemDirectoryFinalizer{}
 
-	for _, segment := range config.Source.Primaries {
-		swapper.Archive(segment)
-	}
+	sourceMaster := config.Source.Primaries[-1]
+	swapper.Archive(sourceMaster)
 
-	for _, segment := range config.Target.Primaries {
-		swapper.Promote(segment)
-	}
+	targetMaster := config.Target.Primaries[-1]
+	swapper.Promote(targetMaster, sourceMaster)
 
 	return swapper.Errors()
 }

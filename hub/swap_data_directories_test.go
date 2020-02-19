@@ -40,12 +40,12 @@ func TestSwapDataDirectories(t *testing.T) {
 		utils.System.Rename = spy.renameFunc()
 
 		source := hub.MustCreateCluster(t, []utils.SegConfig{
-			{ContentID: 99, DataDir: "/some/data/directory", Role: utils.PrimaryRole},
+			{ContentID: -1, DataDir: "/some/data/directory", Role: utils.PrimaryRole},
 			{ContentID: 100, DataDir: "/some/data/directory/primary1", Role: utils.PrimaryRole},
 		})
 
 		target := hub.MustCreateCluster(t, []utils.SegConfig{
-			{ContentID: 10, DataDir: "/some/qddir_upgrade/dataDirectory", Role: utils.PrimaryRole},
+			{ContentID: -1, DataDir: "/some/qddir_upgrade/dataDirectory", Role: utils.PrimaryRole},
 			{ContentID: 100, DataDir: "/some/segment1_upgrade/dataDirectory", Role: utils.PrimaryRole},
 		})
 
@@ -56,10 +56,10 @@ func TestSwapDataDirectories(t *testing.T) {
 
 		hub.SwapDataDirectories(config)
 
-		if spy.TimesCalled() != 4 {
+		if spy.TimesCalled() != 2 {
 			t.Errorf("got Rename called %v times, wanted %v times",
 				spy.TimesCalled(),
-				4)
+				2)
 		}
 
 		spy.assertDirectoriesMoved(t,
@@ -68,15 +68,7 @@ func TestSwapDataDirectories(t *testing.T) {
 
 		spy.assertDirectoriesMoved(t,
 			"/some/qddir_upgrade/dataDirectory",
-			"/some/qddir/dataDirectory")
-
-		spy.assertDirectoriesMoved(t,
-			"/some/segment1_upgrade/dataDirectory",
-			"/some/segment1/dataDirectory")
-
-		spy.assertDirectoriesMoved(t,
-			"/some/data/directory/primary1",
-			"/some/data/directory/primary1_old")
+			"/some/data/directory")
 	})
 
 	t.Run("it returns an error if the directories cannot be renamed", func(t *testing.T) {
@@ -162,21 +154,14 @@ func (spy *renameSpy) assertDirectoriesMoved(t *testing.T, originalName string, 
 	var call *renameCall
 
 	for _, c := range spy.calls {
-		if c.originalName == originalName {
+		if c.originalName == originalName && c.newName == newName {
 			call = c
+			break
 		}
 	}
 
 	if call == nil {
-		t.Errorf("got no calls to rename %v, expected 1 call", originalName)
-	} else {
-		if call.originalName != originalName &&
-			call.newName != newName {
-
-			t.Errorf("got rename from %q to %q, wanted rename from %q to %q",
-				call.originalName, call.newName,
-				originalName, newName)
-		}
+		t.Errorf("got no calls to rename %v to %v, expected 1 call", originalName, newName)
 	}
 }
 

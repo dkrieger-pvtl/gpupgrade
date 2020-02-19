@@ -40,7 +40,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_MASTER, func(streams step.OutStreams) error {
 		var cluster = *s.Target
-		cluster.Primaries[-1] = dataDirFinalizer.Promote(cluster.Primaries[-1])
+		cluster.Primaries[-1] = dataDirFinalizer.Promote(cluster.Primaries[-1], s.Source.Primaries[-1])
 
 		return StartMasterOnly(streams, &cluster, false)
 	})

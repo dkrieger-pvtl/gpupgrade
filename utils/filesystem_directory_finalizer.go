@@ -19,9 +19,8 @@ func (s *FilesystemDirectoryFinalizer) Archive(segment SegConfig) (SegConfig, bo
 	return segment, nil == err
 }
 
-func (s *FilesystemDirectoryFinalizer) Promote(segment SegConfig) (SegConfig, bool) {
-	promotedSegment := s.directoryFinalizer.Promote(segment)
-
+func (s *FilesystemDirectoryFinalizer) Promote(segment SegConfig, sourceSegment SegConfig) (SegConfig, bool) {
+	promotedSegment := s.directoryFinalizer.Promote(segment, sourceSegment)
 	err := renameDirectory(segment.DataDir, promotedSegment.DataDir)
 	s.multiErr = multierror.Append(s.multiErr, err)
 	return segment, nil == err

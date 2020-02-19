@@ -135,7 +135,7 @@ func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *uti
 	for _, content := range source.ContentIDs {
 		port := source.Primaries[content].Port
 
-		promotedTargetSegment := dataDirFinalizer.Promote(target.Primaries[content])
+		promotedTargetSegment := dataDirFinalizer.Promote(target.Primaries[content], source.Primaries[content])
 		dataDir := promotedTargetSegment.DataDir
 
 		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = $1, datadir = $2 WHERE content = $3",

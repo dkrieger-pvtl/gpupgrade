@@ -76,11 +76,11 @@ func TestUpdateGpSegmentConfiguration(t *testing.T) {
 		// Note that ranging over a map doesn't guarantee execution order, so we
 		// range over the contents instead.
 		for _, content := range src.ContentIDs {
-			conf := src.Primaries[content]
-			expectedDataDir := finalizer.Promote(target.Primaries[content]).DataDir
+			sourceSegment := src.Primaries[content]
+			expectedDataDir := finalizer.Promote(target.Primaries[content], sourceSegment).DataDir
 
 			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
-				WithArgs(conf.Port, expectedDataDir, content).
+				WithArgs(sourceSegment.Port, expectedDataDir, content).
 				WillReturnResult(sqlmock.NewResult(0, 1))
 		}
 
@@ -140,7 +140,7 @@ func TestUpdateGpSegmentConfiguration(t *testing.T) {
 			mock.ExpectQuery("SELECT content FROM gp_segment_configuration").
 				WillReturnRows(contents)
 			mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
-				WithArgs(src.Primaries[-1].Port, finalizer.Promote(target.Primaries[-1]).DataDir, -1).
+				WithArgs(src.Primaries[-1].Port, finalizer.Promote(target.Primaries[-1], src.Primaries[-1]).DataDir, -1).
 				WillReturnError(ErrSentinel)
 			mock.ExpectRollback()
 		},
@@ -158,9 +158,9 @@ func TestUpdateGpSegmentConfiguration(t *testing.T) {
 				WillReturnRows(contents)
 
 			for _, content := range src.ContentIDs {
-				conf := src.Primaries[content]
+				sourceSegment := src.Primaries[content]
 				mock.ExpectExec("UPDATE gp_segment_configuration SET port = (.+), datadir = (.+) WHERE content = (.+)").
-					WithArgs(conf.Port, finalizer.Promote(target.Primaries[content]).DataDir, content).
+					WithArgs(sourceSegment.Port, finalizer.Promote(target.Primaries[content], sourceSegment).DataDir, content).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 			}
 
