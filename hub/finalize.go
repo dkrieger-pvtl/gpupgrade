@@ -3,6 +3,8 @@ package hub
 import (
 	"fmt"
 
+	"github.com/greenplum-db/gpupgrade/utils"
+
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 
@@ -11,6 +13,8 @@ import (
 )
 
 func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeServer) (err error) {
+	dataDirFinalizer := &utils.DataDirFinalizer{}
+
 	st, err := BeginStep(s.StateDir, "finalize", stream)
 	if err != nil {
 		return err
@@ -35,10 +39,13 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_MASTER, func(streams step.OutStreams) error {
-		return StartMasterOnly(streams, s.Target, false)
+		var cluster = *s.Target
+		cluster.Primaries[-1] = dataDirFinalizer.Promote(cluster.Primaries[-1])
+
+		return StartMasterOnly(streams, &cluster, false)
 	})
 
-	// Once UpdateCatalog && UpdateMasterPostgresqlConf is executed, the port on which the target
+	// Once UpdateCatalog && UpdateMasterConf is executed, the port on which the target
 	// cluster starts is changed in the catalog and postgresql.conf, however the server config.json target port is
 	// still the old port on which the target cluster was initialized.
 	// TODO: if any steps needs to connect to the new cluster (that should use new port), we should either
@@ -52,7 +59,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_UPDATE_POSTGRESQL_CONF, func(streams step.OutStreams) error {
-		return UpdateMasterPostgresqlConf(s.Source, s.Target)
+		return UpdateMasterConf(s.Source, s.Target)
 	})
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_CLUSTER, func(streams step.OutStreams) error {

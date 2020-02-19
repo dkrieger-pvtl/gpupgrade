@@ -276,8 +276,8 @@ func RunInitsystemForTargetCluster(stream step.OutStreams, target *utils.Cluster
 		gphome,
 		args,
 	)
-	cmd := execCommand("bash", "-c", script)
 
+	cmd := execCommand("bash", "-c", script)
 	cmd.Stdout = stream.Stdout()
 	cmd.Stderr = stream.Stderr()
 

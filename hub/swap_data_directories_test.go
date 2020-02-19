@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/greenplum-db/gp-common-go-libs/testhelper"
+
 	"github.com/greenplum-db/gpupgrade/hub"
 	"github.com/greenplum-db/gpupgrade/utils"
 )
@@ -26,6 +28,8 @@ func (s *renameSpy) Call(i int) *renameCall {
 }
 
 func TestSwapDataDirectories(t *testing.T) {
+	testhelper.SetupTestLogger() // init gplog
+
 	afterEach := func() {
 		utils.System = utils.InitializeSystemFunctions()
 	}
@@ -73,53 +77,6 @@ func TestSwapDataDirectories(t *testing.T) {
 		spy.assertDirectoriesMoved(t,
 			"/some/data/directory/primary1",
 			"/some/data/directory/primary1_old")
-	})
-
-	t.Run("it modifies the given configuration", func(t *testing.T) {
-		defer afterEach()
-
-		spy := &renameSpy{}
-		utils.System.Rename = spy.renameFunc()
-
-		source := hub.MustCreateCluster(t, []utils.SegConfig{
-			{ContentID: 99, DataDir: "/some/data/directory", Role: utils.PrimaryRole},
-			{ContentID: 100, DataDir: "/some/data/directory/primary1", Role: utils.PrimaryRole},
-		})
-
-		target := hub.MustCreateCluster(t, []utils.SegConfig{
-			{ContentID: 10, DataDir: "/some/qddir_upgrade/dataDirectory", Role: utils.PrimaryRole},
-			{ContentID: 100, DataDir: "/some/segment1_upgrade/dataDirectory", Role: utils.PrimaryRole},
-		})
-
-		config := &hub.Config{
-			Source: source,
-			Target: target,
-		}
-
-		err := hub.SwapDataDirectories(config)
-		if err != nil {
-			t.Fatalf("unexpected error while swapping data directories: %+v", err)
-		}
-
-		assertDataDirModified(t,
-			config.Source.Primaries[99].DataDir,
-			"/some/data/directory_old",
-		)
-
-		assertDataDirModified(t,
-			config.Source.Primaries[100].DataDir,
-			"/some/data/directory/primary1_old",
-		)
-
-		assertDataDirModified(t,
-			config.Target.Primaries[10].DataDir,
-			"/some/qddir/dataDirectory",
-		)
-
-		assertDataDirModified(t,
-			config.Target.Primaries[100].DataDir,
-			"/some/segment1/dataDirectory",
-		)
 	})
 
 	t.Run("it returns an error if the directories cannot be renamed", func(t *testing.T) {

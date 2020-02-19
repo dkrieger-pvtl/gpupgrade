@@ -116,6 +116,8 @@ func commitOrRollback(tx *sql.Tx, err error) error {
 // the target cluster. We copy only the primary information. Good thing too,
 // because utils.Cluster doesn't give us mirror info.
 func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *utils.Cluster) (err error) {
+	dataDirFinalizer := utils.DataDirFinalizer{}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return xerrors.Errorf("starting transaction for port clone: %w", err)
@@ -132,7 +134,9 @@ func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *uti
 
 	for _, content := range source.ContentIDs {
 		port := source.Primaries[content].Port
-		dataDir := target.Primaries[content].DataDir
+
+		promotedTargetSegment := dataDirFinalizer.Promote(target.Primaries[content])
+		dataDir := promotedTargetSegment.DataDir
 
 		res, err := tx.Exec("UPDATE gp_segment_configuration SET port = $1, datadir = $2 WHERE content = $3",
 			port, dataDir, content)
@@ -170,7 +174,36 @@ func UpdateCatalog(source, target *utils.Cluster) (err error) {
 	return nil
 }
 
-func UpdateMasterPostgresqlConf(source, target *utils.Cluster) error {
+func UpdateMasterConf(source, target *utils.Cluster) error {
+	var multiErr *multierror.Error
+
+	multierror.Append(multiErr,
+		updateGpperfmonConf(source.MasterDataDir(), target.MasterDataDir()))
+
+	multierror.Append(multiErr,
+		updatePostgresConfig(target, source))
+
+	return multiErr.ErrorOrNil()
+}
+
+func updateGpperfmonConf(sourceMasterDataDir, targetMasterDataDir string) error {
+	script := fmt.Sprintf(
+		"sed 's@log_location = .*$@log_location = %[2]s/gpperfmon/logs@' %[1]s/conf/gpperfmon.conf > %[1]s/conf/gpperfmon.conf.updated && "+
+			"mv %[1]s/conf/gpperfmon.conf %[1]s/conf/gpperfmon.conf.bak && "+
+			"mv %[1]s/conf/gpperfmon.conf.updated %[1]s/conf/gpperfmon.conf",
+		sourceMasterDataDir, targetMasterDataDir,
+	)
+	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
+	cmd := execCommand("bash", "-c", script)
+	_, err := cmd.Output()
+	if err != nil {
+		return xerrors.Errorf("%s failed to execute sed command: %w",
+			idl.Substep_FINALIZE_UPDATE_POSTGRESQL_CONF, err)
+	}
+	return nil
+}
+
+func updatePostgresConfig(target *utils.Cluster, source *utils.Cluster) error {
 	script := fmt.Sprintf(
 		"sed 's/port=%d/port=%d/' %[3]s/postgresql.conf > %[3]s/postgresql.conf.updated && "+
 			"mv %[3]s/postgresql.conf %[3]s/postgresql.conf.bak && "+

@@ -5,33 +5,40 @@ load helpers
 setup() {
     skip_if_no_gpdb
 
-    setup_state_dir
+    GPHOME_OLD=$GPHOME
 
-    log $STATE_DIR
+    setup_state_dir
 
     gpupgrade kill-services
 }
 
 teardown() {
+    print_teardown_banner
     teardown_new_cluster
     gpupgrade kill-services
-    gpstart -a
 
-    echo "done"
+    # reload old path and start
+    source "${GPHOME_OLD}/greenplum_path.sh"
+    gpstart -a
 }
 
 @test "it swaps out the target cluster's data directories and archives the source cluster's data directories" {
+    log "Using state directory: $STATE_DIR"
+
     place_marker_file_in_source_cluster
 
+    log "initialize"
     gpupgrade initialize \
         --old-bindir="$GPHOME/bin" \
-        --new-bindir="$GPHOME/bin" \
+        --new-bindir="$GPHOME_NEW/bin" \
         --old-port="${PGPORT}" \
         --disk-free-ratio 0 \
         --verbose
 
+    log "execute"
     gpupgrade execute --verbose
 
+    log "finalize"
     gpupgrade finalize
 
     local source_cluster_master_data_directory="${MASTER_DATA_DIRECTORY}_old"
@@ -40,11 +47,17 @@ teardown() {
     [ -f "${source_cluster_master_data_directory}/source-cluster.test-marker" ] || fail "expected source-cluster.test-marker marker file to be in source datadir: ${STATE_DIR}/base/demoDataDir-1"
     [ ! -f "${target_cluster_master_data_directory}/source-cluster.test-marker" ] || fail "unexpected source-cluster.test-marker marker file in target datadir: ${STATE_DIR}/base/demoDataDir-1"
 
-    # TODO: ensure upgrading from 5x works
-    # TODO: gpperfmon?
+    local gpperfmon_config_file="${target_cluster_master_data_directory}/gpperfmon/conf/gpperfmon.conf"
+
+    grep "${target_cluster_master_data_directory}" "${gpperfmon_config_file}" || \
+        fail "got gpperfmon.conf file $(cat $gpperfmon_config_file), wanted it to include ${target_cluster_master_data_directory}"
+
+    # [x] TODO: ensure upgrading from 5x works
+    # [x] TODO: gpperfmon?
     # TODO: ensure old cluster can still start
     # TODO: push segment work to the agent
 }
+
 
 place_marker_file_in_source_cluster() {
     touch "$MASTER_DATA_DIRECTORY/source-cluster.test-marker"
@@ -56,11 +69,7 @@ setup_state_dir() {
 }
 
 teardown_new_cluster() {
-    local NEW_CLUSTER="$(gpupgrade config show --new-datadir)"
-
-    if [ -n "$NEW_CLUSTER" ]; then
-        delete_finalized_cluster $NEW_CLUSTER
-    fi
+    delete_finalized_cluster $MASTER_DATA_DIRECTORY
 }
 
 
