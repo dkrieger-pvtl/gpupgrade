@@ -165,7 +165,7 @@ func UpdateCatalog(source, target *utils.Cluster) (err error) {
 
 	if err != nil {
 		return xerrors.Errorf("%s failed to clone ports: %w",
-			idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, err)
+			idl.Substep_FINALIZE_UPDATE_CATALOG, err)
 	}
 
 	return nil

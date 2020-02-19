@@ -11,6 +11,11 @@ import (
 )
 
 func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeServer) (err error) {
+	agentConnections, err := s.AgentConns()
+	if err != nil {
+		return err
+	}
+
 	st, err := BeginStep(s.StateDir, "finalize", stream)
 	if err != nil {
 		return err
@@ -31,13 +36,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_SWAP_DATA_DIRECTORIES, func(streams step.OutStreams) error {
-		conns, err := s.AgentConns()
-
-		if err != nil {
-			return err
-		}
-
-		agentBroker := AgentBrokerGRPC{conns}
+		agentBroker := AgentBrokerGRPC{agentConnections}
 		return SwapDataDirectories(MakeHub(s.Config), &agentBroker)
 	})
 
@@ -54,7 +53,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	// still the old port on which the target cluster was initialized.
 	// TODO: if any steps needs to connect to the new cluster (that should use new port), we should either
 	// write it to the config.json or add some way to identify the state.
-	st.Run(idl.Substep_FINALIZE_UPDATE_CATALOG_WITH_PORT, func(streams step.OutStreams) error {
+	st.Run(idl.Substep_FINALIZE_UPDATE_CATALOG, func(streams step.OutStreams) error {
 		return UpdateCatalog(s.Source, s.Target)
 	})
 
