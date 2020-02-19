@@ -56,8 +56,11 @@ teardown() {
 
     # [x] TODO: ensure upgrading from 5x works
     # [x] TODO: gpperfmon?
-    # TODO: ensure old cluster can still start
-    # TODO: push segment work to the agent
+    # [ ] TODO: push segment work to the agent
+    # [ ] TODO: ensure link mode works
+    # [ ] TODO: ensure new cluster is queryable
+    #
+    # [-] TODO: ensure old cluster can still start (punting for now)
 }
 
 
