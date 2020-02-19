@@ -178,7 +178,7 @@ func UpdateMasterConf(source, target *utils.Cluster) error {
 	var multiErr *multierror.Error
 
 	multierror.Append(multiErr,
-		updateGpperfmonConf(source.MasterDataDir(), target.MasterDataDir()))
+		updateGpperfmonConf(source.MasterDataDir()))
 
 	multierror.Append(multiErr,
 		updatePostgresConfig(target, source))
@@ -186,12 +186,12 @@ func UpdateMasterConf(source, target *utils.Cluster) error {
 	return multiErr.ErrorOrNil()
 }
 
-func updateGpperfmonConf(sourceMasterDataDir, targetMasterDataDir string) error {
+func updateGpperfmonConf(newDataDir string) error {
 	script := fmt.Sprintf(
-		"sed 's@log_location = .*$@log_location = %[2]s/gpperfmon/logs@' %[1]s/conf/gpperfmon.conf > %[1]s/conf/gpperfmon.conf.updated && "+
+		"sed 's@log_location = .*$@log_location = %[1]s/gpperfmon/logs@' %[1]s/conf/gpperfmon.conf > %[1]s/conf/gpperfmon.conf.updated && "+
 			"mv %[1]s/conf/gpperfmon.conf %[1]s/conf/gpperfmon.conf.bak && "+
 			"mv %[1]s/conf/gpperfmon.conf.updated %[1]s/conf/gpperfmon.conf",
-		sourceMasterDataDir, targetMasterDataDir,
+		newDataDir,
 	)
 	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
 	cmd := execCommand("bash", "-c", script)
