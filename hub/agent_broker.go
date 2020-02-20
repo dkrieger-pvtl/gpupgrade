@@ -1,8 +1,9 @@
 package hub
 
 import (
-	"context"
 	"fmt"
+
+	"golang.org/x/net/context"
 
 	"github.com/pkg/errors"
 
@@ -15,6 +16,7 @@ type AgentBroker interface {
 
 type AgentBrokerGRPC struct {
 	agentConnections []*Connection
+	context          context.Context
 }
 
 func (broker *AgentBrokerGRPC) ReconfigureDataDirectories(hostname string, renamePairs []*idl.RenamePair) error {
@@ -33,9 +35,9 @@ func (broker *AgentBrokerGRPC) ReconfigureDataDirectories(hostname string, renam
 	}
 
 	_, err := connection.AgentClient.ReconfigureDataDirectories(
-		context.TODO(),
+		broker.context,
 		&idl.ReconfigureDataDirRequest{
-			Pair: renamePairs,
+			Pairs: renamePairs,
 		},
 	)
 
