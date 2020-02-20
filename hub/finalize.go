@@ -37,6 +37,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 
 	st.Run(idl.Substep_FINALIZE_SWAP_DATA_DIRECTORIES, func(streams step.OutStreams) error {
 		agentBroker := &AgentBrokerGRPC{
+			context:          stream.Context(),
 			agentConnections: agentConnections,
 		}
 		hub := MakeHub(s.Config)
