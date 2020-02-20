@@ -34,16 +34,16 @@ func TestReconfigureDataDirectories(t *testing.T) {
 		}
 
 		agent.ReconfigureDataDirectories([]*idl.RenamePair{
-			{Src: "/some/source", Dst: "/some/target"},
-			{Src: "/some/other/source", Dst: "/some/other/target"},
+			{Src: "/some/source", Dst: "/some/destination"},
+			{Src: "/some/other/source", Dst: "/some/other/destination"},
 		})
 
 		if len(renamedPaths) != 2 {
 			t.Errorf("got %d renames, expected %d", len(renamedPaths), 2)
 		}
 
-		assertRenamedPathsIncludes(t, renamedPaths, renamedPath{oldpath: "/some/source", newpath: "/some/target"})
-		assertRenamedPathsIncludes(t, renamedPaths, renamedPath{oldpath: "/some/other/source", newpath: "/some/other/target"})
+		assertRenamedPathsIncludes(t, renamedPaths, renamedPath{oldpath: "/some/source", newpath: "/some/destination"})
+		assertRenamedPathsIncludes(t, renamedPaths, renamedPath{oldpath: "/some/other/source", newpath: "/some/other/destination"})
 	})
 
 	t.Run("it returns an error and exits without continuing when a rename fails", func(t *testing.T) {
@@ -67,8 +67,8 @@ func TestReconfigureDataDirectories(t *testing.T) {
 		}
 
 		agent.ReconfigureDataDirectories([]*idl.RenamePair{
-			{Src: "/some/source", Dst: "/some/target"},
-			{Src: "/some/other/source", Dst: "/some/other/target"},
+			{Src: "/some/source", Dst: "/some/destination"},
+			{Src: "/some/other/source", Dst: "/some/other/destination"},
 		})
 
 		if len(renamedPaths) != 0 {
