@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
@@ -56,11 +57,30 @@ func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
 }
 
 func (f *finalizer) swapDirectoriesOnAgents(agents []Agent) {
+
+	errChan := make(chan error, len(agents))
+	var wg sync.WaitGroup
+
 	for _, agent := range agents {
-		err := f.agentBroker.ReconfigureDataDirectories(agent.hostname,
-			makeRenamePairs(agent.pairs))
+		wg.Add(1)
+		//TODO: make this use of agentBroker multi-thread safe inherently.
+		go func(a Agent) {
+			defer wg.Done()
+			err := f.agentBroker.ReconfigureDataDirectories(a.hostname,
+				makeRenamePairs(a.pairs))
+			if err != nil {
+				errChan <- err
+			}
+		}(agent)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
 		multierror.Append(f.MultiErr, err)
 	}
+
 }
 
 func (f *finalizer) Errors() error {
