@@ -36,16 +36,20 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_SWAP_DATA_DIRECTORIES, func(streams step.OutStreams) error {
-		agentBroker := AgentBrokerGRPC{agentConnections}
+		agentBroker := AgentBrokerGRPC{
+			agentConnections: agentConnections,
+		}
+
 		return SwapDataDirectories(MakeHub(s.Config), &agentBroker)
 	})
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_MASTER, func(streams step.OutStreams) error {
-		var cluster = *s.Target
-		config := cluster.Primaries[-1]
-		config.DataDir = cluster.Primaries[-1].PromotionDataDirectory(s.Source.Primaries[-1])
+		var cloneOfTarget = *s.Target
+		targetMasterConfig := cloneOfTarget.Primaries[-1]
+		targetMasterConfig.DataDir = targetMasterConfig.PromotionDataDirectory(s.Source.Primaries[-1])
+		cloneOfTarget.Primaries[-1] = targetMasterConfig
 
-		return StartMasterOnly(streams, &cluster, false)
+		return StartMasterOnly(streams, &cloneOfTarget, false)
 	})
 
 	// Once UpdateCatalog && UpdateMasterConf is executed, the port on which the target
@@ -76,6 +80,10 @@ func MakeHub(config *Config) Hub {
 	var segmentPairsByHost = make(map[string][]SegmentPair)
 
 	for contentId, sourceSegment := range config.Source.Primaries {
+		if contentId == -1 {
+			continue
+		}
+
 		if segmentPairsByHost[sourceSegment.Hostname] == nil {
 			segmentPairsByHost[sourceSegment.Hostname] = []SegmentPair{}
 		}

@@ -2,7 +2,6 @@ package hub
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
@@ -28,20 +27,18 @@ type Hub struct {
 }
 
 type finalizer struct {
-	MultiErr    *multierror.Error
+	err         *multierror.Error
 	agentBroker AgentBroker
 }
 
 func (f *finalizer) archive(segment utils.SegConfig) {
-	archivedDataDirectory := segment.ArchiveDataDirectory()
-	err := renameDirectory(segment.DataDir, archivedDataDirectory)
-	f.MultiErr = multierror.Append(f.MultiErr, err)
+	err := renameDirectory(segment.DataDir, segment.ArchiveDataDirectory())
+	f.err = multierror.Append(f.err, err)
 }
 
 func (f *finalizer) promote(segment utils.SegConfig, sourceSegment utils.SegConfig) {
-	promotedDataDir := segment.PromotionDataDirectory(sourceSegment)
-	err := renameDirectory(segment.DataDir, promotedDataDir)
-	f.MultiErr = multierror.Append(f.MultiErr, err)
+	err := renameDirectory(segment.DataDir, segment.PromotionDataDirectory(sourceSegment))
+	f.err = multierror.Append(f.err, err)
 }
 
 func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
@@ -57,34 +54,28 @@ func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
 }
 
 func (f *finalizer) swapDirectoriesOnAgents(agents []Agent) {
+	result := make(chan error, len(agents))
 
-	errChan := make(chan error, len(agents))
-	var wg sync.WaitGroup
+	gplog.Info("Working with %d agents", len(agents))
+	gplog.Info("Working with agents: %+v", agents)
 
 	for _, agent := range agents {
-		wg.Add(1)
+		agent := agent
+
 		//TODO: make this use of agentBroker multi-thread safe inherently.
-		go func(a Agent) {
-			defer wg.Done()
-			err := f.agentBroker.ReconfigureDataDirectories(a.hostname,
-				makeRenamePairs(a.pairs))
-			if err != nil {
-				errChan <- err
-			}
-		}(agent)
+		go func() {
+			result <- f.agentBroker.ReconfigureDataDirectories(agent.hostname,
+				makeRenamePairs(agent.pairs))
+		}()
 	}
 
-	wg.Wait()
-	close(errChan)
-
-	for err := range errChan {
-		multierror.Append(f.MultiErr, err)
+	for range agents {
+		multierror.Append(f.err, <-result)
 	}
-
 }
 
 func (f *finalizer) Errors() error {
-	return f.MultiErr.ErrorOrNil()
+	return f.err.ErrorOrNil()
 }
 
 func makeRenamePairs(pairs []SegmentPair) []*idl.RenamePair {

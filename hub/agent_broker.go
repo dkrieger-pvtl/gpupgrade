@@ -17,11 +17,11 @@ type AgentBrokerGRPC struct {
 	agentConnections []*Connection
 }
 
-func (s *AgentBrokerGRPC) ReconfigureDataDirectories(hostname string, renamePairs []*idl.RenamePair) error {
+func (broker *AgentBrokerGRPC) ReconfigureDataDirectories(hostname string, renamePairs []*idl.RenamePair) error {
 	var connection *Connection
 
 	// find the client for this agent's host
-	for _, c := range s.agentConnections {
+	for _, c := range broker.agentConnections {
 		if c.Hostname == hostname {
 			connection = c
 			break
@@ -33,11 +33,10 @@ func (s *AgentBrokerGRPC) ReconfigureDataDirectories(hostname string, renamePair
 	}
 
 	_, err := connection.AgentClient.ReconfigureDataDirectories(
-		context.Background(),
+		context.TODO(),
 		&idl.ReconfigureDataDirRequest{
 			Pair: renamePairs,
 		},
-		nil,
 	)
 
 	return err

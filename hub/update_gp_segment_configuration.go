@@ -185,9 +185,9 @@ func UpdateMasterConf(source, target *utils.Cluster) error {
 
 func updateGpperfmonConf(newDataDir string) error {
 	script := fmt.Sprintf(
-		"sed 's@log_location = .*$@log_location = %[1]s/gpperfmon/logs@' %[1]s/conf/gpperfmon.conf > %[1]s/conf/gpperfmon.conf.updated && "+
-			"mv %[1]s/conf/gpperfmon.conf %[1]s/conf/gpperfmon.conf.bak && "+
-			"mv %[1]s/conf/gpperfmon.conf.updated %[1]s/conf/gpperfmon.conf",
+		"sed 's@log_location = .*$@log_location = %[1]s/gpperfmon/logs@' %[1]s/gpperfmon/conf/gpperfmon.conf > %[1]s/gpperfmon/conf/gpperfmon.conf.updated && "+
+			"mv %[1]s/gpperfmon/conf/gpperfmon.conf %[1]s/gpperfmon/conf/gpperfmon.conf.bak && "+
+			"mv %[1]s/gpperfmon/conf/gpperfmon.conf.updated %[1]s/gpperfmon/conf/gpperfmon.conf",
 		newDataDir,
 	)
 	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
