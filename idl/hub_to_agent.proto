@@ -45,7 +45,7 @@ message RenamePair {
 }
 
 message ReconfigureDataDirRequest {
-  repeated RenamePair Pair = 1;
+  repeated RenamePair Pairs = 1;
 }
 
 message ReconfigureDataDirReply {}
