@@ -3,7 +3,6 @@ package hub
 import (
 	"database/sql"
 	"fmt"
-	"os/exec"
 
 	"github.com/pkg/errors"
 
@@ -11,10 +10,22 @@ import (
 
 	"github.com/greenplum-db/gpupgrade/utils"
 
-	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 )
+
+func UpdateCatalog(source, target *utils.Cluster) (err error) {
+	err = WithinDbConnection(target, func(conn *sql.DB) error {
+		return UpdateGpSegmentConfiguration(conn, source, target)
+	})
+
+	if err != nil {
+		return xerrors.Errorf("%s failed to clone ports: %w",
+			idl.Substep_FINALIZE_UPDATE_CATALOG, err)
+	}
+
+	return nil
+}
 
 var ErrContentMismatch = errors.New("content ids do not match")
 
@@ -155,64 +166,5 @@ func UpdateGpSegmentConfiguration(db *sql.DB, source *utils.Cluster, target *uti
 		}
 	}
 
-	return nil
-}
-
-func UpdateCatalog(source, target *utils.Cluster) (err error) {
-	err = WithinDbConnection(target, func(conn *sql.DB) error {
-		return UpdateGpSegmentConfiguration(conn, source, target)
-	})
-
-	if err != nil {
-		return xerrors.Errorf("%s failed to clone ports: %w",
-			idl.Substep_FINALIZE_UPDATE_CATALOG, err)
-	}
-
-	return nil
-}
-
-func UpdateMasterConf(source, target *utils.Cluster) error {
-	var multiErr *multierror.Error
-
-	multierror.Append(multiErr,
-		updateGpperfmonConf(source.MasterDataDir()))
-
-	multierror.Append(multiErr,
-		updatePostgresConfig(target, source))
-
-	return multiErr.ErrorOrNil()
-}
-
-func updateGpperfmonConf(newDataDir string) error {
-	script := fmt.Sprintf(
-		"sed 's@log_location = .*$@log_location = %[1]s/gpperfmon/logs@' %[1]s/gpperfmon/conf/gpperfmon.conf > %[1]s/gpperfmon/conf/gpperfmon.conf.updated && "+
-			"mv %[1]s/gpperfmon/conf/gpperfmon.conf %[1]s/gpperfmon/conf/gpperfmon.conf.bak && "+
-			"mv %[1]s/gpperfmon/conf/gpperfmon.conf.updated %[1]s/gpperfmon/conf/gpperfmon.conf",
-		newDataDir,
-	)
-	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
-	cmd := execCommand("bash", "-c", script)
-	_, err := cmd.Output()
-	if err != nil {
-		return xerrors.Errorf("%s failed to execute sed command: %w",
-			idl.Substep_FINALIZE_UPDATE_POSTGRESQL_CONF, err)
-	}
-	return nil
-}
-
-func updatePostgresConfig(target *utils.Cluster, source *utils.Cluster) error {
-	script := fmt.Sprintf(
-		"sed 's/port=%d/port=%d/' %[3]s/postgresql.conf > %[3]s/postgresql.conf.updated && "+
-			"mv %[3]s/postgresql.conf %[3]s/postgresql.conf.bak && "+
-			"mv %[3]s/postgresql.conf.updated %[3]s/postgresql.conf",
-		target.MasterPort(), source.MasterPort(), target.MasterDataDir(),
-	)
-	gplog.Debug("executing command: %+v", script) // TODO: Move this debug log into ExecuteLocalCommand()
-	cmd := exec.Command("bash", "-c", script)
-	_, err := cmd.Output()
-	if err != nil {
-		return xerrors.Errorf("%s failed to execute sed command: %w",
-			idl.Substep_FINALIZE_UPDATE_POSTGRESQL_CONF, err)
-	}
 	return nil
 }

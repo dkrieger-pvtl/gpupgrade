@@ -28,27 +28,28 @@ func MakeHub(config *Config) Hub {
 	var configs []Agent
 	for hostname, agentSegmentPairs := range segmentPairsByHost {
 		configs = append(configs, Agent{
-			hostname: hostname,
-			pairs:    agentSegmentPairs,
+			hostname:     hostname,
+			segmentPairs: agentSegmentPairs,
 		})
 	}
 
 	return Hub{
-		sourceMaster: config.Source.Primaries[-1],
-		targetMaster: config.Target.Primaries[-1],
-		agents:       configs,
+		masterPair: SegmentPair{
+			source: config.Source.Primaries[-1],
+			target: config.Target.Primaries[-1],
+		},
+		agents: configs,
 	}
 }
 
 type Hub struct {
-	sourceMaster utils.SegConfig
-	targetMaster utils.SegConfig
-	agents       []Agent
+	masterPair SegmentPair
+	agents     []Agent
 }
 
 type Agent struct {
-	hostname string
-	pairs    []SegmentPair
+	hostname     string
+	segmentPairs []SegmentPair
 }
 
 type SegmentPair struct {

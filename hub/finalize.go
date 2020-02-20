@@ -45,7 +45,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_MASTER, func(streams step.OutStreams) error {
-		return StartTargetMasterForFinalize(s.Config, streams)
+		return StartTargetMasterForFinalize(streams, s.Config)
 	})
 
 	// Once UpdateCatalog && UpdateMasterConf is executed, the port on which the target
@@ -70,15 +70,4 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	return st.Err()
-}
-
-func StartTargetMasterForFinalize(config *Config, streams step.OutStreams) error {
-	// We need to pass a modified Target cluster to StartMasterOnly because
-	// the data directory has been promoted to its new location
-	var target = *config.Target
-	targetMaster := target.Primaries[-1]
-	targetMaster.DataDir = targetMaster.PromotionDataDirectory(config.Source.Primaries[-1])
-	target.Primaries[-1] = targetMaster
-
-	return StartMasterOnly(streams, &target, false)
 }

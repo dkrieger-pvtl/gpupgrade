@@ -16,9 +16,6 @@ func WithinDbConnection(cluster *utils.Cluster, operation func(connection *sql.D
 	connURI := fmt.Sprintf(connectionString, cluster.MasterPort())
 	connection, err := sql.Open("pgx", connURI)
 
-	fmt.Printf("%v", connectionString)
-	fmt.Printf("%v", connURI)
-
 	if err != nil {
 		return xerrors.Errorf("Failed to open connection to utility master: %w", err)
 	}

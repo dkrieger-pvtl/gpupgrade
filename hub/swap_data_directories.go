@@ -12,8 +12,8 @@ import (
 
 func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
 	swapper := finalizer{agentBroker: agentBroker}
-	swapper.archive(hub.sourceMaster)
-	swapper.promote(hub.targetMaster, hub.sourceMaster)
+	swapper.archive(hub.masterPair.source)
+	swapper.promote(hub.masterPair.target, hub.masterPair.source)
 	swapper.swapDirectoriesOnAgents(hub.agents)
 	return swapper.Errors()
 }
@@ -42,7 +42,7 @@ func (f *finalizer) swapDirectoriesOnAgents(agents []Agent) {
 		//TODO: make this use of agentBroker multi-thread safe inherently.
 		go func() {
 			result <- f.agentBroker.ReconfigureDataDirectories(agent.hostname,
-				makeRenamePairs(agent.pairs))
+				makeRenamePairs(agent.segmentPairs))
 		}()
 	}
 
