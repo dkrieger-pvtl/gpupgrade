@@ -72,8 +72,13 @@ func makeRenamePairs(pairs []SegmentPair) []*idl.RenamePair {
 
 	for _, pair := range pairs {
 		renamePairs = append(renamePairs, &idl.RenamePair{
-			Dst: pair.source.DataDir,
+			Src: pair.source.DataDir,
+			Dst: pair.source.ArchiveDataDirectory(),
+		})
+
+		renamePairs = append(renamePairs, &idl.RenamePair{
 			Src: pair.target.DataDir,
+			Dst: pair.target.PromotionDataDirectory(pair.source),
 		})
 	}
 

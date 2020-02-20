@@ -199,6 +199,10 @@ func TestSwapDataDirectories(t *testing.T) {
 			"host1",
 			[]*idl.RenamePair{
 				{
+					Src: "/some/data/directory/99",
+					Dst: "/some/data/directory/99_old",
+				},
+				{
 					Src: "/some/data/directory_upgrade/99",
 					Dst: "/some/data/directory/99",
 				},
@@ -209,6 +213,10 @@ func TestSwapDataDirectories(t *testing.T) {
 			"host2",
 			[]*idl.RenamePair{
 				{
+					Src: "/some/data/directory/100",
+					Dst: "/some/data/directory/100_old",
+				},
+				{
 					Src: "/some/data/directory_upgrade/100",
 					Dst: "/some/data/directory/100",
 				},
@@ -216,7 +224,7 @@ func TestSwapDataDirectories(t *testing.T) {
 		)
 	})
 
-	t.Run("it tells each agent to reconfigure data directories for the segments", func(t *testing.T) {
+	t.Run("it errors out if the call to the agents fails", func(t *testing.T) {
 		spy := &renameSpy{}
 		utils.System.Rename = spy.renameFunc()
 
