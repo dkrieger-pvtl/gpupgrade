@@ -36,20 +36,16 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	st.Run(idl.Substep_FINALIZE_SWAP_DATA_DIRECTORIES, func(streams step.OutStreams) error {
-		agentBroker := AgentBrokerGRPC{
+		agentBroker := &AgentBrokerGRPC{
 			agentConnections: agentConnections,
 		}
+		hub := MakeHub(s.Config)
 
-		return SwapDataDirectories(MakeHub(s.Config), &agentBroker)
+		return SwapDataDirectories(hub, agentBroker)
 	})
 
 	st.Run(idl.Substep_FINALIZE_START_TARGET_MASTER, func(streams step.OutStreams) error {
-		var cloneOfTarget = *s.Target
-		targetMasterConfig := cloneOfTarget.Primaries[-1]
-		targetMasterConfig.DataDir = targetMasterConfig.PromotionDataDirectory(s.Source.Primaries[-1])
-		cloneOfTarget.Primaries[-1] = targetMasterConfig
-
-		return StartMasterOnly(streams, &cloneOfTarget, false)
+		return StartTargetMasterForFinalize(s.Config, streams)
 	})
 
 	// Once UpdateCatalog && UpdateMasterConf is executed, the port on which the target
@@ -76,35 +72,13 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	return st.Err()
 }
 
-func MakeHub(config *Config) Hub {
-	var segmentPairsByHost = make(map[string][]SegmentPair)
+func StartTargetMasterForFinalize(config *Config, streams step.OutStreams) error {
+	// We need to pass a modified Target cluster to StartMasterOnly because
+	// the data directory has been promoted to its new location
+	var target = *config.Target
+	targetMaster := target.Primaries[-1]
+	targetMaster.DataDir = targetMaster.PromotionDataDirectory(config.Source.Primaries[-1])
+	target.Primaries[-1] = targetMaster
 
-	for contentId, sourceSegment := range config.Source.Primaries {
-		if contentId == -1 {
-			continue
-		}
-
-		if segmentPairsByHost[sourceSegment.Hostname] == nil {
-			segmentPairsByHost[sourceSegment.Hostname] = []SegmentPair{}
-		}
-
-		segmentPairsByHost[sourceSegment.Hostname] = append(segmentPairsByHost[sourceSegment.Hostname], SegmentPair{
-			source: sourceSegment,
-			target: config.Target.Primaries[contentId],
-		})
-	}
-
-	var configs []Agent
-	for hostname, agentSegmentPairs := range segmentPairsByHost {
-		configs = append(configs, Agent{
-			hostname: hostname,
-			pairs:    agentSegmentPairs,
-		})
-	}
-
-	return Hub{
-		sourceMaster: config.Source.Primaries[-1],
-		targetMaster: config.Target.Primaries[-1],
-		agents:       configs,
-	}
+	return StartMasterOnly(streams, &target, false)
 }

@@ -33,29 +33,3 @@ func WithinDbConnection(cluster *utils.Cluster, operation func(connection *sql.D
 
 	return operation(connection)
 }
-
-func WithinDbTransaction(cluster *utils.Cluster, operation func(transaction *sql.Tx) error) (err error) {
-	return WithinDbConnection(cluster, func(connection *sql.DB) error {
-		transaction, err := connection.Begin()
-		if err != nil {
-			return err
-		}
-
-		err = operation(transaction)
-		if err != nil {
-			return err
-		}
-
-		err = transaction.Commit()
-		if err != nil {
-			return nil
-		}
-
-		err = connection.Close()
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-}

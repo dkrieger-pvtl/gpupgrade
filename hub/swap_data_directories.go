@@ -10,20 +10,12 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
-type SegmentPair struct {
-	source utils.SegConfig
-	target utils.SegConfig
-}
-
-type Agent struct {
-	hostname string
-	pairs    []SegmentPair
-}
-
-type Hub struct {
-	sourceMaster utils.SegConfig
-	targetMaster utils.SegConfig
-	agents       []Agent
+func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
+	swapper := finalizer{agentBroker: agentBroker}
+	swapper.archive(hub.sourceMaster)
+	swapper.promote(hub.targetMaster, hub.sourceMaster)
+	swapper.swapDirectoriesOnAgents(hub.agents)
+	return swapper.Errors()
 }
 
 type finalizer struct {
@@ -31,36 +23,21 @@ type finalizer struct {
 	agentBroker AgentBroker
 }
 
-func (f *finalizer) archive(segment utils.SegConfig) {
-	err := renameDirectory(segment.DataDir, segment.ArchiveDataDirectory())
+func (f *finalizer) archive(sourceSegment utils.SegConfig) {
+	err := renameDirectory(sourceSegment.DataDir, sourceSegment.ArchiveDataDirectory())
 	f.err = multierror.Append(f.err, err)
 }
 
-func (f *finalizer) promote(segment utils.SegConfig, sourceSegment utils.SegConfig) {
-	err := renameDirectory(segment.DataDir, segment.PromotionDataDirectory(sourceSegment))
+func (f *finalizer) promote(targetSegment utils.SegConfig, sourceSegment utils.SegConfig) {
+	err := renameDirectory(targetSegment.DataDir, targetSegment.PromotionDataDirectory(sourceSegment))
 	f.err = multierror.Append(f.err, err)
-}
-
-func SwapDataDirectories(hub Hub, agentBroker AgentBroker) error {
-	swapper := finalizer{
-		agentBroker: agentBroker,
-	}
-
-	swapper.archive(hub.sourceMaster)
-	swapper.promote(hub.targetMaster, hub.sourceMaster)
-	swapper.swapDirectoriesOnAgents(hub.agents)
-
-	return swapper.Errors()
 }
 
 func (f *finalizer) swapDirectoriesOnAgents(agents []Agent) {
 	result := make(chan error, len(agents))
 
-	gplog.Info("Working with %d agents", len(agents))
-	gplog.Info("Working with agents: %+v", agents)
-
 	for _, agent := range agents {
-		agent := agent
+		agent := agent // capture agent variable
 
 		//TODO: make this use of agentBroker multi-thread safe inherently.
 		go func() {
@@ -82,11 +59,13 @@ func makeRenamePairs(pairs []SegmentPair) []*idl.RenamePair {
 	var renamePairs []*idl.RenamePair
 
 	for _, pair := range pairs {
+		// Archive source
 		renamePairs = append(renamePairs, &idl.RenamePair{
 			Src: pair.source.DataDir,
 			Dst: pair.source.ArchiveDataDirectory(),
 		})
 
+		// Promote target
 		renamePairs = append(renamePairs, &idl.RenamePair{
 			Src: pair.target.DataDir,
 			Dst: pair.target.PromotionDataDirectory(pair.source),
