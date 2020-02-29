@@ -1,17 +1,16 @@
 package hub
 
 import (
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
-
-	"github.com/greenplum-db/gpupgrade/hub/sourcedb"
 )
 
 type UnbalancedSegmentStatusError struct {
-	UnbalancedDbids []sourcedb.DBID
+	UnbalancedDbids []DBID
 }
 
 func (e UnbalancedSegmentStatusError) Error() string {
@@ -29,11 +28,11 @@ func (e UnbalancedSegmentStatusError) Error() string {
 }
 
 type DownSegmentStatusError struct {
-	DownDbids []sourcedb.DBID
+	DownDbids []DBID
 }
 
-func NewDownSegmentStatusError(downSegments []sourcedb.SegmentStatus) error {
-	var downDbids []sourcedb.DBID
+func NewDownSegmentStatusError(downSegments []SegmentStatus) error {
+	var downDbids []DBID
 
 	for _, downSegment := range downSegments {
 		downDbids = append(downDbids, downSegment.DbID)
@@ -56,8 +55,8 @@ func (e DownSegmentStatusError) Error() string {
 	return message
 }
 
-func NewUnbalancedSegmentStatusError(segments []sourcedb.SegmentStatus) error {
-	var dbids []sourcedb.DBID
+func NewUnbalancedSegmentStatusError(segments []SegmentStatus) error {
+	var dbids []DBID
 
 	for _, segment := range segments {
 		dbids = append(dbids, segment.DbID)
@@ -66,14 +65,17 @@ func NewUnbalancedSegmentStatusError(segments []sourcedb.SegmentStatus) error {
 	return UnbalancedSegmentStatusError{dbids}
 }
 
-func CheckSourceClusterConfiguration(sourceDatabase sourcedb.Database) error {
-	errors := &multierror.Error{}
-
-	statuses, err := sourceDatabase.GetSegmentStatuses()
-
+func CheckSourceClusterConfiguration(conn *sql.DB) error {
+	statuses, err := GetSegmentStatuses(conn)
 	if err != nil {
 		return err
 	}
+
+	return SegmentStatusErrors(statuses)
+}
+
+func SegmentStatusErrors(statuses []SegmentStatus) error {
+	errors := &multierror.Error{}
 
 	if err := checkForDownSegments(statuses); err != nil {
 		errors = multierror.Append(errors, err)
@@ -86,8 +88,8 @@ func CheckSourceClusterConfiguration(sourceDatabase sourcedb.Database) error {
 	return errors.ErrorOrNil()
 }
 
-func checkForUnbalancedSegments(statuses []sourcedb.SegmentStatus) error {
-	unbalancedSegments := filterSegments(statuses, func(status sourcedb.SegmentStatus) bool {
+func checkForUnbalancedSegments(statuses []SegmentStatus) error {
+	unbalancedSegments := filterSegments(statuses, func(status SegmentStatus) bool {
 		return status.PreferredRole != status.Role
 	})
 
@@ -98,8 +100,8 @@ func checkForUnbalancedSegments(statuses []sourcedb.SegmentStatus) error {
 	return nil
 }
 
-func checkForDownSegments(statuses []sourcedb.SegmentStatus) error {
-	downSegments := filterSegments(statuses, func(status sourcedb.SegmentStatus) bool {
+func checkForDownSegments(statuses []SegmentStatus) error {
+	downSegments := filterSegments(statuses, func(status SegmentStatus) bool {
 		return !status.IsUp
 	})
 
@@ -110,8 +112,8 @@ func checkForDownSegments(statuses []sourcedb.SegmentStatus) error {
 	return nil
 }
 
-func filterSegments(segments []sourcedb.SegmentStatus, filterMatches func(status sourcedb.SegmentStatus) bool) []sourcedb.SegmentStatus {
-	var downSegments []sourcedb.SegmentStatus
+func filterSegments(segments []SegmentStatus, filterMatches func(status SegmentStatus) bool) []SegmentStatus {
+	var downSegments []SegmentStatus
 
 	for _, segment := range segments {
 		if filterMatches(segment) {
@@ -120,4 +122,54 @@ func filterSegments(segments []sourcedb.SegmentStatus, filterMatches func(status
 	}
 
 	return downSegments
+}
+
+type DBID int
+type Role string
+
+const (
+	Primary Role = "p"
+	Mirror       = "m"
+)
+
+type Status string
+
+const (
+	Up   Status = "u"
+	Down        = "d"
+)
+
+type SegmentStatus struct {
+	IsUp          bool
+	DbID          DBID
+	Role          Role
+	PreferredRole Role
+}
+
+func GetSegmentStatuses(connection *sql.DB) ([]SegmentStatus, error) {
+	statuses := make([]SegmentStatus, 0)
+
+	rows, err := connection.Query(`
+		select dbid, status = $1 as is_up, role, preferred_role
+		from gp_segment_configuration
+	`, Up)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		r := SegmentStatus{}
+		err = rows.Scan(&r.DbID, &r.IsUp, &r.Role, &r.PreferredRole)
+		if err != nil {
+			return nil, err
+		}
+
+		statuses = append(statuses, r)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
+	return statuses, err
 }

@@ -1,25 +1,27 @@
 package hub
 
 import (
+	"database/sql"
 	"sort"
 
 	"github.com/pkg/errors"
 
 	"github.com/greenplum-db/gpupgrade/db"
-	"github.com/greenplum-db/gpupgrade/hub/sourcedb"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 // create old/new clusters, write to disk and re-read from disk to make sure it is "durable"
-func FillClusterConfigsSubStep(config *Config, sourceDatabase sourcedb.Database, _ step.OutStreams, request *idl.InitializeRequest, saveConfig func() error) error {
-	if err := CheckSourceClusterConfiguration(sourceDatabase); err != nil {
+func FillClusterConfigsSubStep(config *Config, conn *sql.DB, _ step.OutStreams, request *idl.InitializeRequest, saveConfig func() error) error {
+	if err := CheckSourceClusterConfiguration(conn); err != nil {
 		return err
 	}
 
-	conn := db.NewDBConn("localhost", int(request.SourcePort), "template1")
-	source, err := utils.ClusterFromDB(conn, request.SourceBinDir)
+	// XXX ugly; we should just use the conn we're passed, but our DbConn
+	// concept (which isn't really used) gets in the way
+	dbconn := db.NewDBConn("localhost", int(request.SourcePort), "template1")
+	source, err := utils.ClusterFromDB(dbconn, request.SourceBinDir)
 	if err != nil {
 		return errors.Wrap(err, "could not retrieve source configuration")
 	}

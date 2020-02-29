@@ -5,16 +5,16 @@ import (
 	"strings"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/hub"
-	"github.com/greenplum-db/gpupgrade/hub/sourcedb"
 )
 
 func TestSegmentStatusError_Error(t *testing.T) {
 	t.Run("it formats a list of dbids", func(t *testing.T) {
-		err := hub.DownSegmentStatusError{DownDbids: []sourcedb.DBID{1, 2, 3}}
+		err := hub.DownSegmentStatusError{DownDbids: []hub.DBID{1, 2, 3}}
 
 		if !strings.Contains(err.Error(), "1, 2, 3") {
 			t.Errorf("got %v, expected dbids to be included", err.Error())
@@ -24,7 +24,7 @@ func TestSegmentStatusError_Error(t *testing.T) {
 
 func TestUnbalancedSegmentStatusError_Error(t *testing.T) {
 	t.Run("it formats a list of dbids", func(t *testing.T) {
-		err := hub.UnbalancedSegmentStatusError{UnbalancedDbids: []sourcedb.DBID{1, 2, 3}}
+		err := hub.UnbalancedSegmentStatusError{UnbalancedDbids: []hub.DBID{1, 2, 3}}
 
 		if !strings.Contains(err.Error(), "1, 2, 3") {
 			t.Errorf("got %v, expected dbids to be included", err.Error())
@@ -32,55 +32,29 @@ func TestUnbalancedSegmentStatusError_Error(t *testing.T) {
 	})
 }
 
-func TestCheckSourceClusterConfiguration(t *testing.T) {
+func TestSegmentStatusErrors(t *testing.T) {
 	t.Run("it passes when when all segments are up", func(t *testing.T) {
-		sourceDatabase := &mockSourceDatabase{
-			func(sourcedb.Database) ([]sourcedb.SegmentStatus, error) {
-				return []sourcedb.SegmentStatus{
-					{DbID: 0, IsUp: true},
-					{DbID: 1, IsUp: true},
-					{DbID: 2, IsUp: true},
-				}, nil
-			},
+		sourceDatabase := []hub.SegmentStatus{
+			{DbID: 0, IsUp: true},
+			{DbID: 1, IsUp: true},
+			{DbID: 2, IsUp: true},
 		}
 
-		err := hub.CheckSourceClusterConfiguration(sourceDatabase)
-
+		err := hub.SegmentStatusErrors(sourceDatabase)
 		if err != nil {
-			t.Errorf("got no completion message, expected substep to complete without errors")
-		}
-	})
-
-	t.Run("it returns an error if it fails to query for statuses", func(t *testing.T) {
-		queryError := errors.New("some error while querying")
-
-		sourceDatabase := mockSourceDatabase{func(sourcedb.Database) ([]sourcedb.SegmentStatus, error) {
-			return []sourcedb.SegmentStatus{}, queryError
-		}}
-
-		err := hub.CheckSourceClusterConfiguration(sourceDatabase)
-
-		if err == nil {
-			t.Fatalf("got no error, expected an error")
-		}
-
-		if !strings.Contains(err.Error(), queryError.Error()) {
-			t.Errorf("got %q, expected an error to get bubbled up from the failed query %q",
-				err, queryError)
+			t.Errorf("got unexpected error %+v", err)
 		}
 	})
 
 	t.Run("it returns an error if any of the segments are not in their preferred role", func(t *testing.T) {
-		sourceDatabase := mockSourceDatabase{func(sourcedb.Database) ([]sourcedb.SegmentStatus, error) {
-			return []sourcedb.SegmentStatus{
-				makeBalanced(1),
-				makeUnbalanced(2),
-				makeBalanced(3),
-				makeUnbalanced(4),
-			}, nil
-		}}
+		sourceDatabase := []hub.SegmentStatus{
+			makeBalanced(1),
+			makeUnbalanced(2),
+			makeBalanced(3),
+			makeUnbalanced(4),
+		}
 
-		err := hub.CheckSourceClusterConfiguration(sourceDatabase)
+		err := hub.SegmentStatusErrors(sourceDatabase)
 
 		if err == nil {
 			t.Fatalf("got no errors for step, expected segment status error")
@@ -94,7 +68,7 @@ func TestCheckSourceClusterConfiguration(t *testing.T) {
 				err.Error())
 		}
 
-		unbalancedListIncludes := func(expectedDbid sourcedb.DBID) bool {
+		unbalancedListIncludes := func(expectedDbid hub.DBID) bool {
 			for _, dbid := range segmentStatusError.UnbalancedDbids {
 				if dbid == expectedDbid {
 					return true
@@ -131,16 +105,14 @@ func TestCheckSourceClusterConfiguration(t *testing.T) {
 	})
 
 	t.Run("it returns an error if any of the segments are down", func(t *testing.T) {
-		sourceDatabase := mockSourceDatabase{func(sourcedb.Database) ([]sourcedb.SegmentStatus, error) {
-			return []sourcedb.SegmentStatus{
-				{DbID: 0, IsUp: true},
-				{DbID: 1, IsUp: false},
-				{DbID: 2, IsUp: true},
-				{DbID: 99, IsUp: false},
-			}, nil
-		}}
+		sourceDatabase := []hub.SegmentStatus{
+			{DbID: 0, IsUp: true},
+			{DbID: 1, IsUp: false},
+			{DbID: 2, IsUp: true},
+			{DbID: 99, IsUp: false},
+		}
 
-		err := hub.CheckSourceClusterConfiguration(sourceDatabase)
+		err := hub.SegmentStatusErrors(sourceDatabase)
 
 		if err == nil {
 			t.Fatalf("got no errors for step, expected segment status error")
@@ -154,7 +126,7 @@ func TestCheckSourceClusterConfiguration(t *testing.T) {
 				err.Error())
 		}
 
-		downListIncludes := func(expectedDbid sourcedb.DBID) bool {
+		downListIncludes := func(expectedDbid hub.DBID) bool {
 			for _, dbid := range segmentStatusError.DownDbids {
 				if dbid == expectedDbid {
 					return true
@@ -185,14 +157,12 @@ func TestCheckSourceClusterConfiguration(t *testing.T) {
 	})
 
 	t.Run("it returns both unbalanced errors and down errors at the same time", func(t *testing.T) {
-		sourceDatabase := mockSourceDatabase{func(sourcedb.Database) ([]sourcedb.SegmentStatus, error) {
-			return []sourcedb.SegmentStatus{
-				{DbID: 1, IsUp: false},
-				makeUnbalanced(2),
-			}, nil
-		}}
+		sourceDatabase := []hub.SegmentStatus{
+			{DbID: 1, IsUp: false},
+			makeUnbalanced(2),
+		}
 
-		err := hub.CheckSourceClusterConfiguration(sourceDatabase)
+		err := hub.SegmentStatusErrors(sourceDatabase)
 
 		if err == nil {
 			t.Fatalf("got no errors for step, expected segment status error")
@@ -219,28 +189,162 @@ func TestCheckSourceClusterConfiguration(t *testing.T) {
 	})
 }
 
-func makeBalanced(dbid sourcedb.DBID) sourcedb.SegmentStatus {
-	return sourcedb.SegmentStatus{
+func makeBalanced(dbid hub.DBID) hub.SegmentStatus {
+	return hub.SegmentStatus{
 		IsUp:          true,
 		DbID:          dbid,
-		Role:          sourcedb.Primary,
-		PreferredRole: sourcedb.Primary,
+		Role:          hub.Primary,
+		PreferredRole: hub.Primary,
 	}
 }
 
-func makeUnbalanced(dbid sourcedb.DBID) sourcedb.SegmentStatus {
-	return sourcedb.SegmentStatus{
+func makeUnbalanced(dbid hub.DBID) hub.SegmentStatus {
+	return hub.SegmentStatus{
 		IsUp:          true,
 		DbID:          dbid,
-		Role:          sourcedb.Mirror,
-		PreferredRole: sourcedb.Primary,
+		Role:          hub.Mirror,
+		PreferredRole: hub.Primary,
 	}
 }
 
-type mockSourceDatabase struct {
-	getSegmentStatuses func(sourcedb.Database) ([]sourcedb.SegmentStatus, error)
+func TestCheckSourceClusterConfiguration(t *testing.T) {
+	// Simple integration cases. We rely on the other units to give us corner
+	// case coverage.
+	t.Run("runs with happy path", func(t *testing.T) {
+		connection, sqlmock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("creating sqlmock: %+v", err)
+		}
+		defer finishMock(sqlmock, t)
+
+		rows := sqlmock.
+			NewRows([]string{"dbid", "is_up", "role", "preferred_role"}).
+			AddRow("1", true, hub.Primary, hub.Primary)
+		sqlmock.ExpectQuery(".*").WillReturnRows(rows)
+
+		err = hub.CheckSourceClusterConfiguration(connection)
+		if err != nil {
+			t.Errorf("got unexpected error %+v", err)
+		}
+	})
+
+	t.Run("runs with angry path", func(t *testing.T) {
+		connection, sqlmock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("creating sqlmock: %+v", err)
+		}
+		defer finishMock(sqlmock, t)
+
+		expected := errors.New("sdkfjlsdfd")
+		sqlmock.ExpectQuery(".*").WillReturnError(expected)
+
+		err = hub.CheckSourceClusterConfiguration(connection)
+		if !xerrors.Is(err, expected) {
+			t.Errorf("got error %#v, want %#v", err, expected)
+		}
+	})
 }
 
-func (m mockSourceDatabase) GetSegmentStatuses() ([]sourcedb.SegmentStatus, error) {
-	return m.getSegmentStatuses(m)
+func TestGetSegmentStatuses(t *testing.T) {
+	t.Run("it returns segment statuses", func(t *testing.T) {
+		connection, sqlmock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("creating sqlmock: %+v", err)
+		}
+		defer finishMock(sqlmock, t)
+
+		rows := sqlmock.
+			NewRows([]string{"dbid", "is_up", "role", "preferred_role"}).
+			AddRow("1", true, hub.Mirror, hub.Primary).
+			AddRow("2", false, hub.Primary, hub.Mirror)
+
+		query := `select dbid, status = .* as is_up, role, preferred_role
+			from gp_segment_configuration`
+
+		sqlmock.ExpectQuery(query).
+			WithArgs(hub.Up).
+			WillReturnRows(rows)
+
+		statuses, err := hub.GetSegmentStatuses(connection)
+
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		if len(statuses) != 2 {
+			t.Fatalf("got %d rows, expected 2 rows to be returned", len(statuses))
+		}
+
+		first := statuses[0]
+		if first.DbID != 1 || first.IsUp != true || first.Role != hub.Mirror || first.PreferredRole != hub.Primary {
+			t.Errorf("segment status not populated correctly: %+v", first)
+		}
+
+		second := statuses[1]
+		if second.DbID != 2 || second.IsUp != false || second.Role != hub.Primary || second.PreferredRole != hub.Mirror {
+			t.Errorf("segment status not populated correctly: %+v", second)
+		}
+	})
+
+	t.Run("it returns an error if it fails to query for statuses", func(t *testing.T) {
+		connection, sqlmock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("creating sqlmock: %+v", err)
+		}
+		defer finishMock(sqlmock, t)
+
+		expected := errors.New("ahhhh")
+		sqlmock.ExpectQuery(".*").WillReturnError(expected)
+
+		_, err = hub.GetSegmentStatuses(connection)
+		if !xerrors.Is(err, expected) {
+			t.Errorf("got error %#v, want %#v", err, expected)
+		}
+	})
+
+	t.Run("it returns an error if a row scan fails", func(t *testing.T) {
+		connection, sqlmock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("creating sqlmock: %+v", err)
+		}
+		defer finishMock(sqlmock, t)
+
+		rows := sqlmock.
+			NewRows([]string{"dbid", "is_up", "role", "preferred_role"}).
+			AddRow("1", true, hub.Mirror, hub.Primary).
+			AddRow("2", 2, hub.Primary, hub.Mirror)
+
+		query := `select dbid, status = .* as is_up, role, preferred_role
+			from gp_segment_configuration`
+
+		expected := errors.New("sql: Scan error on column index 1, name \"is_up\": sql/driver: couldn't convert 2 into type bool")
+		sqlmock.ExpectQuery(query).WithArgs(hub.Up).WillReturnRows(rows)
+
+		_, err = hub.GetSegmentStatuses(connection)
+
+		if err == nil || err.Error() != expected.Error() {
+			t.Errorf("got error %#v, want %#v", err, expected)
+		}
+	})
+
+	t.Run("it returns an error if row iteration fails", func(t *testing.T) {
+		connection, sqlmock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("creating sqlmock: %+v", err)
+		}
+		defer finishMock(sqlmock, t)
+
+		expected := errors.New("Next() failed")
+		rows := sqlmock.
+			NewRows([]string{"dbid", "is_up", "role", "preferred_role"}).
+			AddRow("1", true, hub.Mirror, hub.Primary).
+			RowError(0, expected)
+
+		sqlmock.ExpectQuery(".*").WillReturnRows(rows)
+
+		_, err = hub.GetSegmentStatuses(connection)
+		if !xerrors.Is(err, expected) {
+			t.Errorf("got error %#v, want %#v", err, expected)
+		}
+	})
 }
