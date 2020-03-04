@@ -63,7 +63,7 @@ func TestCopyMaster(t *testing.T) {
 	t.Run("copies the master data directory to each primary host", func(t *testing.T) {
 		// The verifier function can be called in parallel, so use a channel to
 		// communicate which hosts were actually used.
-		hosts := make(chan string, len(targetCluster.PrimaryHostnames()))
+		hosts := make(chan string, len(targetCluster.GetHostnamesExcludingMaster(false)))
 
 		// Validate the rsync call and arguments.
 		execCommand = exectest.NewCommandWithVerifier(Success, func(name string, args ...string) {
@@ -171,7 +171,7 @@ func TestCopyMaster(t *testing.T) {
 		// hosts. They should be serialized sanely, even though we may execute
 		// in parallel.
 		stderr := buffer.stderr.String()
-		expected := strings.Repeat(rsyncErrorMessage, len(targetCluster.PrimaryHostnames()))
+		expected := strings.Repeat(rsyncErrorMessage, len(targetCluster.GetHostnamesExcludingMaster(false)))
 		if stderr != expected {
 			t.Errorf("got stderr:\n%v\nwant:\n%v", stderr, expected)
 		}

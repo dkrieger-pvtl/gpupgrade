@@ -50,6 +50,11 @@ var _ = Describe("Hub", func() {
 	BeforeEach(func() {
 		agentA, mockDialer, hubToAgentPort = mock_agent.NewMockAgentServer()
 		source, target = testutils.CreateMultinodeSampleClusterPair("/tmp")
+		source.Mirrors = map[int]utils.SegConfig{
+			-1: {ContentID: -1, DbID: 1, Port: 15433, Hostname: "standby-host", DataDir: "/seg-1"},
+			0:  {ContentID: 0, DbID: 2, Port: 25434, Hostname: "mirror-host1", DataDir: "/seg1"},
+			1:  {ContentID: 1, DbID: 3, Port: 25435, Hostname: "mirror-host2", DataDir: "/seg2"},
+		}
 		useLinkMode = false
 		conf = &hub.Config{source, target, hub.InitializeConfig{}, cliToHubPort, hubToAgentPort, useLinkMode}
 	})
@@ -142,7 +147,7 @@ var _ = Describe("Hub", func() {
 		for _, conn := range conns {
 			allHosts = append(allHosts, conn.Hostname)
 		}
-		Expect(allHosts).To(ConsistOf([]string{"host1", "host2"}))
+		Expect(allHosts).To(ConsistOf([]string{"host1", "host2", "standby-host"}))
 	})
 
 	It("saves grpc connections for future calls", func() {

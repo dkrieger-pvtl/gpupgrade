@@ -100,33 +100,24 @@ func (c *Cluster) StandbyDataDirectory() string {
 }
 
 // XXX This does not provide mirror hostnames yet.
-func (c *Cluster) GetHostnames() []string {
-	hostnameMap := make(map[string]bool, 0)
+func (c *Cluster) GetHostnamesExcludingMaster(includeMirrors bool) []string {
+	uniqueHosts := make(map[string]bool, 0)
 	for _, seg := range c.Primaries {
-		hostnameMap[seg.Hostname] = true
-	}
-	hostnames := make([]string, 0)
-	for host := range hostnameMap {
-		hostnames = append(hostnames, host)
-	}
-	return hostnames
-}
-
-func (c *Cluster) PrimaryHostnames() []string {
-	hostnames := make(map[string]bool, 0)
-	for _, seg := range c.Primaries {
-		// Ignore the master.
-		if seg.ContentID >= 0 {
-			hostnames[seg.Hostname] = true
+		if seg.ContentID != -1 {
+			uniqueHosts[seg.Hostname] = true
 		}
 	}
 
-	var list []string
-	for host := range hostnames {
-		list = append(list, host)
+	// TODO: add in all mirrors here...
+	if standby, ok := c.Mirrors[-1]; ok && includeMirrors {
+		uniqueHosts[standby.Hostname] = true
 	}
 
-	return list
+	hosts := make([]string, 0)
+	for host := range uniqueHosts {
+		hosts = append(hosts, host)
+	}
+	return hosts
 }
 
 // ErrUnknownHost can be returned by Cluster.SegmentsOn.

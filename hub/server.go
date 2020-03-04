@@ -202,7 +202,7 @@ func (s *Server) Stop(closeAgentConns bool) {
 }
 
 func (s *Server) RestartAgents(ctx context.Context, in *idl.RestartAgentsRequest) (*idl.RestartAgentsReply, error) {
-	restartedHosts, err := RestartAgents(ctx, nil, s.Source.GetHostnames(), s.AgentPort, s.StateDir)
+	restartedHosts, err := RestartAgents(ctx, nil, s.Source.GetHostnamesExcludingMaster(true), s.AgentPort, s.StateDir)
 	return &idl.RestartAgentsReply{AgentHosts: restartedHosts}, err
 }
 
@@ -298,7 +298,7 @@ func (s *Server) AgentConns() ([]*Connection, error) {
 		return s.agentConns, nil
 	}
 
-	hostnames := s.Source.PrimaryHostnames()
+	hostnames := s.Source.GetHostnamesExcludingMaster(true)
 	for _, host := range hostnames {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), DialTimeout)
 		conn, err := s.grpcDialer(ctx,
@@ -353,9 +353,9 @@ func (s *Server) closeAgentConns() {
 }
 
 type InitializeConfig struct {
-	Standby    utils.SegConfig
-	Master	   utils.SegConfig
-	Primaries  []utils.SegConfig
+	Standby   utils.SegConfig
+	Master    utils.SegConfig
+	Primaries []utils.SegConfig
 }
 
 // Config contains all the information that will be persisted to/loaded from

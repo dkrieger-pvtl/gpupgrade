@@ -33,7 +33,7 @@ func (s *Server) CopyMasterDataDir(streams step.OutStreams, destinationDir strin
 	 */
 	var wg sync.WaitGroup
 
-	hosts := s.Target.PrimaryHostnames()
+	hosts := s.Target.GetHostnamesExcludingMaster(false)
 	results := make(chan *Result, len(hosts))
 
 	for _, hostname := range hosts {

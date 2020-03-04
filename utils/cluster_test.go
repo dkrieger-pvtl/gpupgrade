@@ -240,13 +240,17 @@ func TestGetSegmentConfiguration(t *testing.T) {
 	}
 }
 
-func TestPrimaryHostnames(t *testing.T) {
+func TestGetHostnamesExcludingMaster(t *testing.T) {
 	testStateDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		t.Errorf("got error when creating tempdir: %+v", err)
 	}
 	expectedCluster := testutils.CreateMultinodeSampleCluster("/tmp")
-	// todo: pass args for bindir / version to CreateMultinodeSampleCluster
+	expectedCluster.Mirrors = map[int]utils.SegConfig{
+		-1: {ContentID: -1, DbID: 1, Port: 15433, Hostname: "standby-host", DataDir: "/seg-1"},
+		0:  {ContentID: 0, DbID: 2, Port: 25434, Hostname: "mirror-host1", DataDir: "/seg1"},
+		1:  {ContentID: 1, DbID: 3, Port: 25435, Hostname: "mirror-host2", DataDir: "/seg2"},
+	}
 	expectedCluster.BinDir = "/fake/path"
 	expectedCluster.Version = dbconn.NewVersion("6.0.0")
 	testhelper.SetupTestLogger()
@@ -256,10 +260,20 @@ func TestPrimaryHostnames(t *testing.T) {
 	}()
 
 	t.Run("returns a list of hosts for only the primaries", func(t *testing.T) {
-		actual := expectedCluster.PrimaryHostnames()
+		actual := expectedCluster.GetHostnamesExcludingMaster(false)
 		sort.Strings(actual)
 
 		expected := []string{"host1", "host2"}
+		if !reflect.DeepEqual(actual, expected) {
+			t.Errorf("expected hostnames: %#v got: %#v", expected, actual)
+		}
+	})
+
+	t.Run("returns a list of hosts including mirrors", func(t *testing.T) {
+		actual := expectedCluster.GetHostnamesExcludingMaster(true)
+		sort.Strings(actual)
+
+		expected := []string{"host1", "host2", "standby-host"}
 		if !reflect.DeepEqual(actual, expected) {
 			t.Errorf("expected hostnames: %#v got: %#v", expected, actual)
 		}
