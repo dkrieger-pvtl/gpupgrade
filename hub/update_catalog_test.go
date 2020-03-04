@@ -121,13 +121,11 @@ func TestUpdateCatalog(t *testing.T) {
 			expectCatalogUpdate(mock, seg).
 				WillReturnResult(sqlmock.NewResult(0, 1))
 
-			// TODO: Uncomment it when target cluster handle mirror and standby
-			// port and data directory renaming.
-			// See the corresponding section in update_catalog.go
-			//if mirror, ok := src.Mirrors[content]; ok {
-			//	expectCatalogUpdate(mock, mirror).
-			//		WillReturnResult(sqlmock.NewResult(0, 1))
-			//}
+			// TODO: remove the conditional content == -1 once we have mirrors
+			if mirror, ok := src.Mirrors[content]; ok && content == -1 {
+				expectCatalogUpdate(mock, mirror).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+			}
 		}
 
 		mock.ExpectCommit()
@@ -209,11 +207,11 @@ func TestUpdateCatalog(t *testing.T) {
 				expectCatalogUpdate(mock, seg).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 
-				// XXX See above
-				//if mirror, ok := src.Mirrors[content]; ok {
-				//	expectCatalogUpdate(mock, mirror).
-				//		WillReturnResult(sqlmock.NewResult(0, 1))
-				//}
+				// TODO: once mirrors are working, remove the content==-1 condition
+				if mirror, ok := src.Mirrors[content]; ok && content == -1 {
+					expectCatalogUpdate(mock, mirror).
+						WillReturnResult(sqlmock.NewResult(0, 1))
+				}
 			}
 
 			mock.ExpectCommit().WillReturnError(ErrSentinel)

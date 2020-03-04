@@ -32,9 +32,10 @@ teardown() {
     local marker_file=source-cluster.test-marker
     touch "$MASTER_DATA_DIRECTORY/${marker_file}"
 
-    # grab the original ports before starting so we can verify the target cluster
-    # inherits the source cluster's ports
-    local old_ports=$(get_ports)
+    # grab the original ports and datadirs before starting so we can verify the target cluster
+    # inherits the source cluster's ports and datadirs
+    local old_ports_nomirrors=$(get_ports_nomirrors)
+    local old_datadirs_nomirrors=$(get_datadirs_nomirrors)
 
     gpupgrade initialize \
         --old-bindir="$GPHOME/bin" \
@@ -69,8 +70,15 @@ teardown() {
     [[ $segment_configuration == *"$target_cluster_master_data_directory"* ]] || fail "expected $segment_configuration to include $target_cluster_master_data_directory"
 
     # Check to make sure the new cluster's ports match the old one.
-    local new_ports=$(get_ports)
-    [ "$old_ports" = "$new_ports" ] || fail "actual ports: $new_ports, wanted $old_ports"
+    local new_ports_nomirrors=$(get_ports_nomirrors)
+    [ "$old_ports_nomirrors" = "$new_ports_nomirrors" ] || fail "actual ports: $new_ports_nomirrors, wanted $old_ports_nomirrors"
+
+    # Check to make sure the new cluster's primary datadirs match the old ones.
+    local new_datadirs_nomirrors=$(get_datadirs_nomirrors)
+    [ "$old_datadirs_nomirrors" = "$new_datadirs_nomirrors" ] || fail "actual datadirs: $new_datadirs_nomirrors, wanted $old_datadirs_nomirrors"
+
+    # TODO check the old cluster too; only the physical datadir rename can be checked
+    # TODO check that each segment's gp_segment_configuration has a corresponding dir on disk
 
     local new_datadir=$(gpupgrade config show --new-datadir)
     # TODO: Query gp_stat_replication to check if the standby is in sync. Since
@@ -90,10 +98,18 @@ teardown_new_cluster() {
     delete_finalized_cluster $MASTER_DATA_DIRECTORY
 }
 
+#TODO: combine these two steps?
+
 # Writes the primary ports from the cluster pointed to by $PGPORT to stdout, one
 # per line, sorted by content ID.
-get_ports() {
-    $PSQL -c "select content, role, port from gp_segment_configuration where role = 'p' order by content, role"
+get_ports_nomirrors() {
+    $PSQL -c "select content,role, port from gp_segment_configuration where role ='p' OR (role='m' AND content=-1) order by content,role;"
+}
+
+# Writes the primary datadirs from the cluster pointed to by $PGPORT to stdout, one
+# per line, sorted by content ID.
+get_datadirs_nomirrors() {
+    $PSQL -c "select content,role,datadir from gp_segment_configuration where role ='p' OR (role='m' AND content=-1) order by content,role;"
 }
 
 get_standby_status() {
