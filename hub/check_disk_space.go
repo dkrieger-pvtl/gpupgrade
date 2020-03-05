@@ -52,7 +52,7 @@ func checkDiskSpace(ctx context.Context, cluster *utils.Cluster, agents []*Conne
 		go func() {
 			defer wg.Done()
 
-			segments, err := cluster.SegmentsOn(agent.Hostname)
+			segments, err := cluster.SegmentsOnExcludingMaster(agent.Hostname, true)
 			if err != nil {
 				errs <- xerrors.Errorf("finding segments on host %s: %w", agent.Hostname, err)
 				return

@@ -120,7 +120,7 @@ func (c *Cluster) GetHostnamesExcludingMaster(includeMirrors bool) []string {
 	return hosts
 }
 
-// ErrUnknownHost can be returned by Cluster.SegmentsOn.
+// ErrUnknownHost can be returned by Cluster.SegmentsOnExcludingMaster.
 var ErrUnknownHost = xerrors.New("no such host in cluster")
 
 type UnknownHostError struct {
@@ -135,15 +135,20 @@ func (u UnknownHostError) Is(err error) bool {
 	return err == ErrUnknownHost
 }
 
-// SegmentsOn returns the configurations of segments that are running on a given
+// SegmentsOnExcludingMaster returns the configurations of segments that are running on a given
 // host excluding the master. An error of type ErrUnknownHost will be returned
 // for unknown hostnames.
-func (c Cluster) SegmentsOn(hostname string) ([]SegConfig, error) {
+func (c Cluster) SegmentsOnExcludingMaster(hostname string, includeMirrors bool) ([]SegConfig, error) {
 	var segments []SegConfig
 	for _, contentID := range c.ContentIDs {
 		segment := c.Primaries[contentID]
 		if segment.Hostname == hostname && segment.ContentID != -1 {
 			segments = append(segments, segment)
+		}
+		if includeMirrors {
+			if segment, ok := c.Mirrors[contentID]; ok && segment.Hostname == hostname {
+				segments = append(segments, segment)
+			}
 		}
 	}
 

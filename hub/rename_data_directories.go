@@ -54,7 +54,7 @@ func RenameMasterDataDir(masterDataDir string, isSource bool) error {
 }
 
 // TODO: Update RenameSegmentDataDirs to include renaming the standby by
-//  changing SegmentsOn to return the standby. Careful since this is used by
+//  changing SegmentsOnExcludingMaster to return the standby. Careful since this is used by
 //  other callers. AgentConns() also needs to be updated to create an
 //  agentConn on the standby host.
 // e.g. for source /data/dbfast1/demoDataDir0 becomes datadirs/dbfast1_old/demoDataDir0
@@ -73,7 +73,7 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 		go func(c *Connection) {
 			defer wg.Done()
 
-			segments, err := cluster.SegmentsOn(c.Hostname)
+			segments, err := cluster.SegmentsOnExcludingMaster(c.Hostname, true)
 			if err != nil {
 				errs <- err
 				return
@@ -84,7 +84,12 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 			// For example, /data/primary/gpseg1 and /data/primary/gpseg2
 			// only call rename once for /data/primary.
 			parentDirs := make(map[string]bool)
+			standbyDataDir := ""
 			for _, seg := range segments {
+				if seg.ContentID == -1 && seg.Role == "m" {
+					standbyDataDir = seg.DataDir
+					continue
+				}
 				parentDirs[filepath.Dir(seg.DataDir)] = true
 			}
 
@@ -96,6 +101,17 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 					src = dir + suffix
 				} else {
 					dst = dir + suffix
+				}
+
+				req.Pairs = append(req.Pairs, &idl.RenamePair{Src: src, Dst: dst})
+			}
+			if standbyDataDir != "" {
+				dst := standbyDataDir
+				src := standbyDataDir
+				if addSuffixToSrc {
+					src = src + suffix
+				} else {
+					dst = dst + suffix
 				}
 
 				req.Pairs = append(req.Pairs, &idl.RenamePair{Src: src, Dst: dst})

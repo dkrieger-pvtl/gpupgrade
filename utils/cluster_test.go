@@ -280,13 +280,18 @@ func TestGetHostnamesExcludingMaster(t *testing.T) {
 	})
 }
 
-func TestSegmentsOn(t *testing.T) {
+func TestSegmentsOnExcludingMaster(t *testing.T) {
 	testStateDir, err := ioutil.TempDir("", "")
 	if err != nil {
 		t.Errorf("got error when creating tempdir: %+v", err)
 	}
 
 	expectedCluster := testutils.CreateMultinodeSampleCluster("/tmp")
+	expectedCluster.Mirrors = map[int]utils.SegConfig{
+		-1: {ContentID: -1, DbID: 1, Port: 15433, Hostname: "standby-host", DataDir: "/seg-1"},
+		0:  {ContentID: 0, DbID: 2, Port: 25434, Hostname: "mirror-host1", DataDir: "/seg1"},
+		1:  {ContentID: 1, DbID: 3, Port: 25435, Hostname: "mirror-host2", DataDir: "/seg2"},
+	}
 	expectedCluster.BinDir = "/fake/path"
 	expectedCluster.Version = dbconn.NewVersion("6.0.0")
 
@@ -298,14 +303,15 @@ func TestSegmentsOn(t *testing.T) {
 
 	t.Run("returns an error for an unknown hostname", func(t *testing.T) {
 		c := utils.Cluster{}
-		_, err := c.SegmentsOn("notahost")
+		_, err := c.SegmentsOnExcludingMaster("notahost", true)
 		if err == nil {
 			t.Errorf("Received no error")
 		}
 	})
 
+	//TODO: make table-driven
 	t.Run("maps all hosts to segment configurations", func(t *testing.T) {
-		segments, err := expectedCluster.SegmentsOn("host1")
+		segments, err := expectedCluster.SegmentsOnExcludingMaster("host1", false)
 		if err != nil {
 			t.Errorf("got unexpected error: %+v", err)
 		}
@@ -314,7 +320,7 @@ func TestSegmentsOn(t *testing.T) {
 			t.Errorf("expected: %#v got: %#v", firstSegment, segments)
 		}
 
-		segments, err = expectedCluster.SegmentsOn("host2")
+		segments, err = expectedCluster.SegmentsOnExcludingMaster("host2", false)
 		if err != nil {
 			t.Errorf("got unexpected error: %+v", err)
 		}
@@ -323,19 +329,30 @@ func TestSegmentsOn(t *testing.T) {
 			t.Errorf("expected: %#v got: %#v", secondSegment, segments)
 		}
 
-		segments, err = expectedCluster.SegmentsOn("localhost")
+		segments, err = expectedCluster.SegmentsOnExcludingMaster("localhost", false)
 		if err == nil {
 			t.Errorf("Expected an error, but got nil")
 		}
+
+		segments, err = expectedCluster.SegmentsOnExcludingMaster("standby-host", false)
+		if err == nil {
+			t.Errorf("Expected an error, but got nil")
+		}
+
+		segments, err = expectedCluster.SegmentsOnExcludingMaster("standby-host", true)
+		standby := []utils.SegConfig{expectedCluster.Mirrors[-1]}
+		if !reflect.DeepEqual(segments, standby) {
+			t.Errorf("expected: %#v got: %#v", standby, segments)
+		}
 	})
 
-	t.Run("groups all segments by hostname", func(t *testing.T) {
+	t.Run("put two primaries on same host", func(t *testing.T) {
 		seg1 := expectedCluster.Primaries[1]
 		seg1.Hostname = "host1"
 		expectedCluster.Primaries[1] = seg1
 
 		expected := []utils.SegConfig{expectedCluster.Primaries[0], expectedCluster.Primaries[1]}
-		segments, err := expectedCluster.SegmentsOn("host1")
+		segments, err := expectedCluster.SegmentsOnExcludingMaster("host1", false)
 		if err != nil {
 			t.Errorf("got unexpected error: %+v", err)
 		}
@@ -344,7 +361,7 @@ func TestSegmentsOn(t *testing.T) {
 			t.Errorf("expected: %#v got: %#v", expected, segments)
 		}
 
-		segments, err = expectedCluster.SegmentsOn("localhost")
+		segments, err = expectedCluster.SegmentsOnExcludingMaster("localhost", false)
 		if err == nil {
 			t.Errorf("Expected an error, but got nil")
 		}

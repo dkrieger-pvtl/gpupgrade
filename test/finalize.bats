@@ -103,13 +103,13 @@ teardown_new_cluster() {
 # Writes the primary ports from the cluster pointed to by $PGPORT to stdout, one
 # per line, sorted by content ID.
 get_ports_nomirrors() {
-    $PSQL -c "select content,role, port from gp_segment_configuration where role ='p' OR (role='m' AND content=-1) order by content,role;"
+    $PSQL -c "SELECT content,role,port FROM gp_segment_configuration WHERE role ='p' OR (role='m' AND content=-1) ORDER BY content,role;"
 }
 
 # Writes the primary datadirs from the cluster pointed to by $PGPORT to stdout, one
 # per line, sorted by content ID.
 get_datadirs_nomirrors() {
-    $PSQL -c "select content,role,datadir from gp_segment_configuration where role ='p' OR (role='m' AND content=-1) order by content,role;"
+    $PSQL -c "SELECT content,role,datadir FROM gp_segment_configuration WHERE role ='p' OR (role='m' AND content=-1) ORDER BY content,role;"
 }
 
 get_standby_status() {

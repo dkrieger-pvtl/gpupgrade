@@ -239,7 +239,7 @@ func CreateSegmentDataDirectories(agentConns []*Connection, cluster *utils.Clust
 		go func(c *Connection) {
 			defer wg.Done()
 
-			segments, err := cluster.SegmentsOn(c.Hostname)
+			segments, err := cluster.SegmentsOnExcludingMaster(c.Hostname, false)
 			if err != nil {
 				errChan <- err
 				return
