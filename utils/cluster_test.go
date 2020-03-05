@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
+
 	"github.com/greenplum-db/gpupgrade/testutils"
 	"github.com/greenplum-db/gpupgrade/utils"
 
@@ -281,91 +282,87 @@ func TestGetHostnamesExcludingMaster(t *testing.T) {
 }
 
 func TestSegmentsOnExcludingMaster(t *testing.T) {
-	testStateDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		t.Errorf("got error when creating tempdir: %+v", err)
+	t.Run("errors when host is not found", func(t *testing.T) {
+		cluster := utils.Cluster{}
+		_, err := cluster.SegmentsOnExcludingMaster("unknownHost", false)
+
+		expected := utils.UnknownHostError{Hostname: "unknownHost"}
+		if !xerrors.Is(err, expected) {
+			t.Errorf("returned error %#v, want %#v", err, expected)
+		}
+	})
+
+	cluster := &utils.Cluster{
+		ContentIDs: []int{-1, 0, 1, 2, 3},
+		Primaries: map[int]utils.SegConfig{
+			-1: {ContentID: -1, Hostname: "host", Role: "p"},
+			0:  {ContentID: 0, Hostname: "host", Role: "p"},
+			1:  {ContentID: 1, Hostname: "host", Role: "p"},
+			2:  {ContentID: 2, Hostname: "excludedHost", Role: "p"},
+			3:  {ContentID: 3, Hostname: "excludedHost", Role: "p"},
+		},
+		Mirrors: map[int]utils.SegConfig{
+			-1: {ContentID: -1, Hostname: "host", Role: "m"},
+			0:  {ContentID: 0, Hostname: "host", Role: "m"},
+			1:  {ContentID: 1, Hostname: "host", Role: "m"},
+			2:  {ContentID: 2, Hostname: "excludedHost", Role: "m"},
+			3:  {ContentID: 3, Hostname: "excludedHost", Role: "m"},
+		},
 	}
 
-	expectedCluster := testutils.CreateMultinodeSampleCluster("/tmp")
-	expectedCluster.Mirrors = map[int]utils.SegConfig{
-		-1: {ContentID: -1, DbID: 1, Port: 15433, Hostname: "standby-host", DataDir: "/seg-1"},
-		0:  {ContentID: 0, DbID: 2, Port: 25434, Hostname: "mirror-host1", DataDir: "/seg1"},
-		1:  {ContentID: 1, DbID: 3, Port: 25435, Hostname: "mirror-host2", DataDir: "/seg2"},
+	cases := []struct {
+		name           string
+		includeMirrors bool
+		expected       []utils.SegConfig
+	}{
+		{"returns correct segments when master is on same host as a primary and mirror and includeMirrors is false",
+			false,
+			[]utils.SegConfig{
+				{ContentID: 0, Hostname: "host", Role: "p"},
+				{ContentID: 1, Hostname: "host", Role: "p"},
+			},
+		},
+		{"returns correct segments master is on same host as a primary and a mirror and includeMirrors is true",
+			true,
+			[]utils.SegConfig{
+				{ContentID: -1, Hostname: "host", Role: "m"},
+				{ContentID: 0, Hostname: "host", Role: "p"},
+				{ContentID: 0, Hostname: "host", Role: "m"},
+				{ContentID: 1, Hostname: "host", Role: "p"},
+				{ContentID: 1, Hostname: "host", Role: "m"},
+			},
+		},
+		{"returns all primary segments excluding master for a given host when includeMirrors is false",
+			false,
+			[]utils.SegConfig{
+				{ContentID: 0, Hostname: "host", Role: "p"},
+				{ContentID: 1, Hostname: "host", Role: "p"},
+			},
+		},
+		{"returns all segments excluding master for a given host when includeMirrors is true",
+			true,
+			[]utils.SegConfig{
+				{ContentID: -1, Hostname: "host", Role: "m"},
+				{ContentID: 0, Hostname: "host", Role: "p"},
+				{ContentID: 0, Hostname: "host", Role: "m"},
+				{ContentID: 1, Hostname: "host", Role: "p"},
+				{ContentID: 1, Hostname: "host", Role: "m"},
+			},
+		},
 	}
-	expectedCluster.BinDir = "/fake/path"
-	expectedCluster.Version = dbconn.NewVersion("6.0.0")
 
-	testhelper.SetupTestLogger()
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			actual, err := cluster.SegmentsOnExcludingMaster("host", c.includeMirrors)
+			if err != nil {
+				t.Fatalf("got unexpected error: %+v", err)
+			}
 
-	defer func() {
-		os.RemoveAll(testStateDir)
-	}()
-
-	t.Run("returns an error for an unknown hostname", func(t *testing.T) {
-		c := utils.Cluster{}
-		_, err := c.SegmentsOnExcludingMaster("notahost", true)
-		if err == nil {
-			t.Errorf("Received no error")
-		}
-	})
-
-	//TODO: make table-driven
-	t.Run("maps all hosts to segment configurations", func(t *testing.T) {
-		segments, err := expectedCluster.SegmentsOnExcludingMaster("host1", false)
-		if err != nil {
-			t.Errorf("got unexpected error: %+v", err)
-		}
-		firstSegment := []utils.SegConfig{expectedCluster.Primaries[0]}
-		if !reflect.DeepEqual(segments, firstSegment) {
-			t.Errorf("expected: %#v got: %#v", firstSegment, segments)
-		}
-
-		segments, err = expectedCluster.SegmentsOnExcludingMaster("host2", false)
-		if err != nil {
-			t.Errorf("got unexpected error: %+v", err)
-		}
-		secondSegment := []utils.SegConfig{expectedCluster.Primaries[1]}
-		if !reflect.DeepEqual(segments, secondSegment) {
-			t.Errorf("expected: %#v got: %#v", secondSegment, segments)
-		}
-
-		segments, err = expectedCluster.SegmentsOnExcludingMaster("localhost", false)
-		if err == nil {
-			t.Errorf("Expected an error, but got nil")
-		}
-
-		segments, err = expectedCluster.SegmentsOnExcludingMaster("standby-host", false)
-		if err == nil {
-			t.Errorf("Expected an error, but got nil")
-		}
-
-		segments, err = expectedCluster.SegmentsOnExcludingMaster("standby-host", true)
-		standby := []utils.SegConfig{expectedCluster.Mirrors[-1]}
-		if !reflect.DeepEqual(segments, standby) {
-			t.Errorf("expected: %#v got: %#v", standby, segments)
-		}
-	})
-
-	t.Run("put two primaries on same host", func(t *testing.T) {
-		seg1 := expectedCluster.Primaries[1]
-		seg1.Hostname = "host1"
-		expectedCluster.Primaries[1] = seg1
-
-		expected := []utils.SegConfig{expectedCluster.Primaries[0], expectedCluster.Primaries[1]}
-		segments, err := expectedCluster.SegmentsOnExcludingMaster("host1", false)
-		if err != nil {
-			t.Errorf("got unexpected error: %+v", err)
-		}
-
-		if !reflect.DeepEqual(segments, expected) {
-			t.Errorf("expected: %#v got: %#v", expected, segments)
-		}
-
-		segments, err = expectedCluster.SegmentsOnExcludingMaster("localhost", false)
-		if err == nil {
-			t.Errorf("Expected an error, but got nil")
-		}
-	})
+			if !reflect.DeepEqual(actual, c.expected) {
+				t.Errorf("got %#v want %#v", actual, c.expected)
+			}
+		})
+	}
 }
 
 func TestClusterFromDB(t *testing.T) {

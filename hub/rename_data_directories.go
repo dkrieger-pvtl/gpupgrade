@@ -90,6 +90,9 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 					standbyDataDir = seg.DataDir
 					continue
 				}
+				if addSuffixToSrc && seg.Role == "m" {
+					continue //TODO: remove this hack once mirrors are present
+				}
 				parentDirs[filepath.Dir(seg.DataDir)] = true
 			}
 
