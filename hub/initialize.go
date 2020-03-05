@@ -31,17 +31,17 @@ func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initi
 		}
 	}()
 
-	conn, err := sql.Open("pgx", fmt.Sprintf(connectionString, in.SourcePort))
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if cerr := conn.Close(); cerr != nil {
-			err = multierror.Append(err, cerr).ErrorOrNil()
-		}
-	}()
-
 	st.Run(idl.Substep_CONFIG, func(stream step.OutStreams) error {
+		conn, err := sql.Open("pgx", fmt.Sprintf(connectionString, in.SourcePort))
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if cerr := conn.Close(); cerr != nil {
+				err = multierror.Append(err, cerr).ErrorOrNil()
+			}
+		}()
+
 		return FillClusterConfigsSubStep(s.Config, conn, stream, in, s.SaveConfig)
 	})
 
