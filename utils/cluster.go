@@ -70,6 +70,10 @@ func ClusterFromDB(conn *dbconn.DBConn, binDir string) (*Cluster, error) {
 	return c, nil
 }
 
+func (s *SegConfig) IsStandby() bool {
+	return s.ContentID == -1 && s.Role == "m"
+}
+
 func (c *Cluster) MasterDataDir() string {
 	return c.GetDirForContent(-1)
 }

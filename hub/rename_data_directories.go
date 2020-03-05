@@ -84,15 +84,16 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 			// For example, /data/primary/gpseg1 and /data/primary/gpseg2
 			// only call rename once for /data/primary.
 			parentDirs := make(map[string]bool)
-			standbyDataDir := ""
 			for _, seg := range segments {
-				if seg.ContentID == -1 && seg.Role == "m" {
-					standbyDataDir = seg.DataDir
+				if seg.IsStandby() {
+					parentDirs[seg.DataDir] = true
 					continue
 				}
+
 				if addSuffixToSrc && seg.Role == "m" {
 					continue //TODO: remove this hack once mirrors are present
 				}
+
 				parentDirs[filepath.Dir(seg.DataDir)] = true
 			}
 
@@ -104,17 +105,6 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 					src = dir + suffix
 				} else {
 					dst = dir + suffix
-				}
-
-				req.Pairs = append(req.Pairs, &idl.RenamePair{Src: src, Dst: dst})
-			}
-			if standbyDataDir != "" {
-				dst := standbyDataDir
-				src := standbyDataDir
-				if addSuffixToSrc {
-					src = src + suffix
-				} else {
-					dst = dst + suffix
 				}
 
 				req.Pairs = append(req.Pairs, &idl.RenamePair{Src: src, Dst: dst})
