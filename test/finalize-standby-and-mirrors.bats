@@ -83,6 +83,41 @@ check_mirror_validity() {
     check_segments_are_synchronized
 }
 
+#check_standby_validity() {
+# https://gpdb.docs.pivotal.io/6-4/admin_guide/highavail/topics/g-restoring-master-mirroring-after-a-recovery.html#topic17
+
+    # master goes down
+    # (failover)
+    # run gpactivatestandby -a on standby master
+    # segments synchronized
+    # can start transactions
+
+    # move master datadir out of the way
+    # (add syncing back in)
+    # initstandby from standby master (on the master host)
+    # segments synchronized
+    # can start transactions
+
+    # master (on standby host) goes down
+    # (failover the master back to its original host)
+    # gpactivatestandby -a: promotes the standby on the master host
+
+    # move standby directory out of the way
+    # (creating the standby puts us back into the original config)
+    # gpinitstandby: run on the standby host
+    # segments synchronized
+    # can start transactions
+
+#   | mdw     | smdw    | (hostnames)
+#   | master  | standby |
+#   | -       | standby |
+#   | -       | master  |
+#   | standby | master  | move original master somewhere else or delete it
+#   | standby | -       |
+#   | master  | -       |
+#   | master  | standby | move original standby somewhere else or delete it
+#}
+
 check_segments_are_synchronized() {
     for i in {1..10}; do
         psql -d postgres -c "SELECT gp_request_fts_probe_scan();"
