@@ -1,8 +1,13 @@
+# This file provides a single high-level function check_mirror_validity()
+# that takes a cluster with mirrors "through its paces" to thoroughly test
+# the cluster's mirrors.  See the documentation of check_mirror_validity()
+# for details.
+
 run_on_master() {
-    run_on_host "${MASTER_HOST}" "${1}"
+    _run_on_host "${MASTER_HOST}" "${1}"
 }
 
-run_on_host() {
+_run_on_host() {
     local host=$1
     local CMD=$2
 
@@ -13,11 +18,11 @@ run_on_host() {
 }
 
 check_mirrors() {
-    check_segments_are_synchronized
-    check_mirror_replication_connections
+    _check_segments_are_synchronized
+    _check_mirror_replication_connections
 }
 
-check_segments_are_synchronized() {
+_check_segments_are_synchronized() {
     for i in {1..10}; do
         run_on_master "psql -p $MASTER_PORT -d postgres -c \"SELECT gp_request_fts_probe_scan();\""
         local unsynced=$(run_on_master "psql -p $MASTER_PORT -t -A -d postgres -c \"SELECT count(*) FROM gp_segment_configuration WHERE content <> -1 AND mode = 'n'\"")
@@ -31,7 +36,7 @@ check_segments_are_synchronized() {
     return 1
 }
 
-check_mirror_replication_connections() {
+_check_mirror_replication_connections() {
     local rows=$(run_on_master "psql -p $MASTER_PORT -d postgres -t -A -c \"select primaries.address, primaries.port, mirrors.hostname FROM
     gp_segment_configuration AS primaries JOIN
     gp_segment_configuration AS mirrors ON
@@ -41,16 +46,17 @@ check_mirror_replication_connections() {
         local primary_address=$(echo $row | awk '{split($0,a,"|"); print a[1]}')
         local primary_port=$(echo $row | awk '{split($0,a,"|"); print a[2]}')
         local mirror_host=$(echo $row | awk '{split($0,a,"|"); print a[3]}')
-        check_replication_connection $primary_address $primary_port $mirror_host
+        _check_replication_connection $primary_address $primary_port $mirror_host
     done
 }
-check_replication_connection() {
+
+_check_replication_connection() {
     local primary_address=$1
     local primary_port=$2
     local mirror_host=$3
 
     local cmd="PGOPTIONS=\"-c gp_session_role=utility\" psql -h $primary_address -p $primary_port  \"dbname=postgres replication=database\" -c \"IDENTIFY_SYSTEM;\""
-    run_on_host $mirror_host "$cmd"
+    _run_on_host $mirror_host "$cmd"
 }
 
 kill_primaries() {
@@ -59,7 +65,7 @@ kill_primaries() {
         local host=$(echo $pair | awk '{split($0,a,"|"); print a[1]}')
         local port=$(echo $pair | awk '{split($0,a,"|"); print a[2]}')
         local dir=$(echo $pair | awk '{split($0,a,"|"); print a[3]}')
-        run_on_host $host "pg_ctl stop -p $port -m fast -D $dir -w"
+        _run_on_host $host "pg_ctl stop -p $port -m fast -D $dir -w"
     done
 }
 
@@ -67,8 +73,8 @@ wait_can_start_transactions() {
     local host=$1
     local port=$2
     for i in {1..10}; do
-        run_on_host $host "psql -p $port -d postgres -c \"SELECT gp_request_fts_probe_scan();\""
-        run_on_host $host "psql -p $port -t -A -d postgres -c \"BEGIN; CREATE TEMP TABLE temp_test(a int) DISTRIBUTED RANDOMLY; COMMIT;\""
+        _run_on_host $host "psql -p $port -d postgres -c \"SELECT gp_request_fts_probe_scan();\""
+        _run_on_host $host "psql -p $port -t -A -d postgres -c \"BEGIN; CREATE TEMP TABLE temp_test(a int) DISTRIBUTED RANDOMLY; COMMIT;\""
         if [[ $? -eq 0 ]]; then
             return 0
         fi
@@ -84,10 +90,10 @@ create_table_with_name() {
     local size=$2
     run_on_master "psql -q -p $MASTER_PORT -d postgres -c \"CREATE TABLE ${table_name} (a int) DISTRIBUTED BY (a);\""
     run_on_master "psql -q -p $MASTER_PORT -d postgres -c \"INSERT INTO ${table_name} SELECT * FROM generate_series(0,${size});\""
-    get_data_distribution $table_name
+    _get_data_distribution $table_name
 }
 
-get_data_distribution() {
+_get_data_distribution() {
     local table_name=$1
     run_on_master "psql -t -A -p $MASTER_PORT -d postgres -c \"SELECT gp_segment_id,count(*) FROM ${table_name} GROUP BY gp_segment_id ORDER BY gp_segment_id;\""
 }
@@ -96,7 +102,7 @@ check_data_matches() {
     local table_name=$1
     local expected=$2
 
-    local actual=$(get_data_distribution $table_name)
+    local actual=$(_get_data_distribution $table_name)
     if [ "${actual}" != "${expected}" ]; then
         echo "Checking table ${table_name} - got: ${actual} want: ${expected}"
         return 1
