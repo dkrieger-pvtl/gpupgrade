@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/pkg/errors"
@@ -56,7 +57,7 @@ func Initialize(client idl.CliToHubClient, request *idl.InitializeRequest, verbo
 		return errors.Wrap(err, "initializing hub")
 	}
 
-	err = UILoop(stream, verbose)
+	_, err = UILoop(stream, verbose)
 	if err != nil {
 		return xerrors.Errorf("Initialize: %w", err)
 	}
@@ -72,7 +73,7 @@ func InitializeCreateCluster(client idl.CliToHubClient, verbose bool) (err error
 		return errors.Wrap(err, "initializing hub2")
 	}
 
-	err = UILoop(stream, verbose)
+	_, err = UILoop(stream, verbose)
 	if err != nil {
 		return xerrors.Errorf("InitializeCreateCluster: %w", err)
 	}
@@ -92,7 +93,7 @@ func Execute(client idl.CliToHubClient, verbose bool) error {
 		return err
 	}
 
-	err = UILoop(stream, verbose)
+	_, err = UILoop(stream, verbose)
 	if err != nil {
 		return xerrors.Errorf("Execute: %w", err)
 	}
@@ -134,20 +135,36 @@ func Finalize(client idl.CliToHubClient, verbose bool) error {
 		return err
 	}
 
-	err = UILoop(stream, verbose)
+	dataMap, err := UILoop(stream, verbose)
 	if err != nil {
 		return xerrors.Errorf("Finalize: %w", err)
+	}
+
+	port, portOk := dataMap[hub.UIFinalizeTargetPort]
+	var missingKeys []string
+	if !portOk {
+		missingKeys = append(missingKeys, hub.UIFinalizeTargetPort)
+	}
+
+	datadir, datadirOk := dataMap[hub.UIFinalizeTargetDatadir]
+	if !datadirOk {
+		missingKeys = append(missingKeys, hub.UIFinalizeTargetDatadir)
+	}
+
+	if len(missingKeys) > 0 {
+		return xerrors.Errorf("did not receive the expected configuration values: %s", strings.Join(missingKeys, ", "))
 	}
 
 	fmt.Println("")
 	fmt.Println("Finalize completed successfully.")
 	fmt.Println("")
-	fmt.Println("The cluster is now upgraded and is ready to be used.")
+	fmt.Printf("The target cluster is now upgraded and is ready to be used. The PGPORT is %s and the MASTER_DATA_DIRECTORY is %s.\n", port, datadir)
 
 	return nil
 }
 
-func UILoop(stream receiver, verbose bool) error {
+func UILoop(stream receiver, verbose bool) (map[string]string, error) {
+	data := make(map[string]string)
 	var lastStep idl.Substep
 	var err error
 
@@ -191,6 +208,13 @@ func UILoop(stream receiver, verbose bool) error {
 				fmt.Println()
 			}
 
+		case *idl.Message_Response:
+			// NOTE: the latest message will clobber earlier keys
+			// todo: should we throw an error when a collision occurs?
+			for k, v := range x.Response.Data {
+				data[k] = v
+			}
+
 		default:
 			panic(fmt.Sprintf("unknown message type: %T", x))
 		}
@@ -201,10 +225,10 @@ func UILoop(stream receiver, verbose bool) error {
 	}
 
 	if err != io.EOF {
-		return err
+		return data, err
 	}
 
-	return nil
+	return data, nil
 }
 
 // FormatStatus returns a status string based on the upgrade status message.
