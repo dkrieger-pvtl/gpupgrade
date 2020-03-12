@@ -65,9 +65,15 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 
 	for _, conn := range agentConns {
 		conn := conn
+
 		excludingMaster := func(seg *utils.SegConfig) bool {
 			return seg.Hostname == conn.Hostname &&
 				!(seg.ContentID == -1 && seg.Role == "p")
+		}
+		if addSuffixToSrc {
+			excludingMaster = func(seg *utils.SegConfig) bool {
+				return seg.Hostname == conn.Hostname && seg.Role == "p" && seg.ContentID != -1
+			}
 		}
 
 		wg.Add(1)
@@ -76,7 +82,9 @@ func RenameSegmentDataDirs(agentConns []*Connection,
 
 			segments := cluster.SelectSegments(excludingMaster)
 			if len(segments) == 0 {
-				errs <- utils.UnknownHostError{conn.Hostname}
+				// TODO: is there a good check to make with adding standby/mirror later
+				//   we can have mirror-only and standby-only hosts
+				// errs <- utils.UnknownHostError{conn.Hostname}
 				return
 			}
 

@@ -52,12 +52,12 @@ func (s *Server) FillClusterConfigsSubStep(config *Config, conn *sql.DB, _ step.
 func AssignDatadirsAndPorts(source *utils.Cluster, ports []int) (InitializeConfig, error) {
 	if len(ports) == 0 {
 		port := 50432
-		numberOfSegments := len(source.Mirrors) + len(source.Primaries) + 2 // +2 for master/standby
-		if (numberOfSegments + port) > 65535 {
-			numberOfSegments = 65535 - port
+		numberofPrimaries := len(source.Primaries) // NOTE: source.Primaries includes the master
+		if (numberofPrimaries + port) > 65535 {
+			numberofPrimaries = 65535 - port
 		}
 
-		for i := 0; i < numberOfSegments; i++ {
+		for i := 0; i < numberofPrimaries; i++ {
 			ports = append(ports, port)
 			port++
 		}
@@ -65,11 +65,27 @@ func AssignDatadirsAndPorts(source *utils.Cluster, ports []int) (InitializeConfi
 		ports = sanitize(ports)
 	}
 
-	return assignDatadirsAndCustomPorts(source, ports)
+	initializeConfig, err := assignPrimaryDatadirsAndCustomPorts(source, ports)
+	if err != nil {
+		return initializeConfig, err
+	}
+
+	// We copy the source standby and mirror segment configs exactly, since
+	// we initialize the mirrors and standby at the end of the finalize step now.
+	for _, content := range source.ContentIDs {
+		seg, ok := source.Mirrors[content]
+		if ok && content == -1 {
+			initializeConfig.Standby = seg
+		} else if ok {
+			initializeConfig.Mirrors = append(initializeConfig.Mirrors, seg)
+		}
+	}
+
+	return initializeConfig, err
 }
 
 // can return an error if we run out of ports to use
-func assignDatadirsAndCustomPorts(source *utils.Cluster, ports []int) (InitializeConfig, error) {
+func assignPrimaryDatadirsAndCustomPorts(source *utils.Cluster, ports []int) (InitializeConfig, error) {
 	targetInitializeConfig := InitializeConfig{}
 
 	nextPortIndex := 0
@@ -82,17 +98,6 @@ func assignDatadirsAndCustomPorts(source *utils.Cluster, ports []int) (Initializ
 		master.Port = ports[nextPortIndex]
 		master.DataDir = upgradeDataDir(master.DataDir)
 		targetInitializeConfig.Master = master
-		nextPortIndex++
-	}
-
-	if standby, ok := source.Mirrors[-1]; ok {
-		// Reserve a port for the standby.
-		if nextPortIndex > len(ports)-1 {
-			return InitializeConfig{}, errors.New("not enough ports")
-		}
-		standby.Port = ports[nextPortIndex]
-		standby.DataDir = standby.DataDir + "_upgrade"
-		targetInitializeConfig.Standby = standby
 		nextPortIndex++
 	}
 
@@ -122,32 +127,6 @@ func assignDatadirsAndCustomPorts(source *utils.Cluster, ports []int) (Initializ
 		segment.DataDir = upgradeDataDir(segment.DataDir)
 
 		targetInitializeConfig.Primaries = append(targetInitializeConfig.Primaries, segment)
-	}
-
-	for _, content := range source.ContentIDs {
-		// Skip the standby segment
-		if content == -1 {
-			continue
-		}
-
-		if segment, ok := source.Mirrors[content]; ok {
-			if portIndex, ok := portIndexByHost[segment.Hostname]; ok {
-				if portIndex > len(ports)-1 {
-					return InitializeConfig{}, errors.New("not enough ports")
-				}
-				segment.Port = ports[portIndex]
-				portIndexByHost[segment.Hostname]++
-			} else {
-				if nextPortIndex > len(ports)-1 {
-					return InitializeConfig{}, errors.New("not enough ports")
-				}
-				segment.Port = ports[nextPortIndex]
-				portIndexByHost[segment.Hostname] = nextPortIndex + 1
-			}
-			segment.DataDir = upgradeDataDir(segment.DataDir)
-
-			targetInitializeConfig.Mirrors = append(targetInitializeConfig.Mirrors, segment)
-		}
 	}
 
 	return targetInitializeConfig, nil
