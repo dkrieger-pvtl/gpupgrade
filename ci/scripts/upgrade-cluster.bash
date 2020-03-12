@@ -121,6 +121,6 @@ fi
 
 # Test that mirrors actually work
 echo 'Doing failover tests of mirrors...'
-check_mirror_validity "${GPHOME_NEW}" mdw 5432
+check_mirror_validity "${GPHOME_NEW}" mdw $MASTER_PORT
 
 echo 'Upgrade successful.'

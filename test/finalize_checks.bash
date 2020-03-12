@@ -60,12 +60,8 @@ _check_replication_connection() {
 }
 
 kill_primaries() {
-    local primary_data_dirs=$(run_on_master "psql -p $MASTER_PORT -t -A -d postgres -c \"SELECT hostname, port, datadir FROM gp_segment_configuration WHERE content <> -1 AND role = 'p'\"")
-    for pair in ${primary_data_dirs[@]}; do
-        local host=$(echo $pair | awk '{split($0,a,"|"); print a[1]}')
-        local port=$(echo $pair | awk '{split($0,a,"|"); print a[2]}')
-        local dir=$(echo $pair | awk '{split($0,a,"|"); print a[3]}')
-        _run_on_host $host "pg_ctl stop -p $port -m fast -D $dir -w"
+    run_on_master "psql -AtF$'\t' -p $MASTER_PORT -d postgres -c \"SELECT hostname, port, datadir FROM gp_segment_configuration WHERE content <> -1 AND role = 'p'\"" | while read -r host port dir; do
+       _run_on_host $host "pg_ctl stop -p $port -m fast -D $dir -w"
     done
 }
 
