@@ -109,6 +109,11 @@ message Message {
   }
 }
 
+enum ResponseKey {
+    target_port = 0;
+    target_master_data_directory = 1;
+}
+
 message Response {
   map<string,string> data = 1;
 }

@@ -13,11 +13,6 @@ import (
 	"github.com/greenplum-db/gpupgrade/step"
 )
 
-const (
-	UIFinalizeTargetPort = "target port"
-	UIFinalizeTargetDatadir = "target datadir"
-)
-
 func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeServer) (err error) {
 	st, err := step.Begin(s.StateDir, "finalize", stream)
 	if err != nil {
@@ -108,8 +103,8 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 	})
 
 	data := make(map[string]string)
-	data[UIFinalizeTargetPort] = strconv.Itoa(s.Target.MasterPort())
-	data[UIFinalizeTargetDatadir] = s.Target.MasterDataDir()
+	data[idl.ResponseKey_target_port.String()] = strconv.Itoa(s.Target.MasterPort())
+	data[idl.ResponseKey_target_master_data_directory.String()] = s.Target.MasterDataDir()
 
 	err = stream.Send(&idl.Message{
 		Contents: &idl.Message_Response{

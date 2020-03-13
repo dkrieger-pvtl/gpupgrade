@@ -140,15 +140,15 @@ func Finalize(client idl.CliToHubClient, verbose bool) error {
 		return xerrors.Errorf("Finalize: %w", err)
 	}
 
-	port, portOk := dataMap[hub.UIFinalizeTargetPort]
+	port, portOk := dataMap[idl.ResponseKey_target_port.String()]
 	var missingKeys []string
 	if !portOk {
-		missingKeys = append(missingKeys, hub.UIFinalizeTargetPort)
+		missingKeys = append(missingKeys, "target port")
 	}
 
-	datadir, datadirOk := dataMap[hub.UIFinalizeTargetDatadir]
+	datadir, datadirOk := dataMap[idl.ResponseKey_target_master_data_directory.String()]
 	if !datadirOk {
-		missingKeys = append(missingKeys, hub.UIFinalizeTargetDatadir)
+		missingKeys = append(missingKeys, "target datadir")
 	}
 
 	if len(missingKeys) > 0 {
