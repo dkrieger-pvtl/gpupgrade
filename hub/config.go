@@ -40,8 +40,6 @@ func (s *Server) GetConfig(ctx context.Context, in *idl.GetConfigRequest) (*idl.
 		resp.Value = s.Target.BinDir
 	case "target-datadir":
 		resp.Value = s.Target.MasterDataDir()
-	case "target-port":
-		resp.Value = string(s.Target.MasterPort())
 	default:
 		return nil, status.Errorf(codes.NotFound, "%s is not a valid configuration key", in.Name)
 	}
