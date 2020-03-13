@@ -111,6 +111,7 @@ EOF
 
 # TODO: how do we know the cluster upgraded?  5 to 6 is a version check; 6 to 6 ?????
 #   currently, it's sleight of hand...old is on port $MASTER_PORT then new is!!!!
+#   perhaps use the controldata("pg_controldata $MASTER_DATA_DIR") system identifier?
 
 # Dump the new cluster and compare.
 dump_sql $MASTER_PORT /tmp/new.sql

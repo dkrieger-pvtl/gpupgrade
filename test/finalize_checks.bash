@@ -123,7 +123,7 @@ check_mirror_validity() {
     wait_can_start_transactions $MASTER_HOST $MASTER_PORT
     check_mirrors
 
-    local on_upgraded_master=$(create_table_with_name on_upgraded_master 50)
+    local on_upgraded_master_expected=$(create_table_with_name on_upgraded_master 50)
 
     # step 2
     kill_primaries
@@ -131,23 +131,23 @@ check_mirror_validity() {
     # step 3
     wait_can_start_transactions $MASTER_HOST $MASTER_PORT
 
-    check_data_matches on_upgraded_master "${on_upgraded_master}"
-    local on_promoted_mirrors=$(create_table_with_name on_promoted_mirrors 60)
+    check_data_matches on_upgraded_master "${on_upgraded_master_expected}"
+    local on_promoted_mirrors_expected=$(create_table_with_name on_promoted_mirrors 60)
 
     # step 4
     run_on_master "export MASTER_DATA_DIRECTORY=${master_data_dir}; export PGPORT=$MASTER_PORT; gprecoverseg -a"  #TODO..why is PGPORT not actually needed here?
     check_mirrors
 
-    check_data_matches on_upgraded_master "${on_upgraded_master}"
-    check_data_matches on_promoted_mirrors "${on_promoted_mirrors}"
-    local on_recovered_cluster=$(create_table_with_name on_recovered_cluster 70)
+    check_data_matches on_upgraded_master "${on_upgraded_master_expected}"
+    check_data_matches on_promoted_mirrors "${on_promoted_mirrors_expected}"
+    local on_recovered_cluster_expected=$(create_table_with_name on_recovered_cluster 70)
 
     # step 5
     run_on_master "export MASTER_DATA_DIRECTORY=${master_data_dir}; export PGPORT=$MASTER_PORT; gprecoverseg -ra"
     check_mirrors
 
-    check_data_matches on_upgraded_master "${on_upgraded_master}"
-    check_data_matches on_promoted_mirrors "${on_promoted_mirrors}"
-    check_data_matches on_recovered_cluster "${on_recovered_cluster}"
+    check_data_matches on_upgraded_master "${on_upgraded_master_expected}"
+    check_data_matches on_promoted_mirrors "${on_promoted_mirrors_expected}"
+    check_data_matches on_recovered_cluster "${on_recovered_cluster_expected}"
 }
 

@@ -20,7 +20,7 @@ teardown() {
     fi
 
     if [ -n "$NEW_CLUSTER" ]; then
-        teardown_new_cluster
+        delete_finalized_cluster $NEW_CLUSTER
     fi
 
     gpupgrade kill-services
@@ -37,8 +37,6 @@ teardown() {
     for datadir in "${datadirs[@]}"; do
         touch "$datadir/${marker_file}"
     done
-
-    local source_mirrors_count=$(number_of_mirrors)
 
     # grab the original configuration before starting so we can verify the
     # target cluster ends up with the source cluster's original layout
@@ -91,22 +89,12 @@ teardown() {
     local standby_status_line=$(get_standby_status "$actual_standby_status")
     [[ $standby_status_line == *"Standby host passive"* ]] || fail "expected standby to be up and in passive mode, got **** ${actual_standby_status} ****"
 
-    local target_mirrors_count=$(number_of_mirrors)
-    local gp_segment_configuration=$(psql postgres -c "select * from gp_segment_configuration")
-    [[ $source_mirrors_count -eq $target_mirrors_count ]] || exit "expected target mirrors count '${target_mirrors_count}' to equal source mirrors count '${source_mirrors_count}'. gp_segment_configuration:
-        ${gp_segment_configuration}"
-
-    local local_hostname=$(hostname)
-    check_mirror_validity "${GPHOME}" "${local_hostname}" "${PGPORT}"
+    check_mirror_validity "${GPHOME}" "$(hostname)" "${PGPORT}"
 }
 
 setup_state_dir() {
     STATE_DIR=$(mktemp -d /tmp/gpupgrade.XXXXXX)
     export GPUPGRADE_HOME="${STATE_DIR}/gpupgrade"
-}
-
-teardown_new_cluster() {
-    delete_finalized_cluster $MASTER_DATA_DIRECTORY
 }
 
 # Writes the pieces of gp_segment_configuration that we need to ensure remain
@@ -127,12 +115,4 @@ get_datadirs() {
 get_standby_status() {
     local standby_status=$1
     echo "$standby_status" | grep 'Standby master state'
-}
-
-number_of_mirrors() {
-    # when the target cluster has finalized, it is running under the same PGPORT as the source cluster
-    psql postgres --tuples-only --no-align -c "
-        select count(*) from gp_segment_configuration
-            where role='m' and status='u' and mode='s' and content != -1
-    "
 }
