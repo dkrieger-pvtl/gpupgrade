@@ -568,14 +568,14 @@ Optional Flags:
 Upgrades the standby master and mirror segments to the target Greenplum version.
 
 Finalize will carry out the following sub-steps:
-- Upgrade standby master
-- Upgrade mirror segments
 - Stop target cluster
 - Start target master
 - Update target master port
 - Stop target master
 - Update target master postgresql.conf
 - Start target cluster
+- Upgrade standby master
+- Upgrade mirror segments
 
 Usage: gpupgrade finalize
 
