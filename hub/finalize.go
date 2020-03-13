@@ -3,8 +3,6 @@ package hub
 import (
 	"fmt"
 
-	"github.com/greenplum-db/gpupgrade/utils"
-
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
@@ -77,16 +75,17 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 		binDir:              s.Target.BinDir,
 	}
 
+	// todo: we don't currently have a way to output nothing to the UI when there is no standby.
+	// If we did, this check would actually be in `UpgradeStandby`
 	if s.Source.HasStandby() {
 		st.Run(idl.Substep_FINALIZE_UPGRADE_STANDBY, func(streams step.OutStreams) error {
 			// XXX this probably indicates a bad abstraction
 			targetRunner.streams = streams
 
 			// TODO: Persist the standby to config.json and update the
-			//  source & target clusters.
-			// todo: replace StandbyConfig with SegInfo and pass the TargetInitializeConfig.Standby directly in
-			// TODO: remove standby/mirror ports from this, as well as datadirs...this is the source's now.
-			standby := s.Source.Mirrors[-1]
+			//  target cluster.
+			// todo: replace StandbyConfig with the TargetInitializeConfig
+			standby := s.TargetInitializeConfig.Standby
 			return UpgradeStandby(targetRunner, StandbyConfig{
 				Port:          standby.Port,
 				Hostname:      standby.Hostname,
@@ -95,19 +94,14 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 		})
 	}
 
+	// todo: we don't currently have a way to output nothing to the UI when there are no mirrors.
+	// If we did, this check would actually be in `UpgradeMirrors`
 	if s.Source.HasMirrors() {
 		st.Run(idl.Substep_FINALIZE_UPGRADE_MIRRORS, func(streams step.OutStreams) error {
 			// XXX this probably indicates a bad abstraction
 			targetRunner.streams = streams
 
-			var mirrors []utils.SegConfig
-			for content, mirror := range s.Source.Mirrors {
-				if content == -1 {
-					continue
-				}
-				mirrors = append(mirrors, mirror)
-			}
-			return UpgradeMirrors(s.StateDir, s.Target.MasterPort(), mirrors, targetRunner)
+			return UpgradeMirrors(s.StateDir, s.Target.MasterPort(), &s.TargetInitializeConfig, targetRunner)
 		})
 	}
 

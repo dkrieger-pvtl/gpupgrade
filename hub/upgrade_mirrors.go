@@ -15,8 +15,8 @@ import (
 
 const defaultFTSTimeout = 2 * time.Minute
 
-func writeGpAddmirrorsConfig(mirrors []utils.SegConfig, out io.Writer) error {
-	for _, m := range mirrors {
+func writeGpAddmirrorsConfig(conf *InitializeConfig, out io.Writer) error {
+	for _, m := range conf.Mirrors {
 		_, err := fmt.Fprintf(out, "%d|%s|%d|%s\n", m.ContentID, m.Hostname, m.Port, m.DataDir)
 		if err != nil {
 			return err
@@ -85,7 +85,7 @@ func waitForFTS(db *sql.DB, timeout time.Duration) error {
 	}
 }
 
-func UpgradeMirrors(stateDir string, masterPort int, mirrors []utils.SegConfig, targetRunner GreenplumRunner) (err error) {
+func UpgradeMirrors(stateDir string, masterPort int, conf *InitializeConfig, targetRunner GreenplumRunner) (err error) {
 	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&search_path=", masterPort)
 	db, err := utils.System.SqlOpen("pgx", connURI)
 	if err != nil {
@@ -94,10 +94,10 @@ func UpgradeMirrors(stateDir string, masterPort int, mirrors []utils.SegConfig, 
 
 	defer db.Close()
 
-	return doUpgrade(db, stateDir, mirrors, targetRunner)
+	return doUpgrade(db, stateDir, conf, targetRunner)
 }
 
-func doUpgrade(db *sql.DB, stateDir string, mirrors []utils.SegConfig, targetRunner GreenplumRunner) (err error) {
+func doUpgrade(db *sql.DB, stateDir string, conf *InitializeConfig, targetRunner GreenplumRunner) (err error) {
 	path := filepath.Join(stateDir, "add_mirrors_config")
 	// calling Close() on a file twice results in an error
 	// only call Close() in the defer if we haven't yet tried to close it.
@@ -115,7 +115,7 @@ func doUpgrade(db *sql.DB, stateDir string, mirrors []utils.SegConfig, targetRun
 		}
 	}()
 
-	err = writeGpAddmirrorsConfig(mirrors, f)
+	err = writeGpAddmirrorsConfig(conf, f)
 	if err != nil {
 		return err
 	}

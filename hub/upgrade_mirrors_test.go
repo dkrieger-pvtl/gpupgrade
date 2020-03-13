@@ -30,27 +30,26 @@ func (g *greenplumStub) Run(utilityName string, arguments ...string) error {
 
 func TestWriteGpAddmirrorsConfig(t *testing.T) {
 	t.Run("streams the gpaddmirrors config file format", func(t *testing.T) {
-		mirrors := []utils.SegConfig{
-			{
+		initializeConfig := InitializeConfig{
+			Mirrors: []utils.SegConfig{{
 				DbID:      3,
 				ContentID: 0,
 				Port:      234,
 				Hostname:  "localhost",
 				DataDir:   "/data/mirrors_upgrade/seg0",
 				Role:      "m",
-			},
-			{
+			}, {
 				DbID:      4,
 				ContentID: 1,
 				Port:      235,
 				Hostname:  "localhost",
 				DataDir:   "/data/mirrors_upgrade/seg1",
 				Role:      "m",
-			},
+			}},
 		}
 		var out bytes.Buffer
 
-		err := writeGpAddmirrorsConfig(mirrors, &out)
+		err := writeGpAddmirrorsConfig(&initializeConfig, &out)
 		if err != nil {
 			t.Errorf("unexpected error: %#v", err)
 		}
@@ -68,13 +67,13 @@ func TestWriteGpAddmirrorsConfig(t *testing.T) {
 	})
 
 	t.Run("returns errors from provided write stream", func(t *testing.T) {
-		mirrors := []utils.SegConfig{
+		conf := &InitializeConfig{Mirrors: []utils.SegConfig{
 			{DbID: 3, ContentID: 0, Port: 234, Hostname: "localhost", DataDir: "/data/mirrors/seg0", Role: "m"},
-		}
+		}}
 
 		writer := &failingWriter{errors.New("ahhh")}
 
-		err := writeGpAddmirrorsConfig(mirrors, writer)
+		err := writeGpAddmirrorsConfig(conf, writer)
 		if !xerrors.Is(err, writer.err) {
 			t.Errorf("returned error %#v, want %#v", err, writer.err)
 		}
@@ -167,23 +166,22 @@ func TestDoUpgrade(t *testing.T) {
 			return writePipe, nil
 		}
 
-		mirrors := []utils.SegConfig{
-			{
+		initializeConfig := InitializeConfig{
+			Mirrors: []utils.SegConfig{{
 				DbID:      3,
 				ContentID: 0,
 				Port:      234,
 				Hostname:  "localhost",
 				DataDir:   "/data/mirrors_upgrade/seg0",
 				Role:      "m",
-			},
-			{
+			}, {
 				DbID:      4,
 				ContentID: 1,
 				Port:      235,
 				Hostname:  "localhost",
 				DataDir:   "/data/mirrors_upgrade/seg1",
 				Role:      "m",
-			},
+			}},
 		}
 
 		stub := greenplumStub{run: func(utilityName string, arguments ...string) error {
@@ -217,7 +215,7 @@ func TestDoUpgrade(t *testing.T) {
 		expectFtsProbe(mock)
 		expectMirrorsAndReturn(mock, "t")
 
-		err = doUpgrade(db, stateDir, mirrors, &stub)
+		err = doUpgrade(db, stateDir, &initializeConfig, &stub)
 
 		if err != nil {
 			t.Errorf("got unexpected error from UpgradeMirrors %#v", err)
@@ -246,7 +244,7 @@ func TestDoUpgrade(t *testing.T) {
 			return nil, expectedError
 		}
 
-		err = doUpgrade(db, "", []utils.SegConfig{}, &greenplumStub{})
+		err = doUpgrade(db, "", &InitializeConfig{}, &greenplumStub{})
 		if !xerrors.Is(err, expectedError) {
 			t.Errorf("returned error %#v want %#v", err, expectedError)
 		}
@@ -259,9 +257,9 @@ func TestDoUpgrade(t *testing.T) {
 		}
 
 		// We need at least one config entry to cause something to be written.
-		mirrors := []utils.SegConfig{
+		conf := &InitializeConfig{Mirrors: []utils.SegConfig{
 			{DbID: 3, ContentID: 0, Port: 234, Hostname: "localhost", DataDir: "/data/mirrors/seg0", Role: "m"},
-		}
+		}}
 
 		stub := new(greenplumStub)
 		stub.run = func(_ string, _ ...string) error {
@@ -269,7 +267,7 @@ func TestDoUpgrade(t *testing.T) {
 			return nil
 		}
 
-		err = doUpgrade(db, "/state/dir", mirrors, stub)
+		err = doUpgrade(db, "/state/dir", conf, stub)
 
 		var merr *multierror.Error
 		if !xerrors.As(err, &merr) {
@@ -298,7 +296,7 @@ func TestDoUpgrade(t *testing.T) {
 			return expected
 		}}
 
-		err = doUpgrade(db, "/state/dir", []utils.SegConfig{}, stub)
+		err = doUpgrade(db, "/state/dir", &InitializeConfig{}, stub)
 		if !xerrors.Is(err, expected) {
 			t.Errorf("returned error %#v want %#v", err, expected)
 		}
@@ -336,7 +334,7 @@ func TestUpgradeMirrors(t *testing.T) {
 			return db, nil
 		}
 
-		err = UpgradeMirrors("", 123, []utils.SegConfig{}, stub)
+		err = UpgradeMirrors("", 123, &InitializeConfig{}, stub)
 		if err != nil {
 			t.Errorf("unexpected error: %#v", err)
 		}
@@ -348,7 +346,7 @@ func TestUpgradeMirrors(t *testing.T) {
 			return nil, expected
 		}
 
-		err := UpgradeMirrors("", 123, []utils.SegConfig{}, stub)
+		err := UpgradeMirrors("", 123, &InitializeConfig{}, stub)
 		if !xerrors.Is(err, expected) {
 			t.Errorf("got: %#v want: %#v", err, expected)
 		}
@@ -388,7 +386,7 @@ func TestWaitForFTS(t *testing.T) {
 		expectFtsProbe(mock)
 		expectMirrorsAndReturn(mock, "f")
 
-		err = waitForFTS(db, -1*time.Second)
+		err = waitForFTS(db, -1 * time.Second)
 
 		expected := "-1s timeout exceeded waiting for mirrors to come up"
 		if err.Error() != expected {
