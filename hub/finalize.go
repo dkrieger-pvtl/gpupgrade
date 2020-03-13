@@ -37,15 +37,6 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 		return nil
 	})
 
-	// no longer needed: mirrors now added directly to the correct port
-	//if s.Source.HasMirrors() {
-	//	// We perform recovery.conf migration BEFORE the catalog update so that
-	//	// we still have access to the target's temporary ports.
-	//	st.Run(idl.Substep_FINALIZE_UPDATE_RECOVERY_CONFS, func(streams step.OutStreams) error {
-	//		return UpdateRecoveryConfs(context.Background(), s.agentConns, s.Source, s.Target, s.TargetInitializeConfig)
-	//	})
-	//}
-
 	st.Run(idl.Substep_FINALIZE_UPDATE_TARGET_CATALOG_AND_CLUSTER_CONFIG, func(streams step.OutStreams) error {
 		return s.UpdateCatalogAndClusterConfig(streams)
 	})
