@@ -40,18 +40,13 @@ _check_mirror_replication_connections() {
     ")
 
     echo "${rows}" | while read -r primary_address primary_port mirror_host; do
-        _check_replication_connection $primary_address $primary_port $mirror_host
+        ssh -n "${mirror_host}" "
+            source ${GPHOME_NEW}/greenplum_path.sh
+            PGOPTIONS=\"-c gp_session_role=utility\" psql -h $primary_address -p $primary_port \"dbname=postgres replication=database\" -c \"
+                IDENTIFY_SYSTEM;
+            \"
+        "
     done
-}
-
-_check_replication_connection() {
-    local primary_address=$1
-    local primary_port=$2
-    local mirror_host=$3
-
-    local cmd="PGOPTIONS=\"-c gp_session_role=utility\" psql -h $primary_address -p $primary_port  \"
-        dbname=postgres replication=database\" -c \"IDENTIFY_SYSTEM;\""
-    ssh -n "${mirror_host}" "source ${GPHOME_NEW}/greenplum_path.sh; $cmd"
 }
 
 kill_primaries() {
