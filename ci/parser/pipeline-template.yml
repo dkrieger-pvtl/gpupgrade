@@ -338,8 +338,12 @@ jobs:
         FILTER_DIFF: 1
         OLD_PACKAGE: greenplum-db-5
         NEW_PACKAGE: greenplum-db-6
-        {{- if or .PrimariesOnly .NoStandby}}
-        STANDBY_AND_MIRRORS: 0
+        {{- if .NoStandby}}
+        STANDBY: 0
+        {{- end}}
+        {{- if .PrimariesOnly}}
+        MIRRORS: 0
+        STANDBY: 0
         {{- end}}
   ensure:
     <<: *set_failed
