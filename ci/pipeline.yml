@@ -417,7 +417,7 @@ jobs:
         FILTER_DIFF: 1
         OLD_PACKAGE: greenplum-db-5
         NEW_PACKAGE: greenplum-db-6
-        MIRRORS: 0
+        STANDBY_AND_MIRRORS: 0
   ensure:
     <<: *set_failed
   on_success:
@@ -501,6 +501,7 @@ jobs:
         FILTER_DIFF: 1
         OLD_PACKAGE: greenplum-db-5
         NEW_PACKAGE: greenplum-db-6
+        STANDBY_AND_MIRRORS: 0
   ensure:
     <<: *set_failed
   on_success:

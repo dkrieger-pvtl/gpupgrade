@@ -121,7 +121,7 @@ if ! compare_dumps /tmp/old.sql /tmp/new.sql; then
 fi
 
 # Test that mirrors actually work
-if [ "${MIRRORS}" = "1" ]; then
+if [ "${STANDBY_AND_MIRRORS}" = "1" ]; then
     echo 'Doing failover tests of mirrors and standby...'
     validate_mirrors_and_standby "${GPHOME_NEW}" mdw $MASTER_PORT
 else
