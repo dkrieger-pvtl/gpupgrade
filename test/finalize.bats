@@ -80,8 +80,8 @@ upgrade_cluster() {
         NEW_CLUSTER="$MASTER_DATA_DIRECTORY"
 
         if [ "$LINK_MODE" == "--link" ]; then
-            validate_data_directories "EXISTS" "$primary_datadirs"
-            validate_data_directories "NOT_EXISTS" "$mirror_datadirs"
+            validate_data_directories "EXISTS" "${primary_datadirs[@]}"
+            validate_data_directories "NOT_EXISTS" "${mirror_datadirs[@]}"
 
             # restore the data directories to _old extension to fit the teardown
             # in --link mode, finalize deletes the mirrors/standby data directories,
@@ -91,7 +91,7 @@ upgrade_cluster() {
                 mv ${datadir}_backup ${datadir}_old
             done
         else
-            validate_data_directories "EXISTS" "${datadirs}"
+            validate_data_directories "EXISTS" "${datadirs[@]}"
         fi
 
         # ensure gpperfmon configuration file has been modified to reflect new data dir location
@@ -123,6 +123,67 @@ upgrade_cluster() {
         validate_mirrors_and_standby "${GPHOME}" "$(hostname)" "${PGPORT}"
 
 }
+
+idempotent_check() {
+
+    LINK_MODE=$1
+
+    local marker_file=source-cluster.test-marker
+    local mirror_datadirs=($(get_mirror_datadirs))
+    local primary_datadirs=($(get_primary_datadirs))
+    local datadirs=($(get_datadirs))
+    for datadir in "${datadirs[@]}"; do
+        touch "$datadir/${marker_file}"
+    done
+
+    if [ "$LINK_MODE" == "--link" ]; then
+        # create a backup of datadirs as the mirrors will be deleted in finalize
+        # and primaries pg_control file will be changed to pg_control.old to disable to old
+        # cluster
+        source "${GPHOME}/greenplum_path.sh"
+        gpstop -a
+        for datadir in "${datadirs[@]}"; do
+            cp -r ${datadir} ${datadir}_backup
+        done
+        gpstart -a
+    fi
+
+    gpupgrade initialize \
+        --source-bindir="$GPHOME/bin" \
+        --target-bindir="$GPHOME/bin" \
+        --source-master-port="${PGPORT}" \
+        --disk-free-ratio 0 \
+        $LINK_MODE \
+        --verbose 3>&-
+    gpupgrade execute --verbose
+    gpupgrade finalize --verbose
+
+    NEW_CLUSTER="$MASTER_DATA_DIRECTORY"
+
+    if [ "$LINK_MODE" == "--link" ]; then
+        validate_data_directories "EXISTS" "${primary_datadirs[@]}"
+        validate_data_directories "NOT_EXISTS" "${mirror_datadirs[@]}"
+    else
+        validate_data_directories "EXISTS" "${datadirs[@]}"
+    fi
+
+    # Mark FINALIZE_UPDATE_DATA_DIRECTORIES as FAILED so it reruns
+    sed -i.bak -e 's/"FINALIZE_UPDATE_DATA_DIRECTORIES": "COMPLETE"/"FINALIZE_UPDATE_DATA_DIRECTORIES": "FAILED"/' "$GPUPGRADE_HOME/status.json"
+
+    gpupgrade finalize --verbose
+
+    if [ "$LINK_MODE" == "--link" ]; then
+            # restore the data directories to _old extension to fit the teardown
+            # in --link mode, finalize deletes the mirrors/standby data directories,
+            # so they should be restored.
+            for datadir in "${datadirs[@]}"; do
+                rm -rf ${datadir}_old
+                mv ${datadir}_backup ${datadir}_old
+            done
+    fi
+
+}
+
 @test "gpupgrade finalize should swap the target data directories and ports with the source cluster" {
     upgrade_cluster
 }
@@ -130,6 +191,15 @@ upgrade_cluster() {
 @test "gpupgrade finalize with --link mode should swap the primary and master directory and delete the old mirror and standby directory" {
     upgrade_cluster "--link"
 }
+
+@test "gpupgrade finalize substeps that are meant to be idempotent are really idempotent in copy mode" {
+    idempotent_check ""
+}
+
+@test "gpupgrade finalize substeps that are meant to be idempotent are really idempotent in link mode" {
+    idempotent_check "--link"
+}
+
 
 setup_state_dir() {
     STATE_DIR=$(mktemp -d /tmp/gpupgrade.XXXXXX)

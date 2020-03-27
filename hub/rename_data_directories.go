@@ -2,7 +2,11 @@ package hub
 
 import (
 	"context"
+	"os"
 	"sync"
+	"syscall"
+
+	"github.com/greenplum-db/gpupgrade/utils"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
@@ -10,12 +14,11 @@ import (
 
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
-	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 type RenameMap = map[string][]*idl.RenamePair
 
-const OldSuffix = "_old"
+const oldSuffix = "_old"
 
 func (s *Server) UpdateDataDirectories() error {
 	return UpdateDataDirectories(s.Config, s.agentConns)
@@ -55,7 +58,7 @@ func getSourceRenameMap(source *greenplum.Cluster, primariesOnly bool) RenameMap
 		if !seg.IsMaster() {
 			m[seg.Hostname] = append(m[seg.Hostname], &idl.RenamePair{
 				Src: seg.DataDir,
-				Dst: seg.DataDir + OldSuffix,
+				Dst: seg.DataDir + oldSuffix,
 			})
 		}
 
@@ -63,7 +66,7 @@ func getSourceRenameMap(source *greenplum.Cluster, primariesOnly bool) RenameMap
 		if !primariesOnly && ok {
 			m[seg.Hostname] = append(m[seg.Hostname], &idl.RenamePair{
 				Src: seg.DataDir,
-				Dst: seg.DataDir + OldSuffix,
+				Dst: seg.DataDir + oldSuffix,
 			})
 		}
 	}
@@ -92,14 +95,36 @@ func getTargetRenameMap(target InitializeConfig, source *greenplum.Cluster) Rena
 	return m
 }
 
+// IsRenameErrorIdempotent interprets an error returned from os.Rename().  If that error is acceptable, it returns true.
+// The error code options are taken from the Mac OSX manpage and Linux manpage for rename(2).
+//  (These two are consistent.)
+func IsRenameErrorIdempotent(err error) bool {
+	switch x := err.(type) {
+	case *os.LinkError:
+		if xerrors.Is(x.Err, syscall.ENOENT) {
+			gplog.Info("rename already run: source dir not there: %v (%v)", x, x.Err)
+			return true
+		} else if xerrors.Is(x.Err, syscall.EEXIST) || xerrors.Is(x.Err, syscall.ENOTEMPTY) {
+			gplog.Info("rename already run: target dir there: %v (%v)", x, x.Err)
+			return true
+		}
+	}
+
+	return false
+}
+
 // e.g.  source /data/qddir/demoDataDir-1 becomes /data/qddir/demoDataDir-1_old
 // and   target /data/qddir/demoDataDir-1_123GNHFD3 becomes /data/qddir/demoDataDir-1
 func RenameDataDirs(source, target string) error {
-	if err := utils.System.Rename(source, source+OldSuffix); err != nil {
-		return xerrors.Errorf("renaming source: %w", err)
+	if err := utils.System.Rename(source, source+oldSuffix); err != nil {
+		if !IsRenameErrorIdempotent(err) {
+			return xerrors.Errorf("renaming source: %w", err)
+		}
 	}
 	if err := utils.System.Rename(target, source); err != nil {
-		return xerrors.Errorf("renaming target: %w", err)
+		if !IsRenameErrorIdempotent(err) {
+			return xerrors.Errorf("renaming target: %w", err)
+		}
 	}
 	return nil
 }

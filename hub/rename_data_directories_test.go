@@ -2,6 +2,9 @@ package hub_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/go-multierror"
@@ -18,6 +21,9 @@ import (
 )
 
 func TestRenameDataDirs(t *testing.T) {
+
+	testhelper.SetupTestLogger() // initialize gplog
+
 	t.Run("renames both source and target", func(t *testing.T) {
 		numCalls := 0
 		utils.System.Rename = func(src, dst string) error {
@@ -53,8 +59,43 @@ func TestRenameDataDirs(t *testing.T) {
 
 			return nil
 		}
+		defer func() {
+			utils.System.Rename = os.Rename
+		}()
 
 		err := hub.RenameDataDirs("/data/qddir/demoDataDir-1", "/data/qddir/demoDataDir-1_ABC123-1")
+		if err != nil {
+			t.Errorf("unexpected error got %#v", err)
+		}
+	})
+
+	t.Run("is idempotent", func(t *testing.T) {
+		tmpDir, err := ioutil.TempDir("", "")
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		defer func() {
+			os.RemoveAll(tmpDir)
+		}()
+
+		source := filepath.Join(tmpDir, "source")
+		target := filepath.Join(tmpDir, "target")
+
+		err = os.Mkdir(source, 0700)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		err = os.Mkdir(target, 0700)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+
+		err = hub.RenameDataDirs(source, target)
+		if err != nil {
+			t.Errorf("unexpected error got %#v", err)
+		}
+
+		err = hub.RenameDataDirs(source, target)
 		if err != nil {
 			t.Errorf("unexpected error got %#v", err)
 		}
@@ -234,6 +275,9 @@ func TestUpdateDataDirectories(t *testing.T) {
 	utils.System.Rename = func(src, dst string) error {
 		return nil
 	}
+	defer func() {
+		utils.System.Rename = os.Rename
+	}()
 
 	t.Run("transmits segment rename requests to the correct agents in copy mode", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
