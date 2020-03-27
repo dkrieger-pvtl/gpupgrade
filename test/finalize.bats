@@ -123,12 +123,33 @@ upgrade_cluster() {
         validate_mirrors_and_standby "${GPHOME}" "$(hostname)" "${PGPORT}"
 
 }
-@test "gpupgrade finalize should swap the target data directories and ports with the source cluster" {
-    upgrade_cluster
-}
+#@test "gpupgrade finalize should swap the target data directories and ports with the source cluster" {
+#    upgrade_cluster
+#}
+#
+#@test "gpupgrade finalize with --link mode should swap the primary and master directory and delete the old mirror and standby directory" {
+#    upgrade_cluster "--link"
+#}
 
-@test "gpupgrade finalize with --link mode should swap the primary and master directory and delete the old mirror and standby directory" {
-    upgrade_cluster "--link"
+# TODO: uncomment out the above tests, of course!
+@test "gpupgrade finalize_update_data_directories step is idempotent" {
+
+    gpupgrade initialize \
+        --source-bindir="$GPHOME/bin" \
+        --target-bindir="$GPHOME/bin" \
+        --source-master-port="${PGPORT}" \
+        --disk-free-ratio 0 \
+        --verbose 3>&-
+    gpupgrade execute --verbose
+    gpupgrade finalize --verbose
+
+    NEW_CLUSTER="$MASTER_DATA_DIRECTORY"
+
+    # Mark FINALIZE_UPDATE_DATA_DIRECTORIES as FAILED so it reruns
+    sed -i.bak -e 's/"FINALIZE_UPDATE_DATA_DIRECTORIES": "COMPLETE"/"FINALIZE_UPDATE_DATA_DIRECTORIES": "FAILED"/' "$GPUPGRADE_HOME/status.json"
+
+    gpupgrade finalize --verbose
+
 }
 
 setup_state_dir() {
