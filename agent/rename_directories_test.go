@@ -3,6 +3,9 @@ package agent_test
 import (
 	"context"
 	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
@@ -42,11 +45,48 @@ func TestRenameDirectories(t *testing.T) {
 
 			return nil
 		}
+		defer func() {
+			utils.System.Rename = os.Rename
+		}()
 
 		_, err := server.RenameDirectories(context.Background(), req)
 		if err != nil {
 			t.Errorf("unexpected error got %#v", err)
 		}
+	})
+
+	t.Run("is idempotent", func(t *testing.T) {
+		tmpDir, err := ioutil.TempDir("", "")
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		source := filepath.Join(tmpDir, "source")
+		target := filepath.Join(tmpDir, "target")
+
+		err = os.Mkdir(source, 0700)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+
+		req := &idl.RenameDirectoriesRequest{
+			Pairs: []*idl.RenamePair{
+				{
+					Src: source,
+					Dst: target,
+				},
+			},
+		}
+
+		_, err = server.RenameDirectories(context.Background(), req)
+		if err != nil {
+			t.Errorf("unexpected error got %#v", err)
+		}
+
+		_, err = server.RenameDirectories(context.Background(), req)
+		if err != nil {
+			t.Errorf("unexpected error got %#v", err)
+		}
+
 	})
 
 	t.Run("fails to rename src and dst data directories", func(t *testing.T) {

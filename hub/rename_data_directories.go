@@ -2,9 +2,13 @@ package hub
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
+
+	"github.com/greenplum-db/gpupgrade/utils"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
@@ -12,7 +16,6 @@ import (
 
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
-	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 type RenameMap = map[string][]*idl.RenamePair
@@ -94,29 +97,49 @@ func getTargetRenameMap(target InitializeConfig, source *greenplum.Cluster) Rena
 	return m
 }
 
+func RenameError(err error) error {
+
+	switch x := err.(type) {
+	case *os.LinkError:
+		if xerrors.Is(x.Err, syscall.ENOENT) {
+			fmt.Printf("rename error: source dir does not exist: %v (%v)", x, x.Err)
+			return nil
+		} else if xerrors.Is(x.Err, syscall.EEXIST) {
+			fmt.Printf("rename error: target dir does exist: %v (%v)", x, x.Err)
+			return nil
+		} else {
+			fmt.Printf("rename error: other error: %v (%v)", x, x.Err)
+		}
+	}
+
+	return xerrors.Errorf("bad rename failure: %w", err)
+}
+
 // e.g.  source /data/qddir/demoDataDir-1 becomes /data/qddir/demoDataDir-1_old
 // and   target /data/qddir/demoDataDir-1_123GNHFD3 becomes /data/qddir/demoDataDir-1
 // TODO: if this step completed and we re-run it, source contains the Target dir and _old contains
 //   the Source.  But Target has .target in it, not .source, and we'll blindly try to copy it over and fail.
 //   Solution is likely to check if marker file of target is in source dir, then bail
+// idempotence here works as follows:
+//  source -> source_old:
+//      1). never called, works
+//      2). called before target rename success: fails with ENOENT, but we know 1). is atmoic and worked
+//      3). called before target rename failed: same as 2)
+//      4). called after target rename success: fails with EEXIST but we know 1) and 5) worked
+//  target -> source:  (must be called after source->source_old success)
+//      5). never called, works
+//      6). called before and failed: system error, likely as should always pass
 func RenameDataDirs(source, target string) error {
-	err := RenameDataDir(source, source+oldSuffix, true)
-	if err != nil {
-		return err
+	if err := utils.System.Rename(source, source+oldSuffix); err != nil {
+		renameErr := RenameError(err)
+		if renameErr != nil {
+			return xerrors.Errorf("renaming source: %w", renameErr)
+		}
 	}
-	err = RenameDataDir(target, source, false)
-
-	return err
-}
-
-func RenameDataDir(src, dst string, isSource bool) error {
-	alreadyMoved, err := CreateMarkerFile(src, isSource)
-	if err != nil {
-		return xerrors.Errorf("marker src: %w", err)
-	}
-	if !alreadyMoved {
-		if err := utils.System.Rename(src, dst); err != nil {
-			return xerrors.Errorf("renaming src(isSource %v): %w", isSource, err)
+	if err := utils.System.Rename(target, source); err != nil {
+		renameErr := RenameError(err)
+		if renameErr != nil {
+			return xerrors.Errorf("renaming target: %w", renameErr)
 		}
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/go-multierror"
@@ -55,8 +56,39 @@ func TestRenameDataDirs(t *testing.T) {
 
 			return nil
 		}
+		defer func() {
+			utils.System.Rename = os.Rename
+		}()
 
 		err := hub.RenameDataDirs("/data/qddir/demoDataDir-1", "/data/qddir/demoDataDir-1_ABC123-1")
+		if err != nil {
+			t.Errorf("unexpected error got %#v", err)
+		}
+	})
+
+	t.Run("is idempotent", func(t *testing.T) {
+		tmpDir, err := ioutil.TempDir("", "")
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		source := filepath.Join(tmpDir, "source")
+		target := filepath.Join(tmpDir, "target")
+
+		err = os.Mkdir(source, 0700)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		err = os.Mkdir(target, 0700)
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+
+		err = hub.RenameDataDirs(source, target)
+		if err != nil {
+			t.Errorf("unexpected error got %#v", err)
+		}
+
+		err = hub.RenameDataDirs(source, target)
 		if err != nil {
 			t.Errorf("unexpected error got %#v", err)
 		}
