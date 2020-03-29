@@ -123,16 +123,15 @@ upgrade_cluster() {
         validate_mirrors_and_standby "${GPHOME}" "$(hostname)" "${PGPORT}"
 
 }
-#@test "gpupgrade finalize should swap the target data directories and ports with the source cluster" {
-#    upgrade_cluster
-#}
-#
-#@test "gpupgrade finalize with --link mode should swap the primary and master directory and delete the old mirror and standby directory" {
-#    upgrade_cluster "--link"
-#}
+@test "gpupgrade finalize should swap the target data directories and ports with the source cluster" {
+    upgrade_cluster
+}
 
-# TODO: uncomment out the above tests, of course!
-@test "gpupgrade finalize_update_data_directories step is idempotent" {
+@test "gpupgrade finalize with --link mode should swap the primary and master directory and delete the old mirror and standby directory" {
+    upgrade_cluster "--link"
+}
+
+@test "gpupgrade finalize substeps that are meant to be idempotent are really idempotent" {
 
     gpupgrade initialize \
         --source-bindir="$GPHOME/bin" \
