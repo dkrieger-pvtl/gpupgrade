@@ -2,9 +2,7 @@ package hub
 
 import (
 	"context"
-	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -97,49 +95,35 @@ func getTargetRenameMap(target InitializeConfig, source *greenplum.Cluster) Rena
 	return m
 }
 
-func RenameError(err error) error {
-
+// IsRenameErrorIdempotent interprets an error returned from os.Rename().  If that error is acceptable, it returns true.
+// The error code options are taken from the Mac OSX manpage and Linux manpage for rename(2).
+//  (These two are consistent.)
+func IsRenameErrorIdempotent(err error) bool {
 	switch x := err.(type) {
 	case *os.LinkError:
 		if xerrors.Is(x.Err, syscall.ENOENT) {
-			fmt.Printf("rename error: source dir does not exist: %v (%v)", x, x.Err)
-			return nil
-		} else if xerrors.Is(x.Err, syscall.EEXIST) {
-			fmt.Printf("rename error: target dir does exist: %v (%v)", x, x.Err)
-			return nil
-		} else {
-			fmt.Printf("rename error: other error: %v (%v)", x, x.Err)
+			gplog.Info("rename already run: source dir not there: %v (%v)", x, x.Err)
+			return true
+		} else if xerrors.Is(x.Err, syscall.EEXIST) || xerrors.Is(x.Err, syscall.ENOTEMPTY) {
+			gplog.Info("rename already run: target dir there: %v (%v)", x, x.Err)
+			return true
 		}
 	}
 
-	return xerrors.Errorf("bad rename failure: %w", err)
+	return false
 }
 
 // e.g.  source /data/qddir/demoDataDir-1 becomes /data/qddir/demoDataDir-1_old
 // and   target /data/qddir/demoDataDir-1_123GNHFD3 becomes /data/qddir/demoDataDir-1
-// TODO: if this step completed and we re-run it, source contains the Target dir and _old contains
-//   the Source.  But Target has .target in it, not .source, and we'll blindly try to copy it over and fail.
-//   Solution is likely to check if marker file of target is in source dir, then bail
-// idempotence here works as follows:
-//  source -> source_old:
-//      1). never called, works
-//      2). called before target rename success: fails with ENOENT, but we know 1). is atmoic and worked
-//      3). called before target rename failed: same as 2)
-//      4). called after target rename success: fails with EEXIST but we know 1) and 5) worked
-//  target -> source:  (must be called after source->source_old success)
-//      5). never called, works
-//      6). called before and failed: system error, likely as should always pass
 func RenameDataDirs(source, target string) error {
 	if err := utils.System.Rename(source, source+oldSuffix); err != nil {
-		renameErr := RenameError(err)
-		if renameErr != nil {
-			return xerrors.Errorf("renaming source: %w", renameErr)
+		if !IsRenameErrorIdempotent(err) {
+			return xerrors.Errorf("renaming source: %w", err)
 		}
 	}
 	if err := utils.System.Rename(target, source); err != nil {
-		renameErr := RenameError(err)
-		if renameErr != nil {
-			return xerrors.Errorf("renaming target: %w", renameErr)
+		if !IsRenameErrorIdempotent(err) {
+			return xerrors.Errorf("renaming target: %w", err)
 		}
 	}
 	return nil
@@ -181,44 +165,4 @@ func RenameSegmentDataDirs(agentConns []*Connection, renames RenameMap) error {
 	}
 
 	return mErr.ErrorOrNil()
-}
-
-const source_marker = ".source"
-const target_marker = ".target"
-
-//TODO: use "systemcall switch..."?
-// TODO: if the dataDir does not exist, make sure the markerFile exists in the target dir...
-// CreateMarkerFile returns true if the dataDir has already been moved and false otherwise
-func CreateMarkerFile(dataDir string, isSource bool) (bool, error) {
-
-	// determine if dataDir has been moved yet; if so, return right away
-	dataDirClean := filepath.Clean(dataDir)
-	_, err := os.Stat(dataDirClean)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return true, nil
-		} else {
-			return false, xerrors.Errorf("stat dataDir %s: %w", dataDirClean, err)
-		}
-	}
-
-	// dataDir exists, add markerFile if it hasn't been added already
-	marker := source_marker
-	if !isSource {
-		marker = target_marker
-	}
-	markerFile := filepath.Join(dataDir, marker)
-
-	var file *os.File
-	file, err = os.OpenFile(markerFile, os.O_RDONLY|os.O_CREATE|os.O_EXCL, 0700)
-	if err != nil {
-		if os.IsExist(err) {
-			return false, nil
-		} else {
-			return false, xerrors.Errorf("cannot create marker markerFile %s: %w", markerFile, err)
-		}
-	}
-	err = file.Close()
-
-	return false, err
 }

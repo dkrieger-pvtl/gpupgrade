@@ -2,10 +2,8 @@ package agent_test
 
 import (
 	"context"
-	"errors"
-	"io/ioutil"
 	"os"
-	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
@@ -24,16 +22,25 @@ func TestRenameDirectories(t *testing.T) {
 		StateDir: "",
 	})
 
-	pair := idl.RenamePair{
-		Src: "/data/dbfast1_upgrade",
-		Dst: "/data/dbfast1",
-	}
+	t.Run("calls rename with correct src and dst data directories", func(t *testing.T) {
 
-	req := &idl.RenameDirectoriesRequest{
-		Pairs: []*idl.RenamePair{&pair},
-	}
+		source, target, tmpDir := setupDataDirs(t)
+		defer func() {
+			os.RemoveAll(tmpDir)
+		}()
 
-	t.Run("successfully renames src and dst data directories", func(t *testing.T) {
+		pair := idl.RenamePair{
+			Src: source,
+			Dst: target,
+		}
+
+		req := &idl.RenameDirectoriesRequest{
+			Pairs: []*idl.RenamePair{
+				&pair,
+			},
+		}
+
+		called := false
 		utils.System.Rename = func(src, dst string) error {
 			if src != pair.Src {
 				t.Errorf("got %q want %q", src, pair.Src)
@@ -43,6 +50,7 @@ func TestRenameDirectories(t *testing.T) {
 				t.Errorf("got %q want %q", dst, pair.Dst)
 			}
 
+			called = true
 			return nil
 		}
 		defer func() {
@@ -53,20 +61,17 @@ func TestRenameDirectories(t *testing.T) {
 		if err != nil {
 			t.Errorf("unexpected error got %#v", err)
 		}
+		if !called {
+			t.Errorf("unexpected true, got false")
+		}
 	})
 
 	t.Run("is idempotent", func(t *testing.T) {
-		tmpDir, err := ioutil.TempDir("", "")
-		if err != nil {
-			t.Errorf("unexpected err: %v", err)
-		}
-		source := filepath.Join(tmpDir, "source")
-		target := filepath.Join(tmpDir, "target")
 
-		err = os.Mkdir(source, 0700)
-		if err != nil {
-			t.Errorf("unexpected err: %v", err)
-		}
+		source, target, tmpDir := setupDataDirs(t)
+		defer func() {
+			os.RemoveAll(tmpDir)
+		}()
 
 		req := &idl.RenameDirectoriesRequest{
 			Pairs: []*idl.RenamePair{
@@ -77,20 +82,35 @@ func TestRenameDirectories(t *testing.T) {
 			},
 		}
 
-		_, err = server.RenameDirectories(context.Background(), req)
+		_, err := server.RenameDirectories(context.Background(), req)
 		if err != nil {
-			t.Errorf("unexpected error got %#v", err)
+			t.Errorf("unexpected error got %v", err)
 		}
 
 		_, err = server.RenameDirectories(context.Background(), req)
 		if err != nil {
-			t.Errorf("unexpected error got %#v", err)
+			t.Errorf("unexpected error got %v", err)
 		}
 
 	})
 
-	t.Run("fails to rename src and dst data directories", func(t *testing.T) {
-		expected := errors.New("permission denied")
+	t.Run("fails when rename fails with a EPERM error", func(t *testing.T) {
+
+		source, target, tmpDir := setupDataDirs(t)
+		defer func() {
+			os.RemoveAll(tmpDir)
+		}()
+
+		req := &idl.RenameDirectoriesRequest{
+			Pairs: []*idl.RenamePair{
+				{
+					Src: source,
+					Dst: target,
+				},
+			},
+		}
+
+		expected := &os.LinkError{Err: syscall.EPERM}
 		utils.System.Rename = func(src, dst string) error {
 			return expected
 		}

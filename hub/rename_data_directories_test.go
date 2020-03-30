@@ -21,6 +21,9 @@ import (
 )
 
 func TestRenameDataDirs(t *testing.T) {
+
+	testhelper.SetupTestLogger() // initialize gplog
+
 	t.Run("renames both source and target", func(t *testing.T) {
 		numCalls := 0
 		utils.System.Rename = func(src, dst string) error {
@@ -71,6 +74,10 @@ func TestRenameDataDirs(t *testing.T) {
 		if err != nil {
 			t.Errorf("unexpected err: %v", err)
 		}
+		defer func() {
+			os.RemoveAll(tmpDir)
+		}()
+
 		source := filepath.Join(tmpDir, "source")
 		target := filepath.Join(tmpDir, "target")
 
@@ -268,6 +275,9 @@ func TestUpdateDataDirectories(t *testing.T) {
 	utils.System.Rename = func(src, dst string) error {
 		return nil
 	}
+	defer func() {
+		utils.System.Rename = os.Rename
+	}()
 
 	t.Run("transmits segment rename requests to the correct agents in copy mode", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -422,42 +432,4 @@ func expectDeletes(client *mock_idl.MockAgentClient, datadirs []string) {
 		gomock.Any(),
 		&idl.DeleteDirectoriesRequest{Datadirs: datadirs},
 	).Return(&idl.DeleteDirectoriesReply{}, nil)
-}
-
-func TestCreateMarkerFile(t *testing.T) {
-
-	runCreateMarkerFile := func(dataDir string, isSource, expected bool) {
-		alreadyMoved, err := hub.CreateMarkerFile(dataDir, isSource)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-		if expected != alreadyMoved {
-			t.Errorf("expected %v, got %v", expected, alreadyMoved)
-		}
-	}
-
-	t.Run("creates the marker file or leaves it if it is already there", func(t *testing.T) {
-		dataDir, err := ioutil.TempDir("", "dataDir")
-		if err != nil {
-			t.Fatalf("creating temporary directory: %+v", err)
-		}
-		defer func() {
-			os.RemoveAll(dataDir)
-		}()
-
-		runCreateMarkerFile(dataDir, true, false)
-
-		runCreateMarkerFile(dataDir, true, false)
-
-		// tells us dir moved already
-		err = os.RemoveAll(dataDir)
-		if err != nil {
-			t.Errorf("unexepcted error: %v", err)
-		}
-		runCreateMarkerFile(dataDir, true, true)
-	})
-
-	t.Run("returns true if the dataDir does not exist", func(t *testing.T) {
-		runCreateMarkerFile("/this/dir/does/not/exist/hopefully/A982H", true, true)
-	})
 }
