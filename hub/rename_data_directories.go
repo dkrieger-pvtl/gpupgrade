@@ -6,6 +6,8 @@ import (
 	"sync"
 	"syscall"
 
+	fault_injector "github.com/greenplum-db/gpupgrade/utils/fault_injection"
+
 	"github.com/greenplum-db/gpupgrade/upgrade"
 
 	"github.com/greenplum-db/gpupgrade/utils"
@@ -35,6 +37,10 @@ func UpdateDataDirectories(conf *Config, agentConns []*Connection) error {
 		return xerrors.Errorf("renaming master data directories: %w", err)
 	}
 
+	if fault_injector.Insert("UPGRADE_Update_Data_Directories_after_master", 1) {
+		return xerrors.Errorf("returning after renaming source master")
+	}
+
 	// in --link mode, remove the source mirror and standby data directories; otherwise we create a second copy
 	//  of them for the target cluster. That might take too much disk space.
 	if conf.UseLinkMode {
@@ -43,9 +49,17 @@ func UpdateDataDirectories(conf *Config, agentConns []*Connection) error {
 		}
 	}
 
+	if fault_injector.Insert("UpdateDataDirectories_after_master", 1) {
+		return xerrors.Errorf("UpdateDataDirectories_after_master...fault")
+	}
+
 	renameMap := getRenameMap(conf.Source, conf.TargetInitializeConfig, conf.UseLinkMode)
 	if err := RenameSegmentDataDirs(agentConns, renameMap, idl.ClusterType_SOURCE, conf.UpgradeID); err != nil {
 		return xerrors.Errorf("renaming source cluster segment data directories: %w", err)
+	}
+
+	if fault_injector.Insert("UPGRADE_Update_Data_Directories_at_end", 1) {
+		return xerrors.Errorf("returning after renaming source master")
 	}
 
 	return nil
@@ -140,6 +154,10 @@ func RenameDataDirs(source, target string, upgradeID upgrade.ID) error {
 		}
 	}
 
+	if fault_injector.Insert("UPGRADE_RenameDataDirs", 1) {
+		return xerrors.Errorf("returning after renaming source master...")
+	}
+
 	if target != "" {
 		if err := utils.System.Rename(target, source); err != nil {
 			if !IsRenameErrorIdempotent(err) {
@@ -178,6 +196,7 @@ func RenameSegmentDataDirs(agentConns []*Connection, renames RenameMap, kind idl
 				gplog.Error("renaming segment data directories on host %s: %s", conn.Hostname, err.Error())
 				errs <- err
 			}
+
 		}()
 	}
 

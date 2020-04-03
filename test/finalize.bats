@@ -34,6 +34,7 @@ teardown() {
 upgrade_cluster() {
 
         LINK_MODE=$1
+        IDEMPOTENT=$2
 
         # place marker file in source master data directory
         local marker_file=source-cluster.test-marker
@@ -66,6 +67,11 @@ upgrade_cluster() {
                gpstart -a
         fi
 
+        FAULT_INJECTOR=""
+        if [ "$IDEMPOTENT" == "IDEMPOTENT" ]; then
+            FAULT_INJECTOR="--fault-injection"
+        fi
+
         gpupgrade initialize \
             --source-bindir="$GPHOME/bin" \
             --target-bindir="$GPHOME/bin" \
@@ -73,16 +79,32 @@ upgrade_cluster() {
             --temp-port-range 6020-6040 \
             --disk-free-ratio 0 \
             $LINK_MODE \
+            $FAULT_INJECTOR \
             --verbose 3>&-
 
         gpupgrade execute --verbose
-        gpupgrade finalize --verbose
+
+        if [ "$IDEMPOTENT" == "IDEMPOTENT" ]; then
+            for I in {1..5}
+            do
+                run gpupgrade finalize --verbose
+                if [ "$status" -eq 0 ]; then
+                    break
+                fi
+                if [ "$status" -ne 0 ]; then
+                    echo "idempotence..."
+                fi
+            done
+        else
+            gpupgrade finalize --verbose
+        fi
+
 
         NEW_CLUSTER="$MASTER_DATA_DIRECTORY"
 
         if [ "$LINK_MODE" == "--link" ]; then
-            validate_data_directories "EXISTS" "$primary_datadirs"
-            validate_data_directories "NOT_EXISTS" "$mirror_datadirs"
+            validate_data_directories "EXISTS" "${primary_datadirs[@]}"
+            validate_data_directories "NOT_EXISTS" "${mirror_datadirs[@]}"
 
             # restore the data directories to _old extension to fit the teardown
             # in --link mode, finalize deletes the mirrors/standby data directories,
@@ -92,7 +114,7 @@ upgrade_cluster() {
                 mv ${datadir}_backup ${datadir}_old
             done
         else
-            validate_data_directories "EXISTS" "${datadirs}"
+            validate_data_directories "EXISTS" "${datadirs[@]}"
         fi
 
         # ensure gpperfmon configuration file has been modified to reflect new data dir location
@@ -124,13 +146,23 @@ upgrade_cluster() {
         validate_mirrors_and_standby "${GPHOME}" "$(hostname)" "${PGPORT}"
 
 }
+
 @test "gpupgrade finalize should swap the target data directories and ports with the source cluster" {
-    upgrade_cluster
+    upgrade_cluster "" ""
 }
 
 @test "gpupgrade finalize with --link mode should swap the primary and master directory and delete the old mirror and standby directory" {
-    upgrade_cluster "--link"
+    upgrade_cluster "--link" ""
 }
+
+@test "gpupgrade finalize substeps that are meant to be idempotent are really idempotent in copy mode" {
+    upgrade_cluster "" "IDEMPOTENT"
+}
+
+@test "gpupgrade finalize substeps that are meant to be idempotent are really idempotent in link mode" {
+    upgrade_cluster "--link" "IDEMPOTENT"
+}
+
 
 setup_state_dir() {
     STATE_DIR=$(mktemp -d /tmp/gpupgrade.XXXXXX)
