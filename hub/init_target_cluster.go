@@ -68,6 +68,10 @@ func (s *Server) CreateTargetCluster(stream step.OutStreams) error {
 		return err
 	}
 
+	if err := s.AddMarkerFiles(); err != nil {
+		return xerrors.Errorf("could not add marker files: %w", err)
+	}
+
 	return nil
 }
 
