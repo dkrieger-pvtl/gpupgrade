@@ -56,3 +56,9 @@ func TempDataDir(datadir, segPrefix string, id ID) string {
 
 	return filepath.Join(dir, newBase)
 }
+
+// ArchiveDirectoryForSource returns the archive directory for a given source cluster
+//   data directory.
+func ArchiveDirectoryForSource(sourceDataDir string) string {
+	return sourceDataDir + "_old"
+}
