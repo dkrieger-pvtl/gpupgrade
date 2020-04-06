@@ -75,24 +75,24 @@ func (mr *MockAgentClientMockRecorder) UpgradePrimaries(ctx, in interface{}, opt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpgradePrimaries", reflect.TypeOf((*MockAgentClient)(nil).UpgradePrimaries), varargs...)
 }
 
-// RenameDirectories mocks base method
-func (m *MockAgentClient) RenameDirectories(ctx context.Context, in *idl.RenameDirectoriesRequest, opts ...grpc.CallOption) (*idl.RenameDirectoriesReply, error) {
+// RenameDataDirectories mocks base method
+func (m *MockAgentClient) RenameDataDirectories(ctx context.Context, in *idl.RenameDataDirectoriesRequest, opts ...grpc.CallOption) (*idl.RenameDataDirectoriesReply, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx, in}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "RenameDirectories", varargs...)
-	ret0, _ := ret[0].(*idl.RenameDirectoriesReply)
+	ret := m.ctrl.Call(m, "RenameDataDirectories", varargs...)
+	ret0, _ := ret[0].(*idl.RenameDataDirectoriesReply)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// RenameDirectories indicates an expected call of RenameDirectories
-func (mr *MockAgentClientMockRecorder) RenameDirectories(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+// RenameDataDirectories indicates an expected call of RenameDataDirectories
+func (mr *MockAgentClientMockRecorder) RenameDataDirectories(ctx, in interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameDirectories", reflect.TypeOf((*MockAgentClient)(nil).RenameDirectories), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameDataDirectories", reflect.TypeOf((*MockAgentClient)(nil).RenameDataDirectories), varargs...)
 }
 
 // StopAgent mocks base method
@@ -133,6 +133,26 @@ func (mr *MockAgentClientMockRecorder) DeleteDirectories(ctx, in interface{}, op
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDirectories", reflect.TypeOf((*MockAgentClient)(nil).DeleteDirectories), varargs...)
+}
+
+// CreateFiles mocks base method
+func (m *MockAgentClient) CreateFiles(ctx context.Context, in *idl.CreateFilesRequest, opts ...grpc.CallOption) (*idl.CreateFilesReply, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CreateFiles", varargs...)
+	ret0, _ := ret[0].(*idl.CreateFilesReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateFiles indicates an expected call of CreateFiles
+func (mr *MockAgentClientMockRecorder) CreateFiles(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFiles", reflect.TypeOf((*MockAgentClient)(nil).CreateFiles), varargs...)
 }
 
 // MockAgentServer is a mock of AgentServer interface
@@ -188,19 +208,19 @@ func (mr *MockAgentServerMockRecorder) UpgradePrimaries(arg0, arg1 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpgradePrimaries", reflect.TypeOf((*MockAgentServer)(nil).UpgradePrimaries), arg0, arg1)
 }
 
-// RenameDirectories mocks base method
-func (m *MockAgentServer) RenameDirectories(arg0 context.Context, arg1 *idl.RenameDirectoriesRequest) (*idl.RenameDirectoriesReply, error) {
+// RenameDataDirectories mocks base method
+func (m *MockAgentServer) RenameDataDirectories(arg0 context.Context, arg1 *idl.RenameDataDirectoriesRequest) (*idl.RenameDataDirectoriesReply, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RenameDirectories", arg0, arg1)
-	ret0, _ := ret[0].(*idl.RenameDirectoriesReply)
+	ret := m.ctrl.Call(m, "RenameDataDirectories", arg0, arg1)
+	ret0, _ := ret[0].(*idl.RenameDataDirectoriesReply)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// RenameDirectories indicates an expected call of RenameDirectories
-func (mr *MockAgentServerMockRecorder) RenameDirectories(arg0, arg1 interface{}) *gomock.Call {
+// RenameDataDirectories indicates an expected call of RenameDataDirectories
+func (mr *MockAgentServerMockRecorder) RenameDataDirectories(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameDirectories", reflect.TypeOf((*MockAgentServer)(nil).RenameDirectories), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenameDataDirectories", reflect.TypeOf((*MockAgentServer)(nil).RenameDataDirectories), arg0, arg1)
 }
 
 // StopAgent mocks base method
@@ -231,4 +251,19 @@ func (m *MockAgentServer) DeleteDirectories(arg0 context.Context, arg1 *idl.Dele
 func (mr *MockAgentServerMockRecorder) DeleteDirectories(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDirectories", reflect.TypeOf((*MockAgentServer)(nil).DeleteDirectories), arg0, arg1)
+}
+
+// CreateFiles mocks base method
+func (m *MockAgentServer) CreateFiles(arg0 context.Context, arg1 *idl.CreateFilesRequest) (*idl.CreateFilesReply, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateFiles", arg0, arg1)
+	ret0, _ := ret[0].(*idl.CreateFilesReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateFiles indicates an expected call of CreateFiles
+func (mr *MockAgentServerMockRecorder) CreateFiles(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFiles", reflect.TypeOf((*MockAgentServer)(nil).CreateFiles), arg0, arg1)
 }

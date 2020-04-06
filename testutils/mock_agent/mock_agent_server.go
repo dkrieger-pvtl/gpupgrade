@@ -80,14 +80,19 @@ func (m *MockAgentServer) UpgradePrimaries(ctx context.Context, in *idl.UpgradeP
 	return &idl.UpgradePrimariesReply{}, err
 }
 
-func (m *MockAgentServer) RenameDirectories(context.Context, *idl.RenameDirectoriesRequest) (*idl.RenameDirectoriesReply, error) {
+func (m *MockAgentServer) RenameDataDirectories(context.Context, *idl.RenameDataDirectoriesRequest) (*idl.RenameDataDirectoriesReply, error) {
 	m.increaseCalls()
-	return &idl.RenameDirectoriesReply{}, nil
+	return &idl.RenameDataDirectoriesReply{}, nil
 }
 
 func (m *MockAgentServer) DeleteDirectories(context.Context, *idl.DeleteDirectoriesRequest) (*idl.DeleteDirectoriesReply, error) {
 	m.increaseCalls()
 	return &idl.DeleteDirectoriesReply{}, nil
+}
+
+func (m *MockAgentServer) CreateFiles(context.Context, *idl.CreateFilesRequest) (*idl.CreateFilesReply, error) {
+	m.increaseCalls()
+	return &idl.CreateFilesReply{}, nil
 }
 
 func (m *MockAgentServer) StopAgent(ctx context.Context, in *idl.StopAgentRequest) (*idl.StopAgentReply, error) {
