@@ -20,6 +20,7 @@ const OldSuffix = ".old"
 
 var PostgresFiles = []string{"postgresql.conf", "PG_VERSION"}
 var StateDirectoryFiles = []string{"config.json", "status.json"}
+var LogDirectoryFiles = []string{"gpupgrade_cli_*.log", "initialize_*.log"}
 
 // pgUpgradeDirectory returns a path to a directory underneath the state
 // directory that is to be used for storing pg_upgrade state. It does not ensure
@@ -153,6 +154,41 @@ func verifyDataDirectory(path string) error {
 
 func alreadyRenamed(archive, target string) bool {
 	return PathExists(archive) && !PathExists(target)
+}
+
+func ArchiveLogs(source, target string) error {
+	var mErr multierror.Error
+	for _, f := range LogDirectoryFiles {
+		fp := filepath.Join(source, f)
+		matches, _ := filepath.Glob(fp)
+		if len(matches) <= 0 {
+			mErr = *multierror.Append(&mErr, &InvalidLogDirectoryError{source, f})
+		}
+	}
+	if mErr.ErrorOrNil() != nil {
+		return mErr.ErrorOrNil()
+	}
+
+	return utils.System.Rename(source, target)
+}
+
+// ErrInvalidLogDirectory is returned when a data directory does not look like
+// a gpupgrade log directory, and is returned by ArchiveLogs.
+var ErrInvalidLogDirectory = errors.New("invalid log directory")
+
+// InvalidLogDirectoryError is the backing error type for
+// ErrInvalidLogDirectory.
+type InvalidLogDirectoryError struct {
+	path string
+	file string
+}
+
+func (i *InvalidLogDirectoryError) Error() string {
+	return fmt.Sprintf("%q does not look like a gpupgrade log directory. Failed to find %q", i.path, i.file)
+}
+
+func (i *InvalidLogDirectoryError) Is(err error) bool {
+	return err == ErrInvalidLogDirectory
 }
 
 func PathExists(path string) bool {

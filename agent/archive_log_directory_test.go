@@ -6,7 +6,6 @@ package agent_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/greenplum-db/gpupgrade/agent"
 	"github.com/greenplum-db/gpupgrade/idl"
-	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 func TestArchiveLogDirectories(t *testing.T) {
@@ -23,12 +21,12 @@ func TestArchiveLogDirectories(t *testing.T) {
 
 	t.Run("bubbles up errors", func(t *testing.T) {
 		expected := errors.New("permission denied")
-		utils.System.Rename = func(old, new string) error {
+
+		mockArchiveLogs := func(source, target string) error {
 			return expected
 		}
-		defer func() {
-			utils.System.Rename = os.Rename
-		}()
+		cleanup := agent.SetArchiveLogs(mockArchiveLogs)
+		defer cleanup()
 
 		_, err := server.ArchiveLogDirectory(context.Background(), &idl.ArchiveLogDirectoryRequest{})
 		if !xerrors.Is(err, expected) {
@@ -41,22 +39,21 @@ func TestArchiveLogDirectories(t *testing.T) {
 		newLogDir := "/home/gpAdmin/newlogdir"
 		calls := 0
 
-		utils.System.Rename = func(old, new string) error {
+		mockArchiveLogs := func(source, target string) error {
 			calls++
 
-			if old != oldLogDir {
-				t.Errorf("got %q want %q", old, oldLogDir)
+			if source != oldLogDir {
+				t.Errorf("got %q want %q", source, oldLogDir)
 			}
 
-			if new != newLogDir {
-				t.Errorf("got %q want %q", new, newLogDir)
+			if target != newLogDir {
+				t.Errorf("got %q want %q", target, newLogDir)
 			}
 
 			return nil
 		}
-		defer func() {
-			utils.System.Rename = os.Rename
-		}()
+		cleanup := agent.SetArchiveLogs(mockArchiveLogs)
+		defer cleanup()
 
 		_, err := server.ArchiveLogDirectory(context.Background(), &idl.ArchiveLogDirectoryRequest{OldDir: oldLogDir, NewDir: newLogDir})
 		if err != nil {

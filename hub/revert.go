@@ -38,7 +38,7 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			return err
 		}
 		newDir := filepath.Join(filepath.Dir(oldDir), utils.GetArchiveDirectoryName())
-		if err = utils.System.Rename(oldDir, newDir); err != nil {
+		if err = upgrade.ArchiveLogs(oldDir, newDir); err != nil {
 			return err
 		}
 

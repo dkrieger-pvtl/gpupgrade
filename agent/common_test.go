@@ -12,3 +12,11 @@ func SetDeleteDirectories(mockDeleteDirectories func([]string, []string, string,
 		deleteDirectories = original
 	}
 }
+
+func SetArchiveLogs(mockArchiveLogs func(string, string) error) func() {
+	original := archiveLogs
+	archiveLogs = mockArchiveLogs
+	return func() {
+		archiveLogs = original
+	}
+}
