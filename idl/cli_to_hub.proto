@@ -76,6 +76,7 @@ enum Substep {
     STOP_HUB_AND_AGENTS = 27;
     DELETE_MASTER_STATEDIR = 28;
     ARCHIVE_LOG_DIRECTORIES = 29;
+    START_SOURCE_CLUSTER = 30;
 }
 
 enum Status {

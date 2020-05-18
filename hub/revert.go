@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"golang.org/x/xerrors"
+
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 
@@ -31,6 +33,20 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			gplog.Error(fmt.Sprintf("revert: %s", err))
 		}
 	}()
+
+	// Since revert needs to work at any point, and stop is not yet idempotent
+	// check if the cluster is running before stopping.
+	// TODO: This will fail if the target does not exist which can occur when
+	//  initialize fails to create the target cluster and revert is called.
+	if s.Target.IsPostmasterRunning(st.GetStream()) {
+		// FIXME: Change this to st.Run after merging in PR #334
+		st.AlwaysRun(idl.Substep_SHUTDOWN_TARGET_CLUSTER, func(streams step.OutStreams) error {
+			if err := s.Target.Stop(streams); err != nil {
+				return xerrors.Errorf("stop target cluster: %w", err)
+			}
+			return nil
+		})
+	}
 
 	if len(s.Config.Target.Primaries) > 0 {
 		st.Run(idl.Substep_DELETE_PRIMARY_DATADIRS, func(_ step.OutStreams) error {
@@ -62,6 +78,17 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	st.Run(idl.Substep_DELETE_SEGMENT_STATEDIRS, func(_ step.OutStreams) error {
 		return DeleteStateDirectories(s.agentConns, s.Source.MasterHostname())
 	})
+
+	// Since revert needs to work at any point, and start is not yet idempotent
+	// check if the cluster is not running before starting.
+	if !s.Source.IsPostmasterRunning(st.GetStream()) {
+		st.Run(idl.Substep_START_SOURCE_CLUSTER, func(streams step.OutStreams) error {
+			if err := s.Source.Start(streams); err != nil {
+				return xerrors.Errorf("start source cluster: %w", err)
+			}
+			return nil
+		})
+	}
 
 	return st.Err()
 }
