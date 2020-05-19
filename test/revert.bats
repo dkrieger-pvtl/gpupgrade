@@ -53,8 +53,10 @@ setup() {
         exit 1
     fi
 
-    # check that archive directory has been created
-    [ -d "$HOME/gpAdminLogs/gpupgrade-"* ] || fail "expected directory matching $HOME/gpAdminLogs/gpupgrade-* to be created"
+    # check that the archived log directory was created within the last 3 minutes
+    if [[ -z $(find "${HOME}/gpAdminLogs/gpupgrade-"* -type d -cmin -3) ]]; then
+        fail "expected the log directory to be archived and match ${HOME}/gpAdminLogs/gpupgrade-*"
+    fi
 }
 
 @test "after execute revert stops the target cluster and starts the source cluster" {
