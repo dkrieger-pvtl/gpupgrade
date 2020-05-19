@@ -53,8 +53,9 @@ setup() {
         exit 1
     fi
 
-    # check that archive directory has been created
-    [ -d "$HOME/gpAdminLogs/gpupgrade-"* ] || fail "expected directory matching $HOME/gpAdminLogs/gpupgrade-* to be created"
+    # check that archive directory has been created within the last 3 minutes
+    NUM_ARCHIVE_DIRS=$(find ${HOME}/gpAdminLogs -type d  -cmin -3 | grep gpupgrade- | wc -l)
+    [ "${NUM_ARCHIVE_DIRS}" -gt 0 ] || fail "expected directory matching $HOME/gpAdminLogs/gpupgrade-* to be created"
 }
 
 @test "after execute revert stops the target cluster and starts the source cluster" {
