@@ -4,7 +4,11 @@
 package hub
 
 import (
+	"fmt"
 	"path/filepath"
+
+	"github.com/greenplum-db/gp-common-go-libs/gplog"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
@@ -17,6 +21,16 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		if ferr := st.Finish(); ferr != nil {
+			err = multierror.Append(err, ferr).ErrorOrNil()
+		}
+
+		if err != nil {
+			gplog.Error(fmt.Sprintf("revert: %s", err))
+		}
+	}()
 
 	if len(s.Config.Target.Primaries) > 0 {
 		st.Run(idl.Substep_DELETE_PRIMARY_DATADIRS, func(_ step.OutStreams) error {
