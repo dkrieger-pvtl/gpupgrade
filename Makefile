@@ -103,7 +103,7 @@ install:
 installcheck:
 		@echo "--------------------------------------------------------------"
 		@echo "# FIXME: Make, if run in parallel, hangs after test completes."
-		./installcheck.bats
+		./test/installcheck.bats
 
 # To lint, you must install golangci-lint via one of the supported methods
 # listed at
