@@ -38,11 +38,12 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			return err
 		}
 		newDir := filepath.Join(filepath.Dir(oldDir), utils.GetArchiveDirectoryName())
-		if err = upgrade.ArchiveLogs(oldDir, newDir); err != nil {
+		err = utils.System.Rename(oldDir, newDir)
+		if err != nil {
 			return err
 		}
 
-		return ArchiveSegmentLogDirectories(s.agentConns, s.Config.Target.MasterHostname(), newDir, oldDir)
+		return ArchiveSegmentLogDirectories(s.agentConns, s.Config.Target.MasterHostname(), newDir)
 	})
 
 	st.Run(idl.Substep_DELETE_SEGMENT_STATEDIRS, func(_ step.OutStreams) error {

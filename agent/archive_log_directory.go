@@ -9,14 +9,17 @@ import (
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 
 	"github.com/greenplum-db/gpupgrade/idl"
-	"github.com/greenplum-db/gpupgrade/upgrade"
+	"github.com/greenplum-db/gpupgrade/utils"
 )
-
-var archiveLogs = upgrade.ArchiveLogs
 
 func (s *Server) ArchiveLogDirectory(ctx context.Context, in *idl.ArchiveLogDirectoryRequest) (*idl.ArchiveLogDirectoryReply, error) {
 	gplog.Info("agent starting %s", idl.Substep_ARCHIVE_LOG_DIRECTORIES)
 
-	err := archiveLogs(in.GetOldDir(), in.GetNewDir())
+	logdir, err := utils.GetLogDir()
+	if err != nil {
+		return &idl.ArchiveLogDirectoryReply{}, err
+	}
+
+	err = utils.System.Rename(logdir, in.GetNewDir())
 	return &idl.ArchiveLogDirectoryReply{}, err
 }
