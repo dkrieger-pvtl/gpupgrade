@@ -276,14 +276,13 @@ func (c *Cluster) Start(stream OutStreams) error {
 }
 
 func (c *Cluster) Stop(stream OutStreams) error {
-	// TODO: why can't we call isPostmasterRunning for the !stop case?  If we do, we get this on the pipeline:
+	// TODO: why can't we call IsPostmasterRunning for the !stop case?  If we do, we get this on the pipeline:
 	// Usage: pgrep [-flvx] [-d DELIM] [-n|-o] [-P PPIDLIST] [-g PGRPLIST] [-s SIDLIST]
 	// [-u EUIDLIST] [-U UIDLIST] [-G GIDLIST] [-t TERMLIST] [PATTERN]
 	//  pgrep: pidfile not valid
 	// TODO: should we actually return an error if we try to gpstop an already stopped cluster?
-	err := isPostmasterRunning(stream, c.MasterDataDir())
-	if err != nil {
-		return err
+	if !c.IsPostmasterRunning(stream) {
+		return errors.New("master is already stopped")
 	}
 
 	return runStartStopCmd(stream, c.BinDir, fmt.Sprintf("gpstop -a -d %[1]s", c.MasterDataDir()))
@@ -294,14 +293,13 @@ func (c *Cluster) StartMasterOnly(stream OutStreams) error {
 }
 
 func (c *Cluster) StopMasterOnly(stream OutStreams) error {
-	// TODO: why can't we call isPostmasterRunning for the !stop case?  If we do, we get this on the pipeline:
+	// TODO: why can't we call IsPostmasterRunning for the !stop case?  If we do, we get this on the pipeline:
 	// Usage: pgrep [-flvx] [-d DELIM] [-n|-o] [-P PPIDLIST] [-g PGRPLIST] [-s SIDLIST]
 	// [-u EUIDLIST] [-U UIDLIST] [-G GIDLIST] [-t TERMLIST] [PATTERN]
 	//  pgrep: pidfile not valid
 	// TODO: should we actually return an error if we try to gpstop an already stopped cluster?
-	err := isPostmasterRunning(stream, c.MasterDataDir())
-	if err != nil {
-		return err
+	if !c.IsPostmasterRunning(stream) {
+		return errors.New("master is already stopped")
 	}
 
 	return runStartStopCmd(stream, c.BinDir, fmt.Sprintf("gpstop -m -a -d %[1]s", c.MasterDataDir()))
@@ -319,17 +317,17 @@ func runStartStopCmd(stream OutStreams, binDir, command string) error {
 	return cmd.Run()
 }
 
-/*
- * Helper functions
- */
-func isPostmasterRunning(stream OutStreams, masterDataDir string) error {
+func (c *Cluster) IsPostmasterRunning(stream OutStreams) bool {
 	cmd := isPostmasterRunningCmd("bash", "-c",
 		fmt.Sprintf("pgrep -F %s/postmaster.pid",
-			masterDataDir,
+			c.MasterDataDir(),
 		))
 
 	cmd.Stdout = stream.Stdout()
 	cmd.Stderr = stream.Stderr()
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
 }

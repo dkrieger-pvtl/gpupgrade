@@ -70,7 +70,7 @@ func TestStartOrStopCluster(t *testing.T) {
 		isPostmasterRunningCmd = exec.Command
 	}()
 
-	t.Run("isPostmasterRunning succeeds", func(t *testing.T) {
+	t.Run("IsPostmasterRunning succeeds", func(t *testing.T) {
 		isPostmasterRunningCmd = exectest.NewCommandWithVerifier(IsPostmasterRunningCmd,
 			func(path string, args ...string) {
 				if path != "bash" {
@@ -83,18 +83,16 @@ func TestStartOrStopCluster(t *testing.T) {
 				}
 			})
 
-		err := isPostmasterRunning(utils.DevNull, source.MasterDataDir())
-		if err != nil {
-			t.Errorf("unexpected error %#v", err)
+		if !source.IsPostmasterRunning(utils.DevNull) {
+			t.Error("expected postmaster to be running")
 		}
 	})
 
-	t.Run("isPostmasterRunning fails", func(t *testing.T) {
+	t.Run("IsPostmasterRunning fails", func(t *testing.T) {
 		isPostmasterRunningCmd = exectest.NewCommand(IsPostmasterRunningCmd_Errors)
 
-		err := isPostmasterRunning(utils.DevNull, source.MasterDataDir())
-		if err == nil {
-			t.Errorf("expected error %#v got nil", err)
+		if source.IsPostmasterRunning(utils.DevNull) {
+			t.Error("expected postmaster to not be running")
 		}
 	})
 
