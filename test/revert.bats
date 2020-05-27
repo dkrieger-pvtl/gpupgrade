@@ -59,7 +59,7 @@ setup() {
     fi
 }
 
-@test "after execute revert stops the target cluster and starts the source cluster" {
+@test "reverting after execute in copy mode succeeds" {
     local target_master_port=6020
 
     gpupgrade initialize \

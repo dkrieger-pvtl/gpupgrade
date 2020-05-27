@@ -90,7 +90,7 @@ func GetStatusFile(stateDir string) (path string, err error) {
 	return path, nil
 }
 
-func (s *Step) GetStream() OutStreamsCloser {
+func (s *Step) Streams() OutStreams {
 	return s.streams
 }
 
