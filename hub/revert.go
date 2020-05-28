@@ -37,7 +37,12 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	// check if the cluster is running before stopping.
 	// TODO: This will fail if the target does not exist which can occur when
 	//  initialize fails part way through and does not create the target cluster.
-	if s.Target.IsPostmasterRunning(st.Streams()) {
+	running, err := s.Target.IsMasterRunning(st.Streams())
+	if err != nil {
+		return err
+	}
+
+	if running {
 		st.Run(idl.Substep_SHUTDOWN_TARGET_CLUSTER, func(streams step.OutStreams) error {
 			if err := s.Target.Stop(streams); err != nil {
 				return xerrors.Errorf("stopping target cluster: %w", err)
@@ -79,7 +84,12 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 
 	// Since revert needs to work at any point, and start is not yet idempotent
 	// check if the cluster is not running before starting.
-	if !s.Source.IsPostmasterRunning(st.Streams()) {
+	running, err = s.Source.IsMasterRunning(st.Streams())
+	if err != nil {
+		return err
+	}
+
+	if !running {
 		st.Run(idl.Substep_START_SOURCE_CLUSTER, func(streams step.OutStreams) error {
 			if err := s.Source.Start(streams); err != nil {
 				return xerrors.Errorf("starting source cluster: %w", err)
