@@ -65,11 +65,8 @@ setup() {
 
     gpupgrade revert --verbose
 
-    run $PSQL postgres -c "SELECT 1;"
-    [ "$status" -eq 0 ] || fail "expected source cluster to be running on port ${PGPORT}"
-
-    run $PSQL postgres -p ${target_master_port} -c "SELECT 1;"
-    [ "$status" -ne 0 ] || fail "expected target cluster to not be running on port ${target_master_port}"
+    pg_isready -q || fail "expected source cluster to be running on port ${PGPORT}"
+    pg_isready -qp ${target_master_port} || fail "expected target cluster to not be running on port ${target_master_port}"
 }
 
 @test "can successfully run gpupgrade after a revert" {
