@@ -39,6 +39,7 @@ import (
 	"time"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -310,6 +311,7 @@ func version() *cobra.Command {
 //
 
 func initialize() *cobra.Command {
+	var file string
 	var sourceBinDir, targetBinDir string
 	var sourcePort int
 	var hubPort int
@@ -324,7 +326,42 @@ func initialize() *cobra.Command {
 		Use:   "initialize",
 		Short: "prepare the system for upgrade",
 		Long:  InitializeHelp,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Mark the required flags when the file flag is not used.
+			if !cmd.Flag("file").Changed {
+				cmd.MarkFlagRequired("source-bindir")      //nolint
+				cmd.MarkFlagRequired("target-bindir")      //nolint
+				cmd.MarkFlagRequired("source-master-port") //nolint
+			}
+
+			// If the file flag is used check that no other flags are specified.
+			if cmd.Flag("file").Changed {
+				var err error
+				cmd.Flags().Visit(func(flag *pflag.Flag) {
+					if flag.Name != "file" {
+						err = errors.New("--file cannot be used with any other flag")
+					}
+				})
+				return err
+			}
+
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			configFile, err := os.Open(file)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if cErr := configFile.Close(); cErr != nil {
+					err = multierror.Append(err, cErr)
+				}
+			}()
+
+			err = ParseConfig(cmd, configFile)
+			if err != nil {
+				return err
+			}
 
 			linkMode, err := isLinkMode(mode)
 			if err != nil {
@@ -418,12 +455,10 @@ After executing, you will need to finalize.`)
 		},
 	}
 
+	subInit.Flags().StringVarP(&file, "file", "f", "", "gpupgrade_config file")
 	subInit.Flags().StringVar(&sourceBinDir, "source-bindir", "", "install directory for source gpdb version")
-	subInit.MarkFlagRequired("source-bindir") //nolint
 	subInit.Flags().StringVar(&targetBinDir, "target-bindir", "", "install directory for target gpdb version")
-	subInit.MarkFlagRequired("target-bindir") //nolint
 	subInit.Flags().IntVar(&sourcePort, "source-master-port", 0, "master port for source gpdb cluster")
-	subInit.MarkFlagRequired("source-master-port") //nolint
 	subInit.Flags().IntVar(&hubPort, "hub-port", upgrade.DefaultHubPort, "the port gpupgrade hub uses to listen for commands on")
 	subInit.Flags().IntVar(&agentPort, "agent-port", upgrade.DefaultAgentPort, "the port gpupgrade agent uses to listen for commands on")
 	subInit.Flags().BoolVar(&stopBeforeClusterCreation, "stop-before-cluster-creation", false, "only run up to pre-init")
