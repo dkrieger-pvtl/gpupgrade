@@ -175,6 +175,26 @@ func (mr *MockAgentClientMockRecorder) ArchiveLogDirectory(ctx, in interface{}, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveLogDirectory", reflect.TypeOf((*MockAgentClient)(nil).ArchiveLogDirectory), varargs...)
 }
 
+// RsyncDataDirectory mocks base method
+func (m *MockAgentClient) RsyncDataDirectory(ctx context.Context, in *idl.RsyncDataDirectoryRequest, opts ...grpc.CallOption) (*idl.RsyncDataDirectoryReply, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "RsyncDataDirectory", varargs...)
+	ret0, _ := ret[0].(*idl.RsyncDataDirectoryReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RsyncDataDirectory indicates an expected call of RsyncDataDirectory
+func (mr *MockAgentClientMockRecorder) RsyncDataDirectory(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RsyncDataDirectory", reflect.TypeOf((*MockAgentClient)(nil).RsyncDataDirectory), varargs...)
+}
+
 // MockAgentServer is a mock of AgentServer interface
 type MockAgentServer struct {
 	ctrl     *gomock.Controller
@@ -301,4 +321,19 @@ func (m *MockAgentServer) ArchiveLogDirectory(arg0 context.Context, arg1 *idl.Ar
 func (mr *MockAgentServerMockRecorder) ArchiveLogDirectory(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveLogDirectory", reflect.TypeOf((*MockAgentServer)(nil).ArchiveLogDirectory), arg0, arg1)
+}
+
+// RsyncDataDirectory mocks base method
+func (m *MockAgentServer) RsyncDataDirectory(arg0 context.Context, arg1 *idl.RsyncDataDirectoryRequest) (*idl.RsyncDataDirectoryReply, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RsyncDataDirectory", arg0, arg1)
+	ret0, _ := ret[0].(*idl.RsyncDataDirectoryReply)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RsyncDataDirectory indicates an expected call of RsyncDataDirectory
+func (mr *MockAgentServerMockRecorder) RsyncDataDirectory(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RsyncDataDirectory", reflect.TypeOf((*MockAgentServer)(nil).RsyncDataDirectory), arg0, arg1)
 }
