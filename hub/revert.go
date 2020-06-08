@@ -4,6 +4,7 @@
 package hub
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -34,6 +35,11 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 		}
 	}()
 
+	// TODO: get design input on this message
+	if !s.Source.HasAllMirrorsAndStandby() {
+		return errors.New("gpupgrade revert is only supported for clusters with all mirrors and a standby")
+	}
+
 	// Since revert needs to work at any point, and stop is not yet idempotent
 	// check if the cluster is running before stopping.
 	// TODO: This will fail if the target does not exist which can occur when
@@ -52,6 +58,16 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 		})
 	}
 
+	// This substep needs to be conditionalized on the status of the upgrade; it depends on how far execute
+	//   ran; see "Reverting to old cluster" in https://www.postgresql.org/docs/9.4/pgupgrade.html.
+	// For now, we only handle revert after initialize or execute fully succeeds.
+	// We do this in link and copy mode due to the recoverseg bug
+	st.Run(idl.Substep_RESTORE_SOURCE_MASTER_AND_PRIMARIES, func(stream step.OutStreams) error {
+		return RestoreMasterAndPrimaries(stream, s.Source, s.agentConns)
+	})
+
+	// we no longer need the target cluster after revent.
+	// Note deleting hard-linked files just lowers the refcount from 2 to 1.
 	if len(s.Config.Target.Primaries) > 0 {
 		st.Run(idl.Substep_DELETE_PRIMARY_DATADIRS, func(_ step.OutStreams) error {
 			return DeletePrimaryDataDirectories(s.agentConns, s.Config.Target)
