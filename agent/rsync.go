@@ -4,6 +4,7 @@
 package agent
 
 import (
+	"os"
 	"os/exec"
 
 	"golang.org/x/xerrors"
@@ -19,13 +20,21 @@ func (e RsyncError) Error() string {
 	return e.errorText
 }
 
-func Rsync(sourceDir, targetDir string, excludedFiles []string) error {
-	arguments := append([]string{
-		"--archive", "--delete",
-		sourceDir + "/", targetDir,
-	}, makeExclusionList(excludedFiles)...)
+// todo: capture stdout...
+func Rsync(src, dstHost, dst string, options []string, excludedFiles []string) error {
+	dstFull := dst
+	if dstHost != "" {
+		dstFull = dstHost + ":" + dst
+	}
 
-	if _, err := rsyncCommand("rsync", arguments...).Output(); err != nil {
+	// TODO: upgrade_primaries_test.go relies on this order of arguments(!)
+	var args []string
+	args = append(args, options...)
+	args = append(args, src+string(os.PathSeparator)) // the trailing path separator is critical for rsync
+	args = append(args, dstFull)
+	args = append(args, makeExclusionList(excludedFiles)...)
+
+	if _, err := rsyncCommand("rsync", args...).Output(); err != nil {
 		return RsyncError{
 			errorText: extractTextFromError(err),
 		}

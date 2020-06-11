@@ -27,6 +27,8 @@ func writeToFile(filepath string, contents []byte, t *testing.T) {
 }
 
 func TestRsync(t *testing.T) {
+	localHost := ""
+
 	if _, err := exec.LookPath("rsync"); err != nil {
 		t.Skipf("tests require rsync (%v)", err)
 	}
@@ -45,7 +47,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "hi"), []byte("hi"), t)
 
-		if err := agent.Rsync(sourceDir, targetDir, []string{}); err != nil {
+		if err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -67,7 +69,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(targetDir, "target-file-that-should-get-removed"), []byte("goodbye"), t)
 
-		if err := agent.Rsync(sourceDir, targetDir, []string{}); err != nil {
+		if err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -87,7 +89,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "source-file-that-should-get-excluded"), []byte("goodbye"), t)
 
-		err := agent.Rsync(sourceDir, targetDir, []string{"source-file-that-should-get-excluded"})
+		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{"source-file-that-should-get-excluded"})
 		if err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
@@ -110,7 +112,7 @@ func TestRsync(t *testing.T) {
 		writeToFile(filepath.Join(targetDir, "target-file-that-should-get-ignored"), []byte("i'm still here"), t)
 		writeToFile(filepath.Join(targetDir, "another-target-file-that-should-get-ignored"), []byte("i'm still here"), t)
 
-		err := agent.Rsync(sourceDir, targetDir, []string{"target-file-that-should-get-ignored", "another-target-file-that-should-get-ignored"})
+		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{"target-file-that-should-get-ignored", "another-target-file-that-should-get-ignored"})
 		if err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
@@ -143,7 +145,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
 
-		err := agent.Rsync(sourceDir, targetDir, []string{""})
+		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{""})
 
 		var rsyncError agent.RsyncError
 
@@ -169,7 +171,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
 
-		err := agent.Rsync(sourceDir, targetDir, []string{""})
+		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{""})
 
 		var rsyncError agent.RsyncError
 
