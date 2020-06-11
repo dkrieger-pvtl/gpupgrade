@@ -79,7 +79,7 @@ func restoreBackup(request *idl.UpgradePrimariesRequest, segment Segment) error 
 		return nil
 	}
 
-	return Rsync(request.MasterBackupDir, segment.TargetDataDir, []string{
+	return Rsync(request.MasterBackupDir, "", segment.TargetDataDir, []string{"--archive", "--delete"}, []string{
 		"internal.auto.conf",
 		"postgresql.conf",
 		"pg_hba.conf",
@@ -102,7 +102,7 @@ func RestoreTablespaces(request *idl.UpgradePrimariesRequest, segment Segment) e
 
 		targetDir := greenplum.GetTablespaceLocationForDbId(tablespace, int(segment.DBID))
 		sourceDir := greenplum.GetMasterTablespaceLocation(filepath.Dir(request.TablespacesMappingFilePath), int(oid))
-		if err := Rsync(sourceDir, targetDir, nil); err != nil {
+		if err := Rsync(sourceDir, "", targetDir, []string{"--archive", "--delete"}, nil); err != nil {
 			return xerrors.Errorf("rsync master tablespace directory to segment tablespace directory: %w", err)
 		}
 
