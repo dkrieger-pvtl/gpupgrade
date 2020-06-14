@@ -1,7 +1,7 @@
 // Copyright (c) 2017-2020 VMware, Inc. or its affiliates
 // SPDX-License-Identifier: Apache-2.0
 
-package agent_test
+package rsync_test
 
 import (
 	"bytes"
@@ -14,8 +14,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/greenplum-db/gpupgrade/agent"
 	"github.com/greenplum-db/gpupgrade/testutils"
+	"github.com/greenplum-db/gpupgrade/utils/rsync"
 )
 
 func writeToFile(filepath string, contents []byte, t *testing.T) {
@@ -35,8 +35,8 @@ func TestRsync(t *testing.T) {
 
 	// These are "live" integration tests. Plug exec.Command back into the
 	// system.
-	agent.SetRsyncCommand(exec.Command)
-	defer func() { agent.SetRsyncCommand(nil) }()
+	rsync.SetRsyncCommand(exec.Command)
+	defer func() { rsync.SetRsyncCommand(nil) }()
 
 	t.Run("it copies data from a source directory to a target directory", func(t *testing.T) {
 		sourceDir := testutils.GetTempDir(t, "rsync-source")
@@ -47,7 +47,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "hi"), []byte("hi"), t)
 
-		if err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
+		if err := rsync.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -69,7 +69,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(targetDir, "target-file-that-should-get-removed"), []byte("goodbye"), t)
 
-		if err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
+		if err := rsync.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -89,7 +89,7 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "source-file-that-should-get-excluded"), []byte("goodbye"), t)
 
-		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{"source-file-that-should-get-excluded"})
+		err := rsync.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{"source-file-that-should-get-excluded"})
 		if err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
@@ -112,7 +112,7 @@ func TestRsync(t *testing.T) {
 		writeToFile(filepath.Join(targetDir, "target-file-that-should-get-ignored"), []byte("i'm still here"), t)
 		writeToFile(filepath.Join(targetDir, "another-target-file-that-should-get-ignored"), []byte("i'm still here"), t)
 
-		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{"target-file-that-should-get-ignored", "another-target-file-that-should-get-ignored"})
+		err := rsync.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{"target-file-that-should-get-ignored", "another-target-file-that-should-get-ignored"})
 		if err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
@@ -145,9 +145,9 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
 
-		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{""})
+		err := rsync.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{""})
 
-		var rsyncError agent.RsyncError
+		var rsyncError rsync.RsyncError
 
 		if !xerrors.As(err, &rsyncError) {
 			t.Errorf("got error %#v, wanted type %T", err, rsyncError)
@@ -171,9 +171,9 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
 
-		err := agent.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{""})
+		err := rsync.Rsync(sourceDir, localHost, targetDir, []string{"--archive", "--delete"}, []string{""})
 
-		var rsyncError agent.RsyncError
+		var rsyncError rsync.RsyncError
 
 		if !xerrors.As(err, &rsyncError) {
 			t.Errorf("got error %#v, wanted type %T", err, rsyncError)
