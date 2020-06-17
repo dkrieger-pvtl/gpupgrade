@@ -96,6 +96,7 @@ remove_table() {
 }
 
 @test "reverting after execute in link mode succeeds" {
+      skip "skipping during dev"
     local target_master_port=6020
     local old_segconfig
     local new_segconfig
@@ -172,6 +173,70 @@ remove_table() {
         --source-master-port="${PGPORT}" \
         --temp-port-range 6020-6040 \
         --disk-free-ratio 0 \
+        --verbose 3>&-
+
+    gpupgrade execute --verbose
+
+    # This last revert is used for test cleanup.
+    gpupgrade revert --verbose
+}
+
+@test "can successfully run gpupgrade after a revert in link mode" {
+    # TODO: make sure this is a 5 cluster
+
+    # create a filespace ....
+
+    local FILESPACE_ROOT=`mktemp -d /tmp/gpupgrade.XXXXXX`
+    for dir in master primary1 primary2 primary3 mirror1 mirror2 mirror3; do
+      mkdir -p ${FILESPACE_ROOT}/${dir}
+    done
+
+    local HOSTNAME=`hostname`
+    cat <<EOF > "${FILESPACE_ROOT}/filespace.txt"
+filespace:myfs
+${HOSTNAME}:1:${FILESPACE_ROOT}/master/demoDataDir-1
+${HOSTNAME}:2:${FILESPACE_ROOT}/primary1/demoDataDir0
+${HOSTNAME}:3:${FILESPACE_ROOT}/primary2/demoDataDir1
+${HOSTNAME}:4:${FILESPACE_ROOT}/primary3/demoDataDir2
+${HOSTNAME}:5:${FILESPACE_ROOT}/mirror1/demoDataDir0
+${HOSTNAME}:6:${FILESPACE_ROOT}/mirror2/demoDataDir1
+${HOSTNAME}:7:${FILESPACE_ROOT}/mirror3/demoDataDir2
+${HOSTNAME}:8:${FILESPACE_ROOT}/master/standby
+EOF
+
+    psql -d postgres -c "DROP TABLE IF EXISTS bats;"
+    psql -d postgres -c "DROP TABLESPACE IF EXISTS tbsp;"
+    psql -d postgres -c "DROP FILESPACE IF EXISTS myfs;"
+
+    gpfilespace -c ${FILESPACE_ROOT}/filespace.txt
+
+    psql -d postgres -c "CREATE TABLESPACE tbsp FILESPACE myfs;"
+    psql -d postgres -c "CREATE TABLE bats(a int) TABLESPACE tbsp;"
+    psql -d postgres -c "INSERT INTO bats SELECT i from generate_series(1,100)i;"
+
+    local GPHOME_SOURCE=/usr/local/gpdb5
+    local GPHOME_TARGET=/usr/local/gpdb6
+
+    gpupgrade initialize \
+        --source-bindir="${GPHOME_SOURCE}/bin" \
+        --target-bindir="${GPHOME_TARGET}/bin" \
+        --source-master-port="${PGPORT}" \
+        --temp-port-range 6020-6040 \
+        --disk-free-ratio 0 \
+        --mode link \
+        --verbose 3>&-
+
+    gpupgrade execute --verbose
+
+    gpupgrade revert --verbose
+
+    gpupgrade initialize \
+        --source-bindir="${GPHOME_SOURCE}/bin" \
+        --target-bindir="${GPHOME_TARGET}/bin" \
+        --source-master-port="${PGPORT}" \
+        --temp-port-range 6020-6040 \
+        --disk-free-ratio 0 \
+        --mode link \
         --verbose 3>&-
 
     gpupgrade execute --verbose
