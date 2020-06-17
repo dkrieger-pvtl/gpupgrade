@@ -159,3 +159,138 @@ teardown() {
     # This last revert is used for test cleanup.
     gpupgrade revert --verbose
 }
+
+# TODO: this currently falis as we do not recover the source tablespaces on revert yet
+#  error: table batsTable truncated after execute was not reverted: got 0 rows want 3
+@test "reverting after execute in link mode succeeds with a tablespace" {
+    if ! is_GPDB5 "$GPHOME_SOURCE"; then
+      skip "only runs on a GPDB5 source cluster"
+    fi
+
+    local target_master_port=6020
+
+   # create a filespace ....
+    local FILESPACE_ROOT=`mktemp -d /tmp/gpupgrade.XXXXXX`
+    for dir in master primary1 primary2 primary3 mirror1 mirror2 mirror3; do
+      mkdir -p ${FILESPACE_ROOT}/${dir}
+    done
+
+    local HOSTNAME=`hostname`
+    cat <<EOF > "${FILESPACE_ROOT}/filespace.txt"
+filespace:batsFS
+${HOSTNAME}:1:${FILESPACE_ROOT}/master/demoDataDir-1
+${HOSTNAME}:2:${FILESPACE_ROOT}/primary1/demoDataDir0
+${HOSTNAME}:3:${FILESPACE_ROOT}/primary2/demoDataDir1
+${HOSTNAME}:4:${FILESPACE_ROOT}/primary3/demoDataDir2
+${HOSTNAME}:5:${FILESPACE_ROOT}/mirror1/demoDataDir0
+${HOSTNAME}:6:${FILESPACE_ROOT}/mirror2/demoDataDir1
+${HOSTNAME}:7:${FILESPACE_ROOT}/mirror3/demoDataDir2
+${HOSTNAME}:8:${FILESPACE_ROOT}/master/standby
+EOF
+
+    psql -d postgres -c "DROP TABLE IF EXISTS batsTable;"
+    psql -d postgres -c "DROP TABLESPACE IF EXISTS batsTbsp;"
+    psql -d postgres -c "DROP FILESPACE IF EXISTS batsFS;"
+
+    gpfilespace -c ${FILESPACE_ROOT}/filespace.txt
+
+    psql -d postgres -c "CREATE TABLESPACE batsTbsp FILESPACE batsFS;"
+    psql -d postgres -c "CREATE TABLE batsTable(a int) TABLESPACE batsTbsp;"
+    psql -d postgres -c "INSERT INTO batsTable SELECT i from generate_series(1,5)i;"
+
+
+    gpupgrade initialize \
+        --source-bindir="$GPHOME_SOURCE/bin" \
+        --target-bindir="$GPHOME_TARGET/bin" \
+        --source-master-port="${PGPORT}" \
+        --temp-port-range ${target_master_port}-6040 \
+        --disk-free-ratio 0 \
+        --mode link \
+        --verbose 3>&-
+    gpupgrade execute --verbose
+
+    # Modify the table on the target cluster
+    $PSQL -p $target_master_port postgres -c "TRUNCATE batsTable"
+
+    # Revert
+    gpupgrade revert --verbose
+
+    # Check that transactions can be started on the source
+    $PSQL postgres --single-transaction -c "SELECT version()" || fail "unable to start transaction"
+
+    # Verify the table modifications were reverted
+    local row_count=$($PSQL postgres -Atc "SELECT COUNT(*) FROM batsTable")
+    if (( row_count != 5 )); then
+        fail "table batsTable truncated after execute was not reverted: got $row_count rows want 3"
+    fi
+}
+
+# TODO This test currently fails as we do not delete the target directory tablespaces
+#   Upgrading master...                                                [FAILED]
+#   This is on the second execute...as the tablespace exists.  By hand, the error looks like:
+# psql:pg_upgrade_dump_globals.sql:32: ERROR:  directory "/tmp/fs/m/demoDataDir-1/16385/1/GPDB_6_301908232"
+# already in use as a tablespace
+@test "can successful re-run gpupgrade after revert with a tablespace" {
+    if ! is_GPDB5 "$GPHOME_SOURCE"; then
+      skip "only runs on a GPDB5 source cluster"
+    fi
+
+    # create a filespace ....
+    local FILESPACE_ROOT=`mktemp -d /tmp/gpupgrade.XXXXXX`
+    for dir in master primary1 primary2 primary3 mirror1 mirror2 mirror3; do
+      mkdir -p ${FILESPACE_ROOT}/${dir}
+    done
+
+    local HOSTNAME=`hostname`
+    cat <<EOF > "${FILESPACE_ROOT}/filespace.txt"
+filespace:batsFS
+${HOSTNAME}:1:${FILESPACE_ROOT}/master/demoDataDir-1
+${HOSTNAME}:2:${FILESPACE_ROOT}/primary1/demoDataDir0
+${HOSTNAME}:3:${FILESPACE_ROOT}/primary2/demoDataDir1
+${HOSTNAME}:4:${FILESPACE_ROOT}/primary3/demoDataDir2
+${HOSTNAME}:5:${FILESPACE_ROOT}/mirror1/demoDataDir0
+${HOSTNAME}:6:${FILESPACE_ROOT}/mirror2/demoDataDir1
+${HOSTNAME}:7:${FILESPACE_ROOT}/mirror3/demoDataDir2
+${HOSTNAME}:8:${FILESPACE_ROOT}/master/standby
+EOF
+
+    psql -d postgres -c "DROP TABLE IF EXISTS batsTable;"
+    psql -d postgres -c "DROP TABLESPACE IF EXISTS batsTbsp;"
+    psql -d postgres -c "DROP FILESPACE IF EXISTS batsFS;"
+
+    gpfilespace -c ${FILESPACE_ROOT}/filespace.txt
+
+    psql -d postgres -c "CREATE TABLESPACE batsTbsp FILESPACE batsFS;"
+    psql -d postgres -c "CREATE TABLE batsTable(a int) TABLESPACE batsTbsp;"
+    psql -d postgres -c "INSERT INTO batsTable SELECT i from generate_series(1,100)i;"
+
+    gpupgrade initialize \
+        --source-bindir="${GPHOME_SOURCE}/bin" \
+        --target-bindir="${GPHOME_TARGET}/bin" \
+        --source-master-port="${PGPORT}" \
+        --temp-port-range 6020-6040 \
+        --disk-free-ratio 0 \
+        --mode link \
+        --verbose 3>&-
+
+    gpupgrade execute --verbose
+
+    # this is supposed to remove the tablepaces in the target cluster
+    # if not, the second execute below will fail
+    gpupgrade revert --verbose
+
+
+    gpupgrade initialize \
+        --source-bindir="${GPHOME_SOURCE}/bin" \
+        --target-bindir="${GPHOME_TARGET}/bin" \
+        --source-master-port="${PGPORT}" \
+        --temp-port-range 6020-6040 \
+        --disk-free-ratio 0 \
+        --mode link \
+        --verbose 3>&-
+
+    gpupgrade execute --verbose
+
+    # This last revert is used for test cleanup.
+    gpupgrade revert --verbose
+}
