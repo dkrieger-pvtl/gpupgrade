@@ -5,7 +5,6 @@ package hub
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"path/filepath"
 	"sync"
@@ -14,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/step"
+	"github.com/greenplum-db/gpupgrade/utils/rsync"
 )
 
 type Result struct {
@@ -37,21 +37,15 @@ func Copy(streams step.OutStreams, destinationDir string, sourceDirs, hosts []st
 		go func() {
 			defer wg.Done()
 
-			dest := fmt.Sprintf("%s:%s", hostname, destinationDir)
-			args := []string{"--archive", "--compress", "--delete", "--stats"}
-			args = append(args, sourceDirs...)
-			args = append(args, dest)
-			cmd := execCommand("rsync", args...)
+			options := []string{"--archive", "--compress", "--delete", "--stats"}
 
-			result := Result{}
-			cmd.Stdout = &result.stdout
-			cmd.Stderr = &result.stderr
+			streams := &step.BufferedStreams{}
 
-			err := cmd.Run()
+			err := rsync.Rsync(sourceDirs, hostname, destinationDir, options, []string{}, streams, true)
 			if err != nil {
 				err = xerrors.Errorf("copying source %q to destination %q on host %s: %w", sourceDirs, destinationDir, hostname, err)
-				result.err = err
 			}
+			result := Result{stdout: streams.StdoutBuf, stderr: streams.StderrBuf, err: err}
 			results <- &result
 		}()
 	}
