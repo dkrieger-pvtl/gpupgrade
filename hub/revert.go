@@ -6,13 +6,17 @@ package hub
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 
+	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/upgrade"
@@ -62,6 +66,7 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	//   ran; see "Reverting to old cluster" in https://www.postgresql.org/docs/9.4/pgupgrade.html.
 	// For now, we only handle revert after initialize or execute fully succeeds.
 	// We do this in link and copy mode due to the recoverseg bug
+	// TODO: only run if we are at the end of execute
 	st.Run(idl.Substep_RESTORE_SOURCE_MASTER_AND_PRIMARIES, func(stream step.OutStreams) error {
 		return RestoreMasterAndPrimaries(stream, s.Source, s.agentConns)
 	})
@@ -78,6 +83,15 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			hostname := s.Config.Target.MasterHostname()
 
 			return upgrade.DeleteDirectories([]string{datadir}, upgrade.PostgresFiles, hostname, streams)
+		})
+
+		// see comments below
+		st.Run(idl.Substep_DELETE_TABLESPACE_DATADIRS, func(streams step.OutStreams) error {
+			gpdb5 := GetTablespaceMapping(s.Tablespaces)
+			// TODO: validate this set against the cluster config
+			GetCatalogVersion(s.Target.BinDir)
+			GetGPDB6TablespaceMapping(gpdb5)
+			return nil
 		})
 	}
 
@@ -118,4 +132,103 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	}
 
 	return st.Err()
+}
+
+//   DIR
+//   ├── filespace.txt
+//   ├── master
+//   │   ├── demoDataDir-1
+//   │   │   └── 16385
+//   │   │       ├── 1
+//   │   │       │   └── GPDB_6_301908232
+//   │   │       │       └── 12812
+//   │   │       │           └── 16389
+//   │   │       └── 12094
+//   │   │           ├── 16384
+//   │   │           └── PG_VERSION
+//   ├── primary1
+//   │   └── demoDataDir0
+//   │       └── 16385
+//   │           ├── 12094
+//   │           │   ├── 16384
+//   │           │   └── PG_VERSION
+//   │           └── 2
+//   │               └── GPDB_6_301908232
+//   │                   └── 12812
+//   │                       └── 16389
+//
+//  GPDB-5:  DIR/<fsname>/<datadir>/<tablespace_oid>/<database_oid>/<relfilenode>
+//  GPDB-6   DIR/<fsname>/<datadir>/<tablespace_oid>/<dboid>/GPDB_6_<catalog_version>/<database_oid>/<relfilenode>
+//
+//   We use the GPDB-5 tablespace mapping read during Initialize to construct the paths
+//         of the tablespaces in 6.  There is a known mapping.
+//
+// Do we handle temporary and transaction files? not needed
+//
+//postgres --catalog-version
+//Catalog version number:               301908232
+
+type TablespacesOnDBID = map[int][]string
+
+// GetTablespaceMapping returns per-dbid slice of directories of user-defined tablespaces.
+func GetTablespaceMapping(in greenplum.Tablespaces) TablespacesOnDBID {
+	m := make(TablespacesOnDBID)
+	for dbid, segmentTbsp := range in {
+		for _, tbspInfo := range segmentTbsp {
+			if tbspInfo.IsUserDefined() {
+				m[dbid] = append(m[dbid], tbspInfo.Location)
+			}
+		}
+	}
+	return m
+}
+
+func GetGPDB6TablespaceMapping(in TablespacesOnDBID) TablespacesOnDBID {
+	m := make(TablespacesOnDBID)
+
+	return m
+}
+
+// GetCatalogVersion uses the postgres binary to determine the clusters catalog version
+// postgres --catalog-version
+//   Catalog version number:               301908232
+func GetCatalogVersion(bindir string) (string, error) {
+	path := filepath.Join(bindir, "postgres")
+
+	cmd := exec.Command(path, "--catalog-version")
+
+	// Explicitly clear the child environment.
+	cmd.Env = []string{}
+
+	// XXX ...but we make a single exception for now, for LD_LIBRARY_PATH, to
+	// work around pervasive problems with RPATH settings in our Postgres
+	// extension modules.
+	if path, ok := os.LookupEnv("LD_LIBRARY_PATH"); ok {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("LD_LIBRARY_PATH=%s", path))
+	}
+
+	stream := &step.BufferedStreams{}
+	cmd.Stdout = stream.Stdout()
+	cmd.Stderr = stream.Stderr()
+
+	err := cmd.Run()
+	if err != nil {
+		return "", xerrors.Errorf("could not determine catalog version: %w", err)
+	}
+
+	s := strings.Split(stream.StdoutBuf.String(), ":")
+	if len(s) != 2 {
+		return "", xerrors.Errorf("unexpected catalog version string: %s", stream.StdoutBuf.String())
+	}
+	key := strings.TrimSpace(s[0])
+	if key != "Catalog version number" {
+		return "", xerrors.Errorf("unexpected catalog version key: %s", key)
+	}
+	value := strings.TrimSpace(s[1])
+	if len(value) != 9 || !strings.HasPrefix(value, "30") {
+		return "", xerrors.Errorf("unexpected catalog version: %s", value)
+	}
+
+	return value, nil
+
 }
