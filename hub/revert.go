@@ -4,13 +4,13 @@
 package hub
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/idl"
@@ -74,6 +74,12 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 		st.Run(idl.Substep_RESTORE_SOURCE_MASTER_AND_PRIMARIES, func(stream step.OutStreams) error {
 			return RestoreMasterAndPrimaries(stream, s.agentConns, s.Source)
 		})
+		// TODO: implement this
+		// This will look very much like RestoreMasterAndPrimaries: an rsync of all user tablespaces
+		//   from the source standby/mirrors to the source master/primaries
+		//st.Run(idl.Substep_RESTORE_TABLESPACES, func(stream step.OutStreams) error {
+		//	return RestoreTablespaces(stream, s.agentConns, TABLESPACEDIRS)
+		//})
 	}
 
 	if len(s.Config.Target.Primaries) > 0 {
@@ -86,6 +92,25 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			hostname := s.Config.Target.MasterHostname()
 
 			return upgrade.DeleteDirectories([]string{datadir}, upgrade.PostgresFiles, hostname, streams)
+		})
+
+		// TODO: this only removes tablespaces from the target cluster that existing in the source cluster;
+		// 	it does not remove tablespaces added to the target cluster by the user.  We could also get the
+		//	tablespace dirs from a query on the target cluster before we stop it.  However, PM hsa decided
+		//  that this is not needed.
+		// This function deletes all usertablespaces on the TARGET cluster that were originally on
+		//   the source cluster; this is needed here so that any subsequent upgrade after this revert
+		//   will be allowed to create the tablespace on the second run of execute.
+		st.Run(idl.Substep_DELETE_TABLESPACE_DATADIRS, func(streams step.OutStreams) error {
+			gpdb5 := GetTablespaceMapping(s.Tablespaces)
+			// TODO: validate this set against the cluster config
+			gpversion, err := GetCatalogVersion(s.Target.BinDir)
+			if err != nil {
+				return xerrors.Errorf("could not get target cluster catalog version: %w", err)
+			}
+			gpdb6 := GetGPDB6TablespaceMapping(gpdb5, gpversion)
+			return DeleteTableSpaceDirectories(gpdb6)
+
 		})
 	}
 
