@@ -48,6 +48,7 @@ var SubstepDescriptions = map[idl.Substep]substepText{
 	idl.Substep_UPGRADE_MIRRORS:                          substepText{"Upgrading mirror segments...", "Upgrade mirror segments"},
 	idl.Substep_DELETE_PRIMARY_DATADIRS:                  substepText{"Deleting primary segment data directories...", "Delete primary segment data directories"},
 	idl.Substep_DELETE_MASTER_DATADIR:                    substepText{"Deleting master data directory...", "Delete master data directory"},
+	idl.Substep_DELETE_TABLESPACE_DATADIRS:               substepText{"Deleting tablespace directories...", "Deleting tablesapce directories"},
 	idl.Substep_DELETE_SEGMENT_STATEDIRS:                 substepText{"Deleting state directories on the segments...", "Delete state directories on the segments"},
 	idl.Substep_STOP_HUB_AND_AGENTS:                      substepText{"Stopping hub and agents...", "Stop hub and agents"},
 	idl.Substep_DELETE_MASTER_STATEDIR:                   substepText{"Deleting master state directory...", "Delete master state directory"},
