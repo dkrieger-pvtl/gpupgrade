@@ -4,7 +4,6 @@
 package rsync
 
 import (
-	"os"
 	"os/exec"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -14,6 +13,67 @@ import (
 )
 
 var rsyncCommand = exec.Command
+
+type optionList struct {
+	srcs          []string
+	useDstHost    bool
+	dstHost       string
+	dst           string
+	options       []string
+	excludedFiles []string
+	useStream     bool
+	stream        step.OutStreams
+}
+
+func newOptionList(opts ...Option) *optionList {
+	o := new(optionList)
+	for _, option := range opts {
+		option(o)
+	}
+	return o
+}
+
+type Option func(*optionList)
+
+func WithSources(srcs ...string) Option {
+	return func(options *optionList) {
+		options.srcs = append(options.srcs, srcs...)
+	}
+}
+
+func WithDstHost(dstHost string) Option {
+	return func(options *optionList) {
+		options.useDstHost = true
+		options.dstHost = dstHost
+	}
+}
+
+func WithDst(dst string) Option {
+	return func(options *optionList) {
+		options.dst = dst
+	}
+}
+
+func WithOptions(opts ...string) Option {
+	return func(options *optionList) {
+		options.options = append(options.options, opts...)
+	}
+}
+
+func WithExcludedFiles(files ...string) Option {
+	return func(options *optionList) {
+		for _, excludedFile := range files {
+			options.excludedFiles = append(options.excludedFiles, "--exclude", excludedFile)
+		}
+	}
+}
+
+func WithStream(stream step.OutStreams) Option {
+	return func(options *optionList) {
+		options.stream = stream
+		options.useStream = true
+	}
+}
 
 // TODO: this function should be test-only but needs to be used in other
 //  components that use Rsync in their implementation.
@@ -32,83 +92,67 @@ func (e RsyncError) Error() string {
 	return e.errorText
 }
 
-func RsyncWithoutStream(srcDir, dstHost, dst string, options, excludedFiles []string) error {
-	return RsyncWithStream(srcDir, dstHost, dst, options, excludedFiles, step.DevNullStream)
-}
-func RsyncWithStream(srcDir, dstHost, dst string, options, excludedFiles []string, stream step.OutStreams) error {
-	return Rsync([]string{srcDir}, dstHost, dst, options, excludedFiles, stream, false)
-}
+//func RsyncWithoutStream(srcDir, dstHost, dst string, options, excludedFiles []string) error {
+//	return RsyncWithStream(srcDir, dstHost, dst, options, excludedFiles, step.DevNullStream)
+//}
+//func RsyncWithStream(srcDir, dstHost, dst string, options, excludedFiles []string, stream step.OutStreams) error {
+//	return Rsync([]string{srcDir}, dstHost, dst, options, excludedFiles, stream, false)
+//}
 
-// rsync src1/ src2/ host:dest --option1 --option2 --exclude foo.txt
-func Rsync(srcs []string, dstHost, dst string, options, excludedFiles []string, stream step.OutStreams, createSubdir bool) error {
-	var srcPaths []string
-	for _, src := range srcs {
-		if !createSubdir {
-			srcPaths = append(srcPaths, src+string(os.PathSeparator))
-		} else {
-			srcPaths = append(srcPaths, src)
-		}
-	}
-	dstPath := dst
-	if dstHost != "" {
-		dstPath = dstHost + ":" + dst
+//func Rsync(srcs []string, dstHost, dst string, options, excludedFiles []string, stream step.OutStreams, createSubdir bool) error {
+func Rsync(options ...Option) error {
+	opts := newOptionList(options...)
+
+	//if !createSubdir {
+	//	srcPaths = append(srcPaths, src+string(os.PathSeparator))
+	//} else {
+	//	srcPaths = append(srcPaths, src)
+	//}
+	var args []string
+
+	dstPath := opts.dst
+	if opts.useDstHost {
+		dstPath = opts.dstHost + ":" + opts.dst
 	}
 
 	// TODO: upgrade_primaries_test.go relies on this order of arguments(!)
-	var args []string
-	args = append(args, options...)
-	args = append(args, srcPaths...)
+	args = append(args, opts.options...)
+	args = append(args, opts.srcs...)
 	args = append(args, dstPath)
-	args = append(args, exclusionOpts(excludedFiles)...)
+	args = append(args, opts.excludedFiles...)
 
 	cmd := rsyncCommand("rsync", args...)
 
-	//bufStdout := bytes.Buffer{}
-	//bufStderr := bytes.Buffer{}
-	//bufStream := step.NewBufStream(&bufStdout, &bufStderr)
-	//tee := step.NewTeeStream(stream, bufStream)
-	//
-	//cmd.Stdout = tee.Stdout()
-	//cmd.Stderr = tee.Stderr()
-	cmd.Stdout = stream.Stdout()
-	cmd.Stderr = stream.Stderr()
+	stream := step.BufferedStreams{}
+	if opts.useStream {
+		cmd.Stdout = opts.stream.Stdout()
+		cmd.Stderr = opts.stream.Stderr()
+	} else {
+		// capture stderr if the caller does not want it, for the error message
+		cmd.Stderr = stream.Stderr()
+	}
 
 	gplog.Info("running Rsync as %s", cmd.String())
 
-	return cmd.Run()
-	//if err != nil {
-	//	return RsyncError{
-	//		errorText: errorText(err, bufStderr.String()),
-	//	}
-	//}
-	//
-	//return nil
+	err := cmd.Run()
+	if err != nil {
+		return RsyncError{
+			errorText: errorText(err, stream.StderrBuf.String()),
+		}
+	}
+
+	return err
 }
 
-// errorText provides text for an RsyncError that makes sense
-//  to a user.  If the Rsync() fails to run at all, the relevant
-//  text will be in the error returned from the cmd itself.  If
-//  Rsync() fails during execution, the cmd will return a type
-//  exec.ExitError but the relevant text is in the stderr from the
-//  command.
-//func errorText(err error, stderr string) string {
-//	errorText := err.Error()
-//
-//	var exitError *exec.ExitError
-//	if xerrors.As(err, &exitError) {
-//		errorText = stderr
-//		if stderr == "" {
-//			errorText = string(exitError.Stderr)
-//		}
-//	}
-//
-//	return errorText
-//}
+// rsync streams its interesting error message to stderr; the actual
+//  error message is cryptic like "error code 12".  So, if the caller
+//   did not capture stderr, place it in the error message.
+func errorText(err error, stderr string) string {
+	errorText := err.Error()
 
-func exclusionOpts(excludedFiles []string) []string {
-	var exclusions []string
-	for _, excludedFile := range excludedFiles {
-		exclusions = append(exclusions, "--exclude", excludedFile)
+	if stderr != "" {
+		errorText = stderr
 	}
-	return exclusions
+
+	return errorText
 }

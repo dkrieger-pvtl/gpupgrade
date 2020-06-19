@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
+	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/testutils"
@@ -28,7 +29,6 @@ func writeToFile(filepath string, contents []byte, t *testing.T) {
 }
 
 func TestRsync(t *testing.T) {
-	emptyHost := ""
 
 	testhelper.SetupTestLogger()
 
@@ -41,7 +41,7 @@ func TestRsync(t *testing.T) {
 	rsync.SetRsyncCommand(exec.Command)
 	defer func() { rsync.SetRsyncCommand(nil) }()
 
-	t.Run("when createSubdirs is false, it copies data from a source directory to the top level of the target directory", func(t *testing.T) {
+	t.Run("when / is at the end of srcDir, it copies data from a source directory to the top level of the target directory", func(t *testing.T) {
 		sourceDir := testutils.GetTempDir(t, "rsync-source")
 		defer testutils.MustRemoveAll(t, sourceDir)
 
@@ -51,7 +51,13 @@ func TestRsync(t *testing.T) {
 		filename := "this_is_my_file_name.txt"
 		writeToFile(filepath.Join(sourceDir, filename), []byte("hi"), t)
 
-		if err := rsync.RsyncWithoutStream(sourceDir, "localhost", targetDir, []string{"--archive", "--delete"}, []string{}); err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDstHost("localhost"),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -64,7 +70,7 @@ func TestRsync(t *testing.T) {
 		}
 	})
 
-	t.Run("when createSubdirs is true, it copies data from a source directory to a subdir of the target directory", func(t *testing.T) {
+	t.Run("when / is not appended to srcDir, it copies data from a source directory to a subdir of the target directory", func(t *testing.T) {
 		sourceDir := testutils.GetTempDir(t, "rsync-source")
 		defer testutils.MustRemoveAll(t, sourceDir)
 
@@ -74,7 +80,12 @@ func TestRsync(t *testing.T) {
 		filename := "this_is_my_file_name.txt"
 		writeToFile(filepath.Join(sourceDir, filename), []byte("hi"), t)
 
-		if err := rsync.Rsync([]string{sourceDir}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{}, step.DevNullStream, true); err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -104,7 +115,12 @@ func TestRsync(t *testing.T) {
 		filename2 := "this_is_my_file_name_2.txt"
 		writeToFile(filepath.Join(sourceDir2, filename2), []byte("hi_2"), t)
 
-		if err := rsync.Rsync([]string{sourceDir, sourceDir2}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{}, step.DevNullStream, true); err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir, sourceDir2),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -138,17 +154,24 @@ func TestRsync(t *testing.T) {
 		writeToFile(filepath.Join(sourceDir, filename), []byte("hi"), t)
 
 		streams := &step.BufferedStreams{}
-		if err := rsync.RsyncWithStream(sourceDir, emptyHost, targetDir, []string{"--archive", "--verbose"}, []string{}, streams); err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--verbose"}...),
+			rsync.WithStream(streams),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 		if !strings.Contains(streams.StdoutBuf.String(), filename) {
-			t.Errorf("expected stdout to contain filename: %s", streams.StdoutBuf.String())
+			t.Errorf("expected stdout to contain filename \"%s\" but has \"%s\"", filename, streams.StdoutBuf.String())
 		}
 
 		targetContents, _ := ioutil.ReadFile(filepath.Join(targetDir, "/", filename))
 
 		if !bytes.Equal(targetContents, []byte("hi")) {
-			t.Errorf("target directory file 'hi' contained %v, wanted %v",
+			t.Errorf("target directory file \"%s\" contained %v, wanted %v",
+				filename,
 				targetContents,
 				"hi")
 		}
@@ -163,7 +186,12 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(targetDir, "target-file-that-should-get-removed"), []byte("goodbye"), t)
 
-		if err := rsync.Rsync([]string{sourceDir}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{}, step.DevNullStream, false); err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -183,8 +211,13 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "source-file-that-should-get-excluded"), []byte("goodbye"), t)
 
-		err := rsync.Rsync([]string{sourceDir}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{"source-file-that-should-get-excluded"}, step.DevNullStream, false)
-		if err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+			rsync.WithExcludedFiles("source-file-that-should-get-excluded"),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -206,8 +239,13 @@ func TestRsync(t *testing.T) {
 		writeToFile(filepath.Join(targetDir, "target-file-that-should-get-ignored"), []byte("i'm still here"), t)
 		writeToFile(filepath.Join(targetDir, "another-target-file-that-should-get-ignored"), []byte("i'm still here"), t)
 
-		err := rsync.Rsync([]string{sourceDir}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{"target-file-that-should-get-ignored", "another-target-file-that-should-get-ignored"}, step.DevNullStream, false)
-		if err != nil {
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+			rsync.WithExcludedFiles("target-file-that-should-get-ignored", "another-target-file-that-should-get-ignored"),
+		}
+		if err := rsync.Rsync(opts...); err != nil {
 			t.Errorf("Rsync() returned error %+v", err)
 		}
 
@@ -230,7 +268,7 @@ func TestRsync(t *testing.T) {
 		}
 	})
 
-	t.Run("it bubbles up exec.ExitError errors as rsync errors", func(t *testing.T) {
+	t.Run("when an input stream is provided, it returns an RsyncError but stderr contains the real error", func(t *testing.T) {
 		sourceDir := testutils.GetTempDir(t, "rsync-source")
 		defer testutils.MustRemoveAll(t, sourceDir)
 
@@ -239,24 +277,67 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
 
-		err := rsync.Rsync([]string{sourceDir}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{""}, step.DevNullStream, false)
+		stream := &step.BufferedStreams{}
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+			rsync.WithStream(stream),
+		}
+		err := rsync.Rsync(opts...)
 		if err == nil {
 			t.Errorf("expected error, got nil")
 		}
-		//var rsyncError rsync.RsyncError
-		//
-		//if !xerrors.As(err, &rsyncError) {
-		//	t.Errorf("got error %#v, wanted type %T", err, rsyncError)
-		//}
-		//
-		//expected := "rsync: mkdir \"/tmp/some/invalid/target/dir\" failed"
-		//if !strings.Contains(rsyncError.Error(), expected) {
-		//	t.Errorf("got %v, expected substring %s",
-		//		err.Error(), expected)
-		//}
+		var rsyncError rsync.RsyncError
+
+		if !xerrors.As(err, &rsyncError) {
+			t.Errorf("got error %#v, wanted type %T", err, rsyncError)
+		}
+
+		expected := "rsync: mkdir \"/tmp/some/invalid/target/dir\" failed"
+		if !strings.Contains(stream.StderrBuf.String(), expected) {
+			t.Errorf("got %v, expected substring %s",
+				stream.StderrBuf.String(), expected)
+		}
+
+		expected = "exit status 12"
+		if expected != err.Error() {
+			t.Errorf("got %s, expected %s", err.Error(), expected)
+		}
 	})
 
-	t.Run("it bubbles up exec.Error errors as rsync errors", func(t *testing.T) {
+	t.Run("when no input stream is provided, it returns an RsyncError that indicatss the targetDir is not found", func(t *testing.T) {
+		sourceDir := testutils.GetTempDir(t, "rsync-source")
+		defer testutils.MustRemoveAll(t, sourceDir)
+
+		targetDir := "/tmp/some/invalid/target/dir"
+		defer testutils.MustRemoveAll(t, targetDir)
+
+		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
+
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+		}
+		err := rsync.Rsync(opts...)
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+		var rsyncError rsync.RsyncError
+
+		if !xerrors.As(err, &rsyncError) {
+			t.Errorf("got error %#v, wanted type %T", err, rsyncError)
+		}
+
+		expected := "rsync: mkdir \"/tmp/some/invalid/target/dir\" failed"
+		if !strings.Contains(rsyncError.Error(), expected) {
+			t.Errorf("got %v, expected substring %s",
+				err.Error(), expected)
+		}
+	})
+
+	t.Run("when no input stream is provided, it returns an RsyncError that indicates the executable cannot be found", func(t *testing.T) {
 		originalPath := destroyPath()
 		defer restorePath(originalPath)
 
@@ -268,21 +349,26 @@ func TestRsync(t *testing.T) {
 
 		writeToFile(filepath.Join(sourceDir, "some-file"), []byte("hi"), t)
 
-		err := rsync.Rsync([]string{sourceDir}, emptyHost, targetDir, []string{"--archive", "--delete"}, []string{""}, step.DevNullStream, false)
+		opts := []rsync.Option{
+			rsync.WithSources(sourceDir + string(os.PathSeparator)),
+			rsync.WithDst(targetDir),
+			rsync.WithOptions([]string{"--archive", "--delete"}...),
+		}
+		err := rsync.Rsync(opts...)
 		if err == nil {
 			t.Errorf("expected error, got nil")
 		}
-		//var rsyncError rsync.RsyncError
-		//
-		//if !xerrors.As(err, &rsyncError) {
-		//	t.Errorf("got error %#v, wanted type %T", err, rsyncError)
-		//}
-		//
-		//expected := "exec: \"rsync\": executable file not found in $PATH"
-		//if !strings.Contains(rsyncError.Error(), expected) {
-		//	t.Errorf("got %v, wanted %s",
-		//		err.Error(), "exec: \"rsync\": executable file not found in $PATH")
-		//}
+		var rsyncError rsync.RsyncError
+
+		if !xerrors.As(err, &rsyncError) {
+			t.Errorf("got error %#v, wanted type %T", err, rsyncError)
+		}
+
+		expected := "exec: \"rsync\": executable file not found in $PATH"
+		if !strings.Contains(rsyncError.Error(), expected) {
+			t.Errorf("got %v, wanted %s",
+				err.Error(), "exec: \"rsync\": executable file not found in $PATH")
+		}
 	})
 }
 
