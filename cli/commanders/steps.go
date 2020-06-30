@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/idl"
+	"github.com/greenplum-db/gpupgrade/step/response"
 )
 
 type receiver interface {
@@ -109,8 +109,11 @@ func Execute(client idl.CliToHubClient, verbose bool) error {
 		return xerrors.Errorf("Execute: %w", err)
 	}
 
-	port, datadir, err := extractTargetClusterInfo(dataMap)
-
+	port, err := response.MasterPort(dataMap)
+	if err != nil {
+		return xerrors.Errorf("Execute: %w", err)
+	}
+	datadir, err := response.MasterDataDir(dataMap)
 	if err != nil {
 		return xerrors.Errorf("Execute: %w", err)
 	}
@@ -150,9 +153,13 @@ func Finalize(client idl.CliToHubClient, verbose bool) error {
 		return xerrors.Errorf("Finalize: %w", err)
 	}
 
-	port, datadir, err := extractTargetClusterInfo(dataMap)
+	port, err := response.MasterPort(dataMap)
 	if err != nil {
-		return xerrors.Errorf("Finalize: %w", err)
+		return err
+	}
+	datadir, err := response.MasterDataDir(dataMap)
+	if err != nil {
+		return err
 	}
 
 	fmt.Println("")
@@ -163,7 +170,7 @@ func Finalize(client idl.CliToHubClient, verbose bool) error {
 	return nil
 }
 
-func Revert(client idl.CliToHubClient, verbose bool) error {
+func Revert(client idl.CliToHubClient, verbose bool) (string, string, error) {
 	fmt.Println()
 	fmt.Println("Revert in progress.")
 	fmt.Println()
@@ -171,38 +178,23 @@ func Revert(client idl.CliToHubClient, verbose bool) error {
 	stream, err := client.Revert(context.Background(), &idl.RevertRequest{})
 	if err != nil {
 		gplog.Error(err.Error())
-		return err
+		return "", "", err
 	}
 
-	_, err = UILoop(stream, verbose)
+	dataMap, err := UILoop(stream, verbose)
 	if err != nil {
-		return xerrors.Errorf("Revert: %w", err)
+		return "", "", xerrors.Errorf("Revert: %w", err)
 	}
 
-	fmt.Println()
-	// TODO: add more info to this message
-	fmt.Printf("The source cluster is now restored to its original state.\n")
-
-	return nil
-}
-
-func extractTargetClusterInfo(dataMap map[string]string) (string, string, error) {
-	port, portOk := dataMap[idl.ResponseKey_target_port.String()]
-	var missingKeys []string
-	if !portOk {
-		missingKeys = append(missingKeys, "target port")
+	sourceVersion, err := response.SourceVersion(dataMap)
+	if err != nil {
+		return "", "", err
 	}
-
-	datadir, datadirOk := dataMap[idl.ResponseKey_target_master_data_directory.String()]
-	if !datadirOk {
-		missingKeys = append(missingKeys, "target datadir")
+	archiveDir, err := response.ArchiveDir(dataMap)
+	if err != nil {
+		return "", "", err
 	}
-
-	if len(missingKeys) > 0 {
-		return "", "", xerrors.Errorf("did not receive the expected configuration values: %s", strings.Join(missingKeys, ", "))
-	}
-
-	return port, datadir, nil
+	return sourceVersion, archiveDir, nil
 }
 
 func UILoop(stream receiver, verbose bool) (map[string]string, error) {
