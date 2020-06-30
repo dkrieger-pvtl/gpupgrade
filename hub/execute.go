@@ -14,6 +14,7 @@ import (
 
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
+	"github.com/greenplum-db/gpupgrade/step/response"
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
@@ -108,7 +109,7 @@ func (s *Server) Execute(request *idl.ExecuteRequest, stream idl.CliToHub_Execut
 		return nil
 	})
 
-	message := MakeTargetClusterMessage(s.Target)
+	message := response.ExecuteMesssage(s.Target.MasterDataDir(), s.Target.MasterPort())
 	if err = stream.Send(message); err != nil {
 		return err
 	}

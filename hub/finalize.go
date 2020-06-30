@@ -13,6 +13,7 @@ import (
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
+	"github.com/greenplum-db/gpupgrade/step/response"
 )
 
 func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeServer) (err error) {
@@ -99,7 +100,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 		})
 	}
 
-	message := MakeTargetClusterMessage(s.Target)
+	message := response.FinalizeMesssage(s.Target.MasterDataDir(), s.Target.MasterPort())
 	if err = stream.Send(message); err != nil {
 		return err
 	}

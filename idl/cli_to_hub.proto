@@ -125,13 +125,27 @@ message Message {
   }
 }
 
-enum ResponseKey {
-    target_port = 0;
-    target_master_data_directory = 1;
+message Response {
+    oneof data {
+        ExecuteResponse execute = 1;
+        FinalizeResponse finalize = 2;
+        RevertResponse revert = 3;
+    }
 }
 
-message Response {
-  map<string,string> data = 1;
+message ExecuteResponse {
+    string masterDataDir = 1;
+    int32 masterPort = 2;
+}
+
+message FinalizeResponse {
+    string masterDataDir = 1;
+    int32 masterPort = 2;
+}
+
+message RevertResponse {
+    string archiveLogDir = 1;
+    string sourceVersion = 2;
 }
 
 message SetConfigRequest {
