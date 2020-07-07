@@ -14,6 +14,17 @@ import (
 // ID is a unique identifier for a cluster upgrade.
 type ID uint64
 
+var randomBytes = rand.Read
+
+type RandomBytes func(b []byte) (n int, err error)
+
+func SetRandomBytes(f RandomBytes) (deferFunc func()) {
+	randomBytes = f
+	return func() {
+		randomBytes = rand.Read
+	}
+}
+
 // NewID creates a new unique ID. It should be reasonably unique across
 // executions of the process.
 func NewID() ID {
@@ -23,7 +34,7 @@ func NewID() ID {
 		// Use crypto/rand for this to avoid chicken-and-egg (i.e. what should we
 		// seed math/rand with?). This is more expensive, but we expect this to be
 		// called only once per upgrade anyway.
-		_, err := rand.Read(bytes[:])
+		_, err := randomBytes(bytes[:])
 		if err != nil {
 			// TODO: should we fall back in this case? It will be system-dependent.
 			panic(fmt.Sprintf("unable to get random data: %+v", err))

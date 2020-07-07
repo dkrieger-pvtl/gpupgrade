@@ -4,6 +4,8 @@
 package upgrade_test
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -82,5 +84,72 @@ func TestNoDoubleDash(t *testing.T) {
 		if strings.Contains(id.String(), "--") {
 			t.Fatalf("id %s contains --", id)
 		}
+	}
+}
+
+func TestNoDoubleDash2(t *testing.T) {
+	t.Run("returns an ID with no --", func(t *testing.T) {
+		mustNotContain(t, "--", upgrade.NewID())
+	})
+
+	t.Run("explicitly hits no -- check", func(t *testing.T) {
+		// return an ID containing "--" on the first call, and one that
+		// does not contain "--" on the second call
+		called := false
+		d := upgrade.SetRandomBytes(func(b []byte) (n int, err error) {
+			if !called {
+				called = true
+
+				if len(b) != 8 {
+					t.Errorf("only support an 8 byte buffer")
+				}
+
+				// in base64, '-' is 62, so make the first two characters '--' by having
+				// the bit pattern be "0b111110111110...' (https://tools.ietf.org/html/rfc4648)
+				b[0] = 62<<2 + 3 // 0b11111011
+				b[1] = 14 << 4   //         0b11100000
+				for i := 2; i < 8; i++ {
+					b[i] = 0 // 0b000000 is 'A' in filesystem safe base64
+				}
+				mustContain(t, "--", upgrade.ID(binary.LittleEndian.Uint64(b)))
+
+				return 8, nil
+			} else {
+				for i := 0; i < 8; i++ {
+					b[i] = 0 // 0b000000 is 'A' in filesystem safe base64
+				}
+				mustNotContain(t, "--", upgrade.ID(binary.LittleEndian.Uint64(b)))
+				return 8, nil
+			}
+		})
+		defer d()
+
+		mustNotContain(t, "--", upgrade.NewID())
+	})
+
+	t.Run("panics if random byte generation returns an error", func(t *testing.T) {
+		d := upgrade.SetRandomBytes(func(b []byte) (n int, err error) {
+			return 0, errors.New("intentional panic")
+		})
+		defer d()
+
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("did not panic")
+			}
+		}()
+
+		upgrade.NewID()
+	})
+}
+
+func mustNotContain(t *testing.T, s string, id upgrade.ID) {
+	if strings.Contains(id.String(), s) {
+		t.Errorf("expected no -- in ID, got %s", id.String())
+	}
+}
+func mustContain(t *testing.T, s string, id upgrade.ID) {
+	if !strings.Contains(id.String(), s) {
+		t.Errorf("expected no -- in ID, got %s", id.String())
 	}
 }
