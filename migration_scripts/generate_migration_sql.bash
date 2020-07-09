@@ -47,7 +47,7 @@ execute_sql_directory() {
     local dir=$1; shift
     local databases=( "$@" )
 
-    local paths=($(find "$(dirname "$0")/${dir}" -type f -name "*.sql"))
+    local paths=($(find "$(dirname "$0")/${dir}" -type f -name "*.sql" | sort -n))
     local output_dir="${OUTPUT_DIR}/${dir}"
 
     mkdir -p "$output_dir"
