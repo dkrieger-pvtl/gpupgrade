@@ -71,11 +71,15 @@ teardown() {
 
     MIGRATION_DIR=`mktemp -d /tmp/migration.XXXXXX`
     $SCRIPTS_DIR/generate_migration_sql.bash $GPHOME_SOURCE $PGPORT $MIGRATION_DIR
-    $SCRIPTS_DIR/execute_migration_sql.bash $GPHOME_SOURCE $PGPORT $MIGRATION_DIR/pre-upgrade
 
     # the migration script should not remove primary / unique key constraints on partitioned tables, so
     # remove them manually by dropping the table as they can't be dropped.
     $GPHOME_SOURCE/bin/psql -d $TEST_DBNAME -p $PGPORT -f $BATS_TEST_DIRNAME/../migration_scripts/test/drop_not_fixable_objects.sql
+
+    # store the indexes to compare after upgrade
+    root_child_indexes_before=$(get_indexes "$GPHOME_SOURCE")
+
+    $SCRIPTS_DIR/execute_migration_sql.bash $GPHOME_SOURCE $PGPORT $MIGRATION_DIR/pre-upgrade
 
     gpupgrade initialize \
             --source-gphome="$GPHOME_SOURCE" \
@@ -87,5 +91,32 @@ teardown() {
     gpupgrade execute --verbose
     gpupgrade finalize --verbose
 
+    $SCRIPTS_DIR/execute_migration_sql.bash $GPHOME_TARGET $PGPORT $MIGRATION_DIR/post-upgrade
+
+    # post-upgrade scripts should create the indexes on the target cluster
+    root_child_indexes_after=$(get_indexes "$GPHOME_TARGET")
+
+    # expect the index information to be same after the upgrade
+    diff -U3 <(echo "$root_child_indexes_before") <(echo "$root_child_indexes_after")
+
     NEW_CLUSTER="$MASTER_DATA_DIRECTORY"
+}
+
+get_indexes() {
+    local gphome=$1
+    $gphome/bin/psql -d $TEST_DBNAME -p $PGPORT -Atc "
+         SELECT indrelid::regclass, unnest(indkey)
+         FROM pg_index pi
+         JOIN pg_partition pp ON pi.indrelid=pp.parrelid
+         JOIN pg_class pc ON pc.oid=pp.parrelid
+         ORDER by 1,2;
+        "
+    $gphome/bin/psql -d $TEST_DBNAME -p $PGPORT -Atc "
+        SELECT indrelid::regclass, unnest(indkey)
+        FROM pg_index pi
+        JOIN pg_partition_rule pp ON pi.indrelid=pp.parchildrelid
+        JOIN pg_class pc ON pc.oid=pp.parchildrelid
+        WHERE pc.relhassubclass='f'
+        ORDER by 1,2;
+    "
 }
