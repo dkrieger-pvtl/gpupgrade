@@ -75,8 +75,7 @@ teardown() {
 
     # the migration script should not remove primary / unique key constraints on partitioned tables, so
     # remove them manually by dropping the table as they can't be dropped.
-    $GPHOME_SOURCE/bin/psql -d $TEST_DBNAME -p $PGPORT -c "DROP TABLE table_with_unique_constraint_p;"
-    $GPHOME_SOURCE/bin/psql -d $TEST_DBNAME -p $PGPORT -c "DROP TABLE table_with_primary_constraint_p;"
+    $GPHOME_SOURCE/bin/psql -d $TEST_DBNAME -p $PGPORT -f $BATS_TEST_DIRNAME/../migration_scripts/test/drop_not_fixable_objects.sql
 
     gpupgrade initialize \
             --source-gphome="$GPHOME_SOURCE" \
