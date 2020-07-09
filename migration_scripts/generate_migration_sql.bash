@@ -28,7 +28,11 @@ exec_sql_file(){
 
     records=$("$GPHOME"/bin/psql -d "$database" -p "$PGPORT" -Atf "$path")
     if [[ -n "$records" ]]; then
-        echo "\c $database" > "${output_dir}/${output_file}"
+        readme_file=$(echo "${path/.sql/.README}")
+        if [[ -f $readme_file ]]; then
+            cat $readme_file >> "${output_dir}/${output_file}"
+        fi
+        echo "\c $database" >> "${output_dir}/${output_file}"
         echo "$records" >> "${output_dir}/${output_file}"
     fi
 }
