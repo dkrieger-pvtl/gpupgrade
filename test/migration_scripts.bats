@@ -5,7 +5,7 @@
 
 load helpers
 
-PREUPGRADE_SCRIPTS_DIR=$BATS_TEST_DIRNAME/../migration_scripts/pre-upgrade
+SCRIPTS_DIR=$BATS_TEST_DIRNAME/../migration_scripts
 
 setup() {
     skip_if_no_gpdb
@@ -26,13 +26,22 @@ setup() {
 }
 
 teardown() {
-    skip_if_no_gpdb
+    # XXX Beware, BATS_TEST_SKIPPED is not a documented export.
+    if [ -n "${BATS_TEST_SKIPPED}" ]; then
+        return
+    fi
+
 
     if [ -n "$NEW_CLUSTER" ]; then
         delete_finalized_cluster $GPHOME_TARGET $NEW_CLUSTER
     fi
 
+    if [ -n "$MIGRATION_DIR" ]; then
+        rm -r $MIGRATION_DIR
+    fi
+
     gpupgrade kill-services
+    rm -r "$STATE_DIR"
 
     restore_cluster
 
@@ -60,9 +69,9 @@ teardown() {
     egrep "\"CHECK_UPGRADE\": \"FAILED\"" $GPUPGRADE_HOME/status.json
     egrep "^Checking.*fatal$" $GPUPGRADE_HOME/pg_upgrade/seg-1/pg_upgrade_internal.log
 
-    PREUPGRADE_DIR=`mktemp -d /tmp/migration.XXXXXX`
-    $PREUPGRADE_SCRIPTS_DIR/generate_preupgrade_sql.bash $GPHOME_SOURCE $PGPORT $PREUPGRADE_DIR
-    $PREUPGRADE_SCRIPTS_DIR/execute_preupgrade_sql.bash $GPHOME_SOURCE $PGPORT $PREUPGRADE_DIR
+    MIGRATION_DIR=`mktemp -d /tmp/migration.XXXXXX`
+    $SCRIPTS_DIR/generate_migration_sql.bash $GPHOME_SOURCE $PGPORT $MIGRATION_DIR
+    $SCRIPTS_DIR/execute_migration_sql.bash $GPHOME_SOURCE $PGPORT $MIGRATION_DIR/pre-upgrade
 
     # the migration script should not remove primary / unique key constraints on partitioned tables, so
     # remove them manually by dropping the table as they can't be dropped.
