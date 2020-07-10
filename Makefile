@@ -62,7 +62,7 @@ check-go:
 	go test -count=1 $(TEST_PACKAGES)
 
 check-bats:
-	bats -f "can successfully run gpupgrade after a revert" ./test/revert.bats
+	bats  ./test/revert.bats
 
 
 unit: TEST_PACKAGES := $(shell go list ./... | grep -v integrations$$ )
