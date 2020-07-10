@@ -15,6 +15,9 @@ gpupgrade consists of three processes that communicate using gRPC and protocol b
 - Hub
   - Runs on the master host
   - Upgrades the master
+  
+  
+  sdfdsf
   - Coordinates the agent processes
   - Consists of a gRPC client and server 
 - Agents
