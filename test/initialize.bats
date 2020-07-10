@@ -264,32 +264,3 @@ wait_for_port_change() {
 
     isready || fail "expected source cluster to be available"
 }
-
-# This is a very simple way to flush out the most obvious idempotence bugs. It
-# replicates what would happen if every substep failed/crashed right after
-# completing its work but before completion was signalled back to the hub.
-@test "all substeps can be re-run after completion" {
-    # Force a target cluster to be created (setup's initialize stops before that
-    # happens).
-    gpupgrade initialize \
-        --source-gphome="$GPHOME_SOURCE" \
-        --target-gphome="$GPHOME_TARGET" \
-        --source-master-port="${PGPORT}"\
-        --temp-port-range 6020-6040 \
-        --disk-free-ratio 0 \
-        --verbose 3>&-
-
-    set_target_cluster_var_for_teardown
-    TEARDOWN_FUNCTIONS+=( teardown_target_cluster )
-
-    # Mark every substep in the status file as failed. Then re-initialize.
-    sed -i.bak -e 's/"COMPLETE"/"FAILED"/g' "$GPUPGRADE_HOME/status.json"
-
-    gpupgrade initialize \
-        --source-gphome="$GPHOME_SOURCE" \
-        --target-gphome="$GPHOME_TARGET" \
-        --source-master-port="${PGPORT}"\
-        --temp-port-range 6020-6040 \
-        --disk-free-ratio 0 \
-        --verbose 3>&-
-}

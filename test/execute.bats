@@ -159,9 +159,20 @@ ensure_hardlinks_for_relfilenode_on_master_and_segments() {
 # make a third copy for finalize, decide whether the implementations should be
 # shared via helpers, or consolidated into one file or test, or otherwise --
 # depending on what makes the most sense at that time.
-@test "all substeps can be re-run after completion" {
+@test "all initialize and execute substeps can be re-run after completion" {
     setup_restore_cluster "--mode=copy"
 
+    # run initialize
+    gpupgrade initialize \
+        --source-gphome="$GPHOME_SOURCE" \
+        --target-gphome="$GPHOME_TARGET" \
+        --source-master-port="${PGPORT}"\
+        --temp-port-range 6020-6040 \
+        --disk-free-ratio 0 \
+        --verbose 3>&-
+
+    # mark all the substeps as failed, and the re-initialize
+    sed -i.bak -e 's/"COMPLETE"/"FAILED"/g' "$GPUPGRADE_HOME/status.json"
     gpupgrade initialize \
         --source-gphome="$GPHOME_SOURCE" \
         --target-gphome="$GPHOME_TARGET" \
@@ -172,6 +183,7 @@ ensure_hardlinks_for_relfilenode_on_master_and_segments() {
 
     NEW_CLUSTER="$(gpupgrade config show --target-datadir)"
 
+    # run execute
     gpupgrade execute --verbose 3>&-
 
     # On GPDB5, restore the primary and master directories before starting the cluster
@@ -181,9 +193,8 @@ ensure_hardlinks_for_relfilenode_on_master_and_segments() {
     (source "$GPHOME_TARGET"/greenplum_path.sh && gpstop -a -d "$NEW_CLUSTER")
     start_source_cluster
 
-    # Mark every substep in the status file as failed. Then re-execute.
+    #  mark all the substeps as failed, and the re-execute
     sed -i.bak -e 's/"COMPLETE"/"FAILED"/g' "$GPUPGRADE_HOME/status.json"
-
     gpupgrade execute --verbose 3>&-
 
     restore_cluster
