@@ -155,9 +155,6 @@ test_revert_after_execute() {
 
     gpupgrade execute --verbose
 
-    # On GPDB5, restore the primary and master directories before starting the cluster. Hack until revert handles this case
-    restore_cluster
-
     gpupgrade revert --verbose
 
     gpupgrade initialize \
