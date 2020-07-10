@@ -150,6 +150,7 @@ test_revert_after_execute() {
         --source-master-port="${PGPORT}" \
         --temp-port-range 6020-6040 \
         --disk-free-ratio 0 \
+        --mode=link \
         --verbose 3>&-
 
     gpupgrade execute --verbose
@@ -165,6 +166,7 @@ test_revert_after_execute() {
         --source-master-port="${PGPORT}" \
         --temp-port-range 6020-6040 \
         --disk-free-ratio 0 \
+        --mode=link \
         --verbose 3>&-
 
     gpupgrade execute --verbose
