@@ -4,13 +4,16 @@
 package hub
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
+	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
@@ -188,4 +191,32 @@ func GetMasterSegPrefix(datadir string) (string, error) {
 		return "", fmt.Errorf("path has no segment prefix: '%s'", datadir)
 	}
 	return segPrefix, nil
+}
+
+func GetCatalogVersion(stream step.OutStreams, gphome string) (string, error) {
+	utility := filepath.Join(gphome, "bin", "postgres")
+	cmd := execCommand(utility, "--catalog-version")
+
+	// Buffer stdout to parse catalog version
+	stdout := new(bytes.Buffer)
+	tee := io.MultiWriter(stream.Stdout(), stdout)
+
+	cmd.Stdout = tee
+	cmd.Stderr = stream.Stderr()
+
+	gplog.Debug("determining target cluster catalog version with %s", cmd.String())
+
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	parts := strings.SplitN(stdout.String(), ":", 2)
+	if len(parts) != 2 {
+		return "", xerrors.Errorf("parsing catalog output: %q. Expected version separated by a colon.", stdout)
+	}
+
+	version := strings.TrimSpace(parts[1])
+
+	return version, nil
 }
