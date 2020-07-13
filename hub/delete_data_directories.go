@@ -4,6 +4,8 @@
 package hub
 
 import (
+	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -70,6 +72,57 @@ func deleteDataDirectories(agentConns []*Connection, cluster *greenplum.Cluster,
 
 	var mErr *multierror.Error
 	for err := range errChan {
+		mErr = multierror.Append(mErr, err)
+	}
+
+	return mErr.ErrorOrNil()
+}
+
+func DeleteTablespaceDirectories(agentConns []*Connection, target *greenplum.Cluster, tablespaces greenplum.Tablespaces) error {
+	var wg sync.WaitGroup
+	errs := make(chan error, len(agentConns))
+
+	for _, conn := range agentConns {
+		conn := conn
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			segs := target.SelectSegments(func(seg *greenplum.SegConfig) bool {
+				return seg.IsOnHost(conn.Hostname) && !seg.IsMaster()
+			})
+
+			if len(segs) == 0 {
+				return
+			}
+
+			identifier := fmt.Sprintf("GPDB_%d_%s", target.Version.SemVer.Major, target.CatalogVersion)
+
+			var dirs []string
+			for dbOid, segTablespaces := range tablespaces {
+				for _, tsInfo := range segTablespaces {
+					if !tsInfo.IsUserDefined() {
+						continue
+					}
+
+					// only delete user defined tablespaces
+					path := filepath.Join(tsInfo.Location, string(dbOid), identifier)
+					dirs = append(dirs, path)
+				}
+			}
+
+			req := &idl.DeleteTablespaceRequest{Dirs: dirs}
+			_, err := conn.AgentClient.DeleteTablespaceDirectories(context.Background(), req)
+			errs <- err
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+
+	var mErr *multierror.Error
+	for err := range errs {
 		mErr = multierror.Append(mErr, err)
 	}
 
