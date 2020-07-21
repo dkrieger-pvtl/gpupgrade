@@ -101,3 +101,9 @@ CREATE EXTERNAL TABLE ext_gphdfs (name text)
 CREATE EXTERNAL TABLE "ext gphdfs" (name text) -- whitespace in the name
 	LOCATION ('gphdfs://example.com/data/filename.txt')
 	FORMAT 'TEXT' (DELIMITER '|');
+
+-- create name-type attributes as the not-first column
+DROP TABLE IF EXISTS "name table";
+CREATE TABLE "name table" (a int, "first last" name);
+INSERT INTO "name table" VALUES(1, 'George Washington');
+INSERT INTO "name table" VALUES(1, 'Henry Ford');
