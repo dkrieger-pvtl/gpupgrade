@@ -43,47 +43,54 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	// Since revert needs to work at any point, and stop is not yet idempotent
 	// check if the cluster is running before stopping.
 	// TODO: This will fail if the target does not exist which can occur when
-	//  initialize fails part way through and does not create the target cluster.
-	running, err := s.Target.IsMasterRunning(st.Streams())
-	if err != nil {
-		return err
-	}
-
-	if running {
-		st.Run(idl.Substep_SHUTDOWN_TARGET_CLUSTER, func(streams step.OutStreams) error {
+	//  initialize fails part way through and does not create the target cluster
+	st.ConditionallyRun(idl.Substep_SHUTDOWN_TARGET_CLUSTER,
+		step.NewCheckCondition(func() (bool, error) {
+			return s.Target.IsMasterRunning(st.Streams())
+		}),
+		func(streams step.OutStreams) error {
 			if err := s.Target.Stop(streams); err != nil {
 				return xerrors.Errorf("stopping target cluster: %w", err)
 			}
 			return nil
-		})
-	}
+		},
+	)
 
 	// Restoring the source master and primaries is only needed if upgrading the
 	// primaries had started.
 	// TODO: For now we use if the source master is not running to determine this.
-	running, err = s.Source.IsMasterRunning(st.Streams())
-	if err != nil {
-		return err
-	}
-
-	if !running && s.UseLinkMode {
-		st.Run(idl.Substep_RESTORE_SOURCE_CLUSTER, func(stream step.OutStreams) error {
+	st.ConditionallyRun(idl.Substep_RESTORE_SOURCE_CLUSTER,
+		step.NewCheckCondition(func() (bool, error) {
+			running, err := s.Source.IsMasterRunning(st.Streams())
+			if err != nil {
+				return false, err
+			}
+			return !running && s.UseLinkMode, nil
+		}),
+		func(stream step.OutStreams) error {
 			return RsyncMasterAndPrimaries(stream, s.agentConns, s.Source)
-		})
-	}
+		},
+	)
 
-	if len(s.Config.Target.Primaries) > 0 {
-		st.Run(idl.Substep_DELETE_PRIMARY_DATADIRS, func(_ step.OutStreams) error {
+	st.ConditionallyRun(idl.Substep_DELETE_PRIMARY_DATADIRS,
+		step.NewCheckCondition(func() (bool, error) {
+			return len(s.Config.Target.Primaries) > 0, nil
+		}),
+		func(_ step.OutStreams) error {
 			return DeletePrimaryDataDirectories(s.agentConns, s.Config.Target)
-		})
+		},
+	)
 
-		st.Run(idl.Substep_DELETE_MASTER_DATADIR, func(streams step.OutStreams) error {
+	st.ConditionallyRun(idl.Substep_DELETE_MASTER_DATADIR,
+		step.NewCheckCondition(func() (bool, error) {
+			return len(s.Config.Target.Primaries) > 0, nil
+		}),
+		func(streams step.OutStreams) error {
 			datadir := s.Config.Target.MasterDataDir()
 			hostname := s.Config.Target.MasterHostname()
-
 			return upgrade.DeleteDirectories([]string{datadir}, upgrade.PostgresFiles, hostname, streams)
-		})
-	}
+		},
+	)
 
 	var archiveDir string
 	st.Run(idl.Substep_ARCHIVE_LOG_DIRECTORIES, func(_ step.OutStreams) error {
@@ -108,13 +115,15 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 
 	// Since revert needs to work at any point, and start is not yet idempotent
 	// check if the cluster is not running before starting.
-	running, err = s.Source.IsMasterRunning(st.Streams())
-	if err != nil {
-		return err
-	}
-
-	if !running {
-		st.Run(idl.Substep_START_SOURCE_CLUSTER, func(streams step.OutStreams) error {
+	st.ConditionallyRun(idl.Substep_START_SOURCE_CLUSTER,
+		step.NewCheckCondition(func() (bool, error) {
+			running, err := s.Source.IsMasterRunning(st.Streams())
+			if err != nil {
+				return false, err
+			}
+			return !running && s.UseLinkMode, nil
+		}),
+		func(streams step.OutStreams) error {
 			err := s.Source.Start(streams)
 			var exitErr *exec.ExitError
 			if xerrors.As(err, &exitErr) {
@@ -134,14 +143,17 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			}
 
 			return nil
-		})
-	}
+		},
+	)
 
-	if !s.UseLinkMode {
-		st.Run(idl.Substep_RESTORE_SOURCE_CLUSTER, func(streams step.OutStreams) error {
+	st.ConditionallyRun(idl.Substep_RESTORE_SOURCE_CLUSTER,
+		step.NewCheckCondition(func() (bool, error) {
+			return !s.UseLinkMode, nil
+		}),
+		func(streams step.OutStreams) error {
 			return Recoverseg(streams, s.Source)
-		})
-	}
+		},
+	)
 
 	message := &idl.Message{Contents: &idl.Message_Response{Response: &idl.Response{Data: map[string]string{
 		idl.ResponseKey_source_version.String():               s.Source.Version.VersionString,

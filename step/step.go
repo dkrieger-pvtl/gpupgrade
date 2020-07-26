@@ -4,6 +4,7 @@
 package step
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -125,15 +126,31 @@ func (s *Step) Err() error {
 	return s.err
 }
 
+type CheckCondition struct {
+	check func() (bool, error)
+}
+
+var trueCondition = NewCheckCondition(func() (bool, error) { return true, nil })
+
+func NewCheckCondition(check func() (bool, error)) *CheckCondition {
+	return &CheckCondition{check}
+}
+
+func (s *Step) ConditionallyRun(substep idl.Substep, shouldRun *CheckCondition, f func(OutStreams) error) {
+	s.run(f, false, shouldRun, substep)
+}
+
 func (s *Step) AlwaysRun(substep idl.Substep, f func(OutStreams) error) {
-	s.run(substep, f, true)
+	s.run(f, true, trueCondition, substep)
 }
 
 func (s *Step) Run(substep idl.Substep, f func(OutStreams) error) {
-	s.run(substep, f, false)
+	s.run(f, false, trueCondition, substep)
 }
 
-func (s *Step) run(substep idl.Substep, f func(OutStreams) error, alwaysRun bool) {
+// alwaysRun means re-run a substep that has previously ran successfully
+// shouldRun means skip the step if the condition is not met.
+func (s *Step) run(f func(OutStreams) error, alwaysRun bool, shouldRun *CheckCondition, substep idl.Substep) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -142,6 +159,15 @@ func (s *Step) run(substep idl.Substep, f func(OutStreams) error, alwaysRun bool
 	}()
 
 	if s.err != nil {
+		return
+	}
+
+	if shouldRun == nil {
+		err = errors.New("internal error: nil shouldRun")
+		return
+	}
+	doRun, err := shouldRun.check()
+	if err != nil || !doRun {
 		return
 	}
 
