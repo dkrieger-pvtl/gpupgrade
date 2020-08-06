@@ -178,10 +178,24 @@ func PathExists(path string) bool {
 // Each directory in 'directories' is deleted only if every path in 'requiredPaths' exists
 // in that directory.
 func DeleteDirectories(directories []string, requiredPaths []string, streams step.OutStreams) error {
+	hostname, err := utils.System.Hostname()
+	if err != nil {
+		return err
+	}
+
 	var mErr *multierror.Error
 	for _, directory := range directories {
-		statError := false
+		_, err := utils.System.Stat(directory)
+		if os.IsNotExist(err) {
+			// directory may have been already removed during previous execution
+			fmt.Fprintf(streams.Stdout(), "directory: %q does not exist on host %q\n", directory, hostname)
+			continue
+		} else if err != nil {
+			mErr = multierror.Append(mErr, err)
+			continue
+		}
 
+		statError := false
 		for _, requiredPath := range requiredPaths {
 			filePath := filepath.Join(directory, requiredPath)
 			_, err := utils.System.Stat(filePath)
@@ -193,11 +207,6 @@ func DeleteDirectories(directories []string, requiredPaths []string, streams ste
 
 		if statError {
 			continue
-		}
-
-		hostname, err := utils.System.Hostname()
-		if err != nil {
-			return err
 		}
 
 		_, err = fmt.Fprintf(streams.Stdout(), "Deleting directory: %q on host %q\n", directory, hostname)
@@ -263,7 +272,10 @@ func DeleteNewTablespaceDirectories(streams step.OutStreams, dirs []string) erro
 		parent := filepath.Dir(filepath.Clean(dir))
 
 		entries, err := ioutil.ReadDir(parent)
-		if err != nil {
+		if os.IsNotExist(err) {
+			// directory may have been already removed during previous execution
+			continue
+		} else if err != nil {
 			return err
 		}
 
