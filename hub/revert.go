@@ -180,7 +180,7 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 	}
 
 	if s.Source.Version.Before("6") && (hasRun || !s.UseLinkMode) {
-		st.Run(idl.Substep_RESTORE_SOURCE_CLUSTER, func(streams step.OutStreams) error {
+		st.Run(idl.Substep_RECOVERSEG_SOURCE_CLUSTER, func(streams step.OutStreams) error {
 			// If a 5X source cluster's primaries were booted up during
 			// pg_upgrade, we should perform an incremental recovery to ensure
 			// that the mirrors and primaries are resynchronized.

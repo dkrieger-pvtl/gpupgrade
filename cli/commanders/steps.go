@@ -62,6 +62,7 @@ var SubstepDescriptions = map[idl.Substep]substepText{
 	idl.Substep_RESTORE_SOURCE_CLUSTER:                   substepText{"Restoring source cluster...", "Restore source cluster"},
 	idl.Substep_START_SOURCE_CLUSTER:                     substepText{"Starting source cluster...", "Start source cluster"},
 	idl.Substep_RESTORE_PGCONTROL:                        substepText{"Restoring source cluster...", "Restore source cluster"},
+	idl.Substep_RECOVERSEG_SOURCE_CLUSTER:                substepText{"Starting gprecoverseg...", "Start gprecoverseg"},
 }
 
 var indicators = map[idl.Status]string{
