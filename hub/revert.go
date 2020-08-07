@@ -152,13 +152,17 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 		err = s.Source.Start(streams)
 		var exitErr *exec.ExitError
 		if xerrors.As(err, &exitErr) {
+			hasRun, err := step.HasRun(idl.Step_REVERT, idl.Substep_RESTORE_PGCONTROL)
+			if err != nil {
+				return err
+			}
 			// In copy mode the gpdb 5x source cluster mirrors do not come
 			// up causing gpstart to return a non-zero exit status.
 			// This substep fails preventing the following substep steps
 			// from running including gprecoverseg.
 			// TODO: For 5X investigate how to check for this case and not
 			//  ignore all errors with exit code 1.
-			if !s.UseLinkMode && exitErr.ExitCode() == 1 {
+			if (hasRun || !s.UseLinkMode) && exitErr.ExitCode() == 1 {
 				return nil
 			}
 		}
