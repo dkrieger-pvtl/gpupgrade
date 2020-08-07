@@ -83,18 +83,21 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 			return err
 		}
 
-		st.Run(idl.Substep_RESTORE_SOURCE_CLUSTER, func(stream step.OutStreams) error {
-			if hasRun {
+		if hasRun {
+			st.Run(idl.Substep_RESTORE_SOURCE_CLUSTER, func(stream step.OutStreams) error {
 				if err := RsyncMasterAndPrimaries(stream, s.agentConns, s.Source); err != nil {
 					return err
 				}
 
 				return RsyncMasterAndPrimariesTablespaces(stream, s.agentConns, s.Source, s.Tablespaces)
-			}
+			})
+		} else {
 			// since the target cluster was not started, just restore pg_control.old
 			// to pg_control
-			return RestoreMasterAndPrimariesPgControl(s.agentConns, s.Source)
-		})
+			st.Run(idl.Substep_RESTORE_PGCONTROL, func(stream step.OutStreams) error {
+				return RestoreMasterAndPrimariesPgControl(s.agentConns, s.Source)
+			})
+		}
 	}
 
 	if s.TargetInitializeConfig.Primaries != nil {
