@@ -25,7 +25,7 @@ func TestGetTablespaces(t *testing.T) {
 		name           string
 		rows           [][]driver.Value
 		versionStr     string
-		expectedTuples TablespaceTuples
+		expectedTuples tablespaceTuples
 		error          error
 	}{
 		{
@@ -35,7 +35,7 @@ func TestGetTablespaces(t *testing.T) {
 				{2, 1235, "my_tablespace", "/tmp/my_tablespace", 1},
 			},
 			versionStr: "",
-			expectedTuples: TablespaceTuples{{
+			expectedTuples: tablespaceTuples{{
 				DbId: 1,
 				Oid:  1234,
 				Name: "pg_default",
@@ -109,12 +109,12 @@ func TestGetTablespaces(t *testing.T) {
 func TestNewTablespaces(t *testing.T) {
 	cases := []struct {
 		name     string
-		tuples   TablespaceTuples
+		tuples   tablespaceTuples
 		expected Tablespaces
 	}{
 		{
 			name: "only default tablespace",
-			tuples: TablespaceTuples{
+			tuples: tablespaceTuples{
 				{
 					DbId: 1,
 					Oid:  1663,
@@ -151,7 +151,7 @@ func TestNewTablespaces(t *testing.T) {
 		},
 		{
 			name: "multiple tablespaces",
-			tuples: TablespaceTuples{
+			tuples: tablespaceTuples{
 				{
 					DbId: 1,
 					Oid:  1663,
@@ -355,12 +355,12 @@ func TestTablespacesFromDB(t *testing.T) {
 func TestWrite(t *testing.T) {
 	tests := []struct {
 		name     string
-		tuples   TablespaceTuples
+		tuples   tablespaceTuples
 		expected string
 	}{
 		{
 			name: "successfully writes to buffer",
-			tuples: TablespaceTuples{
+			tuples: tablespaceTuples{
 				Tablespace{
 					1,
 					1663,

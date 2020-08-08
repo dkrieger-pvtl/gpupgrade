@@ -42,7 +42,7 @@ type SegmentTablespaces map[TablespaceOID]TablespaceInfo
 type Tablespaces map[DBid]SegmentTablespaces
 
 // slice of tablespace rows from database
-type TablespaceTuples []Tablespace
+type tablespaceTuples []Tablespace
 
 // input file passed to pg_upgrade, it contains the tablespace information
 // used by pg_upgrade to upgrade the segment tablespace
@@ -76,12 +76,12 @@ func GetMasterTablespaceLocation(basePath string, oid int) string {
 	return filepath.Join(basePath, strconv.Itoa(oid), strconv.Itoa(MasterDbid))
 }
 
-func GetTablespaceTuples(connection *dbconn.DBConn) (TablespaceTuples, error) {
+func GetTablespaceTuples(connection *dbconn.DBConn) (tablespaceTuples, error) {
 	if !connection.Version.Is("5") {
 		return nil, errors.New("version not supported to retrieve tablespace information")
 	}
 
-	results := make(TablespaceTuples, 0)
+	results := make(tablespaceTuples, 0)
 	err := connection.Select(&results, tablespacesQuery)
 	if err != nil {
 		return nil, xerrors.Errorf("tablespace query %q: %w", tablespacesQuery, err)
@@ -91,7 +91,7 @@ func GetTablespaceTuples(connection *dbconn.DBConn) (TablespaceTuples, error) {
 }
 
 // convert the database tablespace query result to internal structure
-func NewTablespaces(tuples TablespaceTuples) Tablespaces {
+func NewTablespaces(tuples tablespaceTuples) Tablespaces {
 	clusterTablespaceMap := make(Tablespaces)
 	for _, t := range tuples {
 		tablespaceInfo := TablespaceInfo{Location: t.Location, UserDefined: t.UserDefined}
@@ -109,7 +109,7 @@ func NewTablespaces(tuples TablespaceTuples) Tablespaces {
 }
 
 // write the tuples returned from the database to a csv file
-func (t TablespaceTuples) Write(w io.Writer) error {
+func (t tablespaceTuples) Write(w io.Writer) error {
 	writer := csv.NewWriter(w)
 	for _, tablespace := range t {
 		line := []string{
