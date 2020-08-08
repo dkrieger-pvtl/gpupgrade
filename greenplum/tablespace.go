@@ -35,11 +35,11 @@ const tablespacesQuery = `
 			ON fsefsoid = spcfsoid
 		) upgrade_tablespace`
 
-// map<tablespaceOid, tablespaceInfo>
-type SegmentTablespaces map[int]TablespaceInfo
+type TablespaceOID int
 
-// map<DbID, map<tablespaceOid, tablespaceInfo>>
-type Tablespaces map[int]SegmentTablespaces
+type SegmentTablespaces map[TablespaceOID]TablespaceInfo
+
+type Tablespaces map[DBid]SegmentTablespaces
 
 // slice of tablespace rows from database
 type TablespaceTuples []Tablespace
@@ -54,8 +54,8 @@ type TablespaceInfo struct {
 }
 
 type Tablespace struct {
-	DbId int
-	Oid  int
+	DbId DBid
+	Oid  TablespaceOID
 	Name string
 	*TablespaceInfo
 }
@@ -113,8 +113,8 @@ func (t TablespaceTuples) Write(w io.Writer) error {
 	writer := csv.NewWriter(w)
 	for _, tablespace := range t {
 		line := []string{
-			strconv.Itoa(tablespace.DbId),
-			strconv.Itoa(tablespace.Oid),
+			tablespace.DbId.String(),
+			strconv.Itoa(int(tablespace.Oid)),
 			tablespace.Name,
 			tablespace.Location,
 			strconv.Itoa(tablespace.UserDefined)}

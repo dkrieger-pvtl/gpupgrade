@@ -251,8 +251,8 @@ func TestRun(t *testing.T) {
 				expected := map[string]interface{}{
 					"old-bindir":           pair.Source.BinDir,
 					"new-bindir":           pair.Target.BinDir,
-					"old-gp-dbid":          pair.Source.DBID,
-					"new-gp-dbid":          pair.Target.DBID,
+					"old-gp-dbid":          int(pair.Source.DBID),
+					"new-gp-dbid":          int(pair.Target.DBID),
 					"old-datadir":          pair.Source.DataDir,
 					"new-datadir":          pair.Target.DataDir,
 					"old-port":             pair.Source.Port,

@@ -9,7 +9,7 @@ import (
 )
 
 type SegConfig struct {
-	DbID      int
+	DbID      DBid
 	ContentID int
 	Port      int
 	Hostname  string

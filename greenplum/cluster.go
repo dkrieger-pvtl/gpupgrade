@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 
 	"github.com/greenplum-db/gp-common-go-libs/dbconn"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -14,13 +15,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/step"
-	"github.com/greenplum-db/gpupgrade/upgrade"
+	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 var isPostmasterRunningCmd = exec.Command
 var startStopCmd = exec.Command
 
 const MasterDbid = 1
+
+type DBid int
 
 type Cluster struct {
 	// ContentIDs contains the list of all primary content IDs, in the same
@@ -39,6 +42,10 @@ type Cluster struct {
 
 	GPHome  string
 	Version dbconn.GPDBVersion
+}
+
+func (d DBid) String() string {
+	return strconv.Itoa(int(d))
 }
 
 // ClusterFromDB will create a Cluster by querying the passed DBConn for
@@ -280,7 +287,7 @@ func (c *Cluster) GetContentList() []int {
 	return c.ContentIDs
 }
 
-func (c *Cluster) GetDbidForContent(contentID int) int {
+func (c *Cluster) GetDbidForContent(contentID int) DBid {
 	return c.Primaries[contentID].DbID
 }
 
@@ -354,7 +361,7 @@ func runStartStopCmd(stream step.OutStreams, gphome, command string, env string)
 // IsMasterRunning returns whether the cluster's master process is running.
 func (c *Cluster) IsMasterRunning(stream step.OutStreams) (bool, error) {
 	path := filepath.Join(c.MasterDataDir(), "postmaster.pid")
-	if !upgrade.PathExists(path) {
+	if !pathExists(path) {
 		return false, nil
 	}
 
@@ -379,4 +386,9 @@ func (c *Cluster) IsMasterRunning(stream step.OutStreams) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func pathExists(path string) bool {
+	_, err := utils.System.Stat(path)
+	return err == nil
 }

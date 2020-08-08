@@ -32,7 +32,7 @@ func TestConfig(t *testing.T) {
 			false,           // UseLinkMode
 			target.GPHome,   // TargetGPHome
 			upgrade.NewID(), // UpgradeID
-			map[int]greenplum.SegmentTablespaces{
+			map[greenplum.DBid]greenplum.SegmentTablespaces{
 				1: {1663: {
 					Location:    "/tmp/master/my_tablespace/1663",
 					UserDefined: 1,

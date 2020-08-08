@@ -241,7 +241,7 @@ func TestDeleteTablespaceDirectories(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		tablespaces := map[int]greenplum.SegmentTablespaces{
+		tablespaces := map[greenplum.DBid]greenplum.SegmentTablespaces{
 			1: {
 				16386: {
 					Location:    "/tmp/testfs/master/demoDataDir-1/16386",

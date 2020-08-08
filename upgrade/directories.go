@@ -9,13 +9,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/utils"
 )
@@ -286,10 +286,10 @@ func DeleteNewTablespaceDirectories(streams step.OutStreams, dirs []string) erro
 	return nil
 }
 
-func TablespacePath(tablespaceLocation string, dbID int, majorVersion uint64, catalogVersion string) string {
+func TablespacePath(tablespaceLocation string, dbID greenplum.DBid, majorVersion uint64, catalogVersion string) string {
 	return filepath.Join(
 		tablespaceLocation,
-		strconv.Itoa(dbID),
+		dbID.String(),
 		fmt.Sprintf("GPDB_%d_%s", majorVersion, catalogVersion),
 	)
 }

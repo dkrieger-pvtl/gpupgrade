@@ -118,7 +118,7 @@ func (i *InvalidClusterError) Is(err error) bool {
 	return err == ErrInvalidCluster
 }
 
-func getProtoTablespaceMap(tablespaces greenplum.Tablespaces, dbId int) map[int32]*idl.TablespaceInfo {
+func getProtoTablespaceMap(tablespaces greenplum.Tablespaces, dbId greenplum.DBid) map[int32]*idl.TablespaceInfo {
 	if tablespaces == nil {
 		return nil
 	}

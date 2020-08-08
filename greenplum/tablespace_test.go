@@ -134,7 +134,7 @@ func TestNewTablespaces(t *testing.T) {
 					},
 				},
 			},
-			expected: map[int]SegmentTablespaces{
+			expected: map[DBid]SegmentTablespaces{
 				1: {
 					1663: {
 						Location:    "/tmp/master/gpseg-1",
@@ -189,7 +189,7 @@ func TestNewTablespaces(t *testing.T) {
 					},
 				},
 			},
-			expected: map[int]SegmentTablespaces{
+			expected: map[DBid]SegmentTablespaces{
 				1: {
 					1663: {
 						Location:    "/tmp/master/gpseg-1",

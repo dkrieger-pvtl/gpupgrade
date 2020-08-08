@@ -10,6 +10,8 @@ import (
 	"strconv"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
+
+	"github.com/greenplum-db/gpupgrade/greenplum"
 )
 
 const DefaultHubPort = 7527
@@ -23,7 +25,7 @@ var execCommand = exec.Command
 type Segment struct {
 	BinDir  string
 	DataDir string
-	DBID    int
+	DBID    greenplum.DBid
 	Port    int
 }
 
@@ -48,8 +50,8 @@ func Run(p SegmentPair, options ...Option) error {
 		"--retain", // always keep log files around
 		"--old-bindir", p.Source.BinDir,
 		"--new-bindir", p.Target.BinDir,
-		"--old-gp-dbid", strconv.Itoa(p.Source.DBID),
-		"--new-gp-dbid", strconv.Itoa(p.Target.DBID),
+		"--old-gp-dbid", p.Source.DBID.String(),
+		"--new-gp-dbid", p.Target.DBID.String(),
 		"--old-datadir", p.Source.DataDir,
 		"--new-datadir", p.Target.DataDir,
 		"--old-port", strconv.Itoa(p.Source.Port),
