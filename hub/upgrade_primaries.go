@@ -124,12 +124,17 @@ func getProtoTablespaceMap(tablespaces greenplum.Tablespaces, dbId greenplum.DBi
 	}
 
 	segTablespaces := tablespaces[dbId]
-	t := make(map[int32]*idl.TablespaceInfo)
+	t := make(map[greenplum.TablespaceOID]*idl.TablespaceInfo)
 	for tablespaceOid, tablespace := range segTablespaces {
-		t[int32(tablespaceOid)] = &idl.TablespaceInfo{
+		t[tablespaceOid] = &idl.TablespaceInfo{
 			Location:    tablespace.Location,
 			UserDefined: tablespace.IsUserDefined()}
 	}
 
-	return t
+	// protobuf type does not have the tablespaceOID typedef, so convert it manually
+	r := make(map[int32]*idl.TablespaceInfo)
+	for k, v := range t {
+		r[int32(k)] = v
+	}
+	return r
 }

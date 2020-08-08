@@ -60,6 +60,10 @@ type Tablespace struct {
 	*TablespaceInfo
 }
 
+func (o TablespaceOID) String() string {
+	return strconv.Itoa(int(o))
+}
+
 func (t Tablespaces) GetMasterTablespaces() SegmentTablespaces {
 	return t[MasterDbid]
 }
@@ -114,7 +118,7 @@ func (t tablespaceTuples) Write(w io.Writer) error {
 	for _, tablespace := range t {
 		line := []string{
 			tablespace.DbId.String(),
-			strconv.Itoa(int(tablespace.Oid)),
+			tablespace.Oid.String(),
 			tablespace.Name,
 			tablespace.Location,
 			strconv.Itoa(tablespace.UserDefined)}
