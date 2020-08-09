@@ -42,7 +42,7 @@ type SegmentTablespaces map[TablespaceOID]TablespaceInfo
 type Tablespaces map[DBid]SegmentTablespaces
 
 // slice of tablespace rows from database
-type tablespaceTuples []Tablespace
+type tablespaceTuples []tablespace
 
 // input file passed to pg_upgrade, it contains the tablespace information
 // used by pg_upgrade to upgrade the segment tablespace
@@ -53,7 +53,7 @@ type TablespaceInfo struct {
 	UserDefined int
 }
 
-type Tablespace struct {
+type tablespace struct {
 	DbId DBid
 	Oid  TablespaceOID
 	Name string

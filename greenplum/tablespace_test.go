@@ -361,7 +361,7 @@ func TestWrite(t *testing.T) {
 		{
 			name: "successfully writes to buffer",
 			tuples: tablespaceTuples{
-				Tablespace{
+				tablespace{
 					1,
 					1663,
 					"default",
@@ -370,7 +370,7 @@ func TestWrite(t *testing.T) {
 						0,
 					},
 				},
-				Tablespace{
+				tablespace{
 					2,
 					1664,
 					"my_tablespace",
