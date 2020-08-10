@@ -21,7 +21,7 @@ import (
 var isPostmasterRunningCmd = exec.Command
 var startStopCmd = exec.Command
 
-const MasterDbid = 1
+const MasterDbid = DBid(1)
 
 type DBid int
 

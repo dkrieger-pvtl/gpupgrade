@@ -17,6 +17,33 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
+// input file passed to pg_upgrade, it contains the tablespace information
+// used by pg_upgrade to upgrade the segment tablespace
+const TablespacesMappingFile = "tablespaces.txt"
+
+type TablespaceOID int
+
+func (o TablespaceOID) String() string {
+	return strconv.Itoa(int(o))
+}
+
+type SegmentTablespaces map[TablespaceOID]TablespaceInfo
+
+type Tablespaces map[DBid]SegmentTablespaces
+
+func (t Tablespaces) GetMasterTablespaces() SegmentTablespaces {
+	return t[MasterDbid]
+}
+
+type TablespaceInfo struct {
+	Location    string
+	UserDefined int
+}
+
+func (t *TablespaceInfo) IsUserDefined() bool {
+	return t.UserDefined == 1
+}
+
 const tablespacesQuery = `
 	SELECT
 		fsedbid as dbid,
@@ -35,23 +62,8 @@ const tablespacesQuery = `
 			ON fsefsoid = spcfsoid
 		) upgrade_tablespace`
 
-type TablespaceOID int
-
-type SegmentTablespaces map[TablespaceOID]TablespaceInfo
-
-type Tablespaces map[DBid]SegmentTablespaces
-
 // slice of tablespace rows from database
 type tablespaceTuples []tablespace
-
-// input file passed to pg_upgrade, it contains the tablespace information
-// used by pg_upgrade to upgrade the segment tablespace
-const TablespacesMappingFile = "tablespaces.txt"
-
-type TablespaceInfo struct {
-	Location    string
-	UserDefined int
-}
 
 type tablespace struct {
 	DbId DBid
@@ -60,27 +72,34 @@ type tablespace struct {
 	*TablespaceInfo
 }
 
-func (o TablespaceOID) String() string {
-	return strconv.Itoa(int(o))
+// main function which does the following:
+// 1. query the database to get tablespace information
+// 2. write the tablespace information to a file
+// 3. converts the tablespace information to an internal structure
+func TablespacesFromDB(conn *dbconn.DBConn, tablespacesFile string) (Tablespaces, error) {
+	if err := conn.Connect(1); err != nil {
+		return nil, xerrors.Errorf("connect to cluster: %w", err)
+	}
+	defer conn.Close()
+
+	tablespaceTuples, err := getTablespaceTuples(conn)
+	if err != nil {
+		return nil, xerrors.Errorf("retrieve tablespace information: %w", err)
+	}
+
+	file, err := utils.System.Create(tablespacesFile)
+	if err != nil {
+		return nil, xerrors.Errorf("create tablespace file %q: %w", tablespacesFile, err)
+	}
+	defer file.Close()
+	if err := tablespaceTuples.write(file); err != nil {
+		return nil, xerrors.Errorf("populate tablespace mapping file: %w", err)
+	}
+
+	return newTablespaces(tablespaceTuples), nil
 }
 
-func (t Tablespaces) GetMasterTablespaces() SegmentTablespaces {
-	return t[MasterDbid]
-}
-
-func (t *TablespaceInfo) IsUserDefined() bool {
-	return t.UserDefined == 1
-}
-
-func GetTablespaceLocationForDbId(t *idl.TablespaceInfo, dbId int) string {
-	return filepath.Join(t.Location, strconv.Itoa(dbId))
-}
-
-func GetMasterTablespaceLocation(basePath string, oid int) string {
-	return filepath.Join(basePath, strconv.Itoa(oid), strconv.Itoa(MasterDbid))
-}
-
-func GetTablespaceTuples(connection *dbconn.DBConn) (tablespaceTuples, error) {
+func getTablespaceTuples(connection *dbconn.DBConn) (tablespaceTuples, error) {
 	if !connection.Version.Is("5") {
 		return nil, errors.New("version not supported to retrieve tablespace information")
 	}
@@ -94,26 +113,8 @@ func GetTablespaceTuples(connection *dbconn.DBConn) (tablespaceTuples, error) {
 	return results, nil
 }
 
-// convert the database tablespace query result to internal structure
-func NewTablespaces(tuples tablespaceTuples) Tablespaces {
-	clusterTablespaceMap := make(Tablespaces)
-	for _, t := range tuples {
-		tablespaceInfo := TablespaceInfo{Location: t.Location, UserDefined: t.UserDefined}
-		if segTablespaceMap, ok := clusterTablespaceMap[t.DbId]; ok {
-			segTablespaceMap[t.Oid] = tablespaceInfo
-			clusterTablespaceMap[t.DbId] = segTablespaceMap
-		} else {
-			segTablespaceMap := make(SegmentTablespaces)
-			segTablespaceMap[t.Oid] = tablespaceInfo
-			clusterTablespaceMap[t.DbId] = segTablespaceMap
-		}
-	}
-
-	return clusterTablespaceMap
-}
-
 // write the tuples returned from the database to a csv file
-func (t tablespaceTuples) Write(w io.Writer) error {
+func (t tablespaceTuples) write(w io.Writer) error {
 	writer := csv.NewWriter(w)
 	for _, tablespace := range t {
 		line := []string{
@@ -130,29 +131,28 @@ func (t tablespaceTuples) Write(w io.Writer) error {
 	return nil
 }
 
-// main function which does the following:
-// 1. query the database to get tablespace information
-// 2. write the tablespace information to a file
-// 3. converts the tablespace information to an internal structure
-func TablespacesFromDB(conn *dbconn.DBConn, tablespacesFile string) (Tablespaces, error) {
-	if err := conn.Connect(1); err != nil {
-		return nil, xerrors.Errorf("connect to cluster: %w", err)
-	}
-	defer conn.Close()
-
-	tablespaceTuples, err := GetTablespaceTuples(conn)
-	if err != nil {
-		return nil, xerrors.Errorf("retrieve tablespace information: %w", err)
-	}
-
-	file, err := utils.System.Create(tablespacesFile)
-	if err != nil {
-		return nil, xerrors.Errorf("create tablespace file %q: %w", tablespacesFile, err)
-	}
-	defer file.Close()
-	if err := tablespaceTuples.Write(file); err != nil {
-		return nil, xerrors.Errorf("populate tablespace mapping file: %w", err)
+// convert the database tablespace query result to internal structure
+func newTablespaces(tuples tablespaceTuples) Tablespaces {
+	clusterTablespaceMap := make(Tablespaces)
+	for _, t := range tuples {
+		tablespaceInfo := TablespaceInfo{Location: t.Location, UserDefined: t.UserDefined}
+		if segTablespaceMap, ok := clusterTablespaceMap[t.DbId]; ok {
+			segTablespaceMap[t.Oid] = tablespaceInfo
+			clusterTablespaceMap[t.DbId] = segTablespaceMap
+		} else {
+			segTablespaceMap := make(SegmentTablespaces)
+			segTablespaceMap[t.Oid] = tablespaceInfo
+			clusterTablespaceMap[t.DbId] = segTablespaceMap
+		}
 	}
 
-	return NewTablespaces(tablespaceTuples), nil
+	return clusterTablespaceMap
+}
+
+func GetTablespaceLocationForDbId(t *idl.TablespaceInfo, dbId DBid) string {
+	return filepath.Join(t.Location, dbId.String())
+}
+
+func GetMasterTablespaceLocation(basePath string, oid TablespaceOID) string {
+	return filepath.Join(basePath, oid.String(), MasterDbid.String())
 }

@@ -107,8 +107,8 @@ func RestoreTablespaces(request *idl.UpgradePrimariesRequest, segment Segment) e
 			continue
 		}
 
-		targetDir := greenplum.GetTablespaceLocationForDbId(tablespace, int(segment.DBID))
-		sourceDir := greenplum.GetMasterTablespaceLocation(filepath.Dir(request.TablespacesMappingFilePath), int(oid))
+		targetDir := greenplum.GetTablespaceLocationForDbId(tablespace, greenplum.DBid(segment.DBID))
+		sourceDir := greenplum.GetMasterTablespaceLocation(filepath.Dir(request.TablespacesMappingFilePath), greenplum.TablespaceOID(oid))
 
 		options := []rsync.Option{
 			rsync.WithSources(sourceDir + string(os.PathSeparator)),

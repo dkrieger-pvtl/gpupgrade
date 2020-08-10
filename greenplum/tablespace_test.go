@@ -94,7 +94,7 @@ func TestGetTablespaces(t *testing.T) {
 				testhelper.SetDBVersion(conn, c.versionStr)
 			}
 
-			results, err := GetTablespaceTuples(conn)
+			results, err := getTablespaceTuples(conn)
 			if c.error != nil && !strings.Contains(err.Error(), c.error.Error()) {
 				t.Errorf("got %+v, want %+v", err, c.error)
 			}
@@ -215,7 +215,7 @@ func TestNewTablespaces(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := NewTablespaces(c.tuples); !reflect.DeepEqual(got, c.expected) {
+			if got := newTablespaces(c.tuples); !reflect.DeepEqual(got, c.expected) {
 				t.Errorf("NewTablespaces() = %v, want %v", got, c.expected)
 			}
 		})
@@ -386,12 +386,12 @@ func TestWrite(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			w := &bytes.Buffer{}
-			err := test.tuples.Write(w)
+			err := test.tuples.write(w)
 			if err != nil {
-				t.Errorf("Write() got error %v", err)
+				t.Errorf("write() got error %v", err)
 			}
 			if data := w.String(); w.String() != test.expected {
-				t.Errorf("Write() gotW = %v, want %v", data, test.expected)
+				t.Errorf("write() gotW = %v, want %v", data, test.expected)
 			}
 		})
 	}
