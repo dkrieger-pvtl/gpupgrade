@@ -1,0 +1,7 @@
+#!/bin/bash
+
+source /usr/local/gpdb6/greenplum_path.sh
+export PGPORT=$1
+export MASTER_DATA_DIRECTORY=$2
+gpstop -a
+

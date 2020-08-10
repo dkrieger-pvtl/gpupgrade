@@ -1,0 +1,32 @@
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql --echo-queries --quiet
+DO $$ BEGIN ALTER TABLE partition_table_partitioned_by_name_type ALTER COLUMN b TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported('partition_table_partitioned_by_name_type'); END $$;
+psql:erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql:21: WARNING:  ---------------------------------------------------------------------------------
+psql:erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql:21: WARNING:  Removing the name-type column failed on table 'partition_table_partitioned_by_name_type'.  You must resolve it manually.
+psql:erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql:21: WARNING:  ---------------------------------------------------------------------------------
+DO $$ BEGIN ALTER TABLE table_distributed_by_name_type ALTER COLUMN b TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported('table_distributed_by_name_type'); END $$;
+psql:erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql:22: WARNING:  ---------------------------------------------------------------------------------
+psql:erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql:22: WARNING:  Removing the name-type column failed on table 'table_distributed_by_name_type'.  You must resolve it manually.
+psql:erase/pre-upgrade/migration_postgres_gen_alter_name_type_columns.sql:22: WARNING:  ---------------------------------------------------------------------------------
+
+
+
+migration_scripts: handle name type columns
+
+We need to handle name type columns that are not in the first column.
+
+Our solution runs this in pre-upgrade:
+
+ALTER TABLE table ALTER COLUMN col TYPE varchar(63)
+
+on all non-(child partition) tables for which col is originally of
+name type.
+
+Unfortunately, there are documented and undocumented cases where this
+ALTER COLUMN fails.  So we print out to the executing log to inform
+the user that they must manually update those tables.
+
+For post-revert, we do nothing now as we do not want to track which
+tables the user might have manually migrated.
+
+For post-upgrade, we do nothing now as the name type should not be
+used in user tables.

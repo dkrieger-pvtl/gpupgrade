@@ -1,0 +1,343 @@
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f pre-upgrade//gen_alter_gphdfs_roles.sql --echo-queries --quiet
+SELECT 'ALTER ROLE '|| rolname || $$ NOCREATEEXTTABLE(protocol='gphdfs',type='readable'); $$
+FROM pg_roles
+WHERE rolcreaterexthdfs='t'
+UNION ALL
+SELECT 'ALTER ROLE ' || rolname || $$ NOCREATEEXTTABLE(protocol='gphdfs',type='writable'); $$
+FROM pg_roles
+WHERE rolcreatewexthdfs='t';
+                                   ?column?                                   
+------------------------------------------------------------------------------
+ ALTER ROLE gphdfs_user NOCREATEEXTTABLE(protocol='gphdfs',type='readable'); 
+ ALTER ROLE gphdfs_user NOCREATEEXTTABLE(protocol='gphdfs',type='writable'); 
+(2 rows)
+
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f pre-upgrade//gen_alter_name_type_columns.sql --echo-queries --quiet
+SELECT $FUNCTION$
+\set VERBOSITY terse
+
+\unset ECHO
+CREATE OR REPLACE FUNCTION pg_temp.notsupported() RETURNS VOID AS $$
+BEGIN
+    RAISE NOTICE 'ALTER TABLE is not supported on this type of table.  You must resolve it manually.';
+END
+$$ LANGUAGE plpgsql;
+\set ECHO queries
+$FUNCTION$;
+                                                ?column?                                                
+--------------------------------------------------------------------------------------------------------
+                                                                                                        
+ \set VERBOSITY terse                                                                                   
+                                                                                                        
+ \unset ECHO                                                                                            
+ CREATE OR REPLACE FUNCTION pg_temp.notsupported() RETURNS VOID AS $$                                   
+ BEGIN                                                                                                  
+     RAISE NOTICE 'ALTER TABLE is not supported on this type of table.  You must resolve it manually.'; 
+ END                                                                                                    
+ $$ LANGUAGE plpgsql;                                                                                   
+ \set ECHO queries                                                                                      
+ 
+(1 row)
+
+SELECT 'DO $$ BEGIN ALTER TABLE ' || c.oid::pg_catalog.regclass ||
+       ' ALTER COLUMN ' || pg_catalog.quote_ident(a.attname) ||
+       ' TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(); END $$;'
+FROM pg_catalog.pg_class c,
+     pg_catalog.pg_namespace n,
+     pg_catalog.pg_attribute a
+WHERE c.oid = a.attrelid
+  AND a.attnum > 1
+  AND NOT a.attisdropped
+  AND a.atttypid = 'pg_catalog.name'::pg_catalog.regtype
+  AND c.relnamespace = n.oid
+  AND 
+        n.nspname !~ '^pg_temp_'
+  AND n.nspname !~ '^pg_toast_temp_'
+  AND n.nspname NOT IN ('pg_catalog',
+                        'information_schema',
+                        'gp_toolkit')
+  AND c.oid NOT IN
+      (SELECT DISTINCT parchildrelid
+       FROM pg_catalog.pg_partition_rule);
+                                                                                         ?column?                                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ DO $$ BEGIN ALTER TABLE "table with name as second column" ALTER COLUMN "first last" TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(); END $$;
+ DO $$ BEGIN ALTER TABLE partition_table_partitioned_by_name_type ALTER COLUMN b TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(); END $$;
+ DO $$ BEGIN ALTER TABLE table_distributed_by_name_type ALTER COLUMN b TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(); END $$;
+(3 rows)
+
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f pre-upgrade//gen_drop_external_tables.sql --echo-queries --quiet
+SELECT 'DROP EXTERNAL TABLE ' || d.objid::regclass || ';'
+FROM pg_catalog.pg_depend d
+       JOIN pg_catalog.pg_exttable x ON ( d.objid = x.reloid )
+       JOIN pg_catalog.pg_extprotocol p ON ( p.oid = d.refobjid )
+       JOIN pg_catalog.pg_class c ON ( c.oid = d.objid )
+WHERE d.refclassid = 'pg_extprotocol'::regclass
+    AND p.ptcname = 'gphdfs';
+             ?column?              
+-----------------------------------
+ DROP EXTERNAL TABLE ext_gphdfs;
+ DROP EXTERNAL TABLE "ext gphdfs";
+(2 rows)
+
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f pre-upgrade//gen_drop_fk_constraint.sql --echo-queries --quiet
+SELECT
+   'ALTER TABLE ' || nspname || '.' || relname || ' DROP CONSTRAINT ' || conname || ';'
+FROM
+   pg_constraint cc
+   JOIN
+      (
+         SELECT DISTINCT
+            c.oid,
+            n.nspname,
+            c.relname
+         FROM
+            pg_catalog.pg_partition p
+            JOIN
+               pg_catalog.pg_class c
+               ON (p.parrelid = c.oid)
+            JOIN
+               pg_catalog.pg_namespace n
+               ON (n.oid = c.relnamespace)
+      )
+      as sub
+      ON sub.oid = cc.conrelid
+WHERE
+   cc.contype = 'f';
+                               ?column?                               
+----------------------------------------------------------------------
+ ALTER TABLE public.pt_with_index DROP CONSTRAINT pt_with_index_fkey;
+(1 row)
+
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f pre-upgrade//gen_drop_partition_indexes.sql --echo-queries --quiet
+WITH partitions (relid) AS
+(
+   SELECT DISTINCT
+      parrelid
+   FROM
+      pg_partition
+   UNION ALL
+   SELECT DISTINCT
+      parchildrelid
+   FROM
+      pg_partition_rule
+)
+,
+
+part_constraint AS
+(
+   SELECT
+      conname,
+      c.relname connrel,
+      n.nspname relschema,
+      cc.relname rel
+   FROM
+      pg_constraint con
+      JOIN
+         pg_depend dep
+         ON (refclassid, classid, objsubid) =
+         (
+            'pg_constraint'::regclass,
+            'pg_class'::regclass,
+            0
+         )
+         AND refobjid = con.oid
+         AND deptype = 'i'
+         AND contype IN
+         (
+            'u',
+            'p'
+         )
+      JOIN
+         pg_class c
+         ON objid = c.oid
+         AND relkind = 'i'
+      JOIN
+         partitions
+         ON con.conrelid = partitions.relid
+      JOIN
+         pg_class cc
+         ON cc.oid = partitions.relid
+      JOIN
+         pg_namespace n
+         ON (n.oid = cc.relnamespace)
+)
+SELECT
+   $$ DROP INDEX $$ || i.relname || $$ ;$$
+FROM
+   pg_index x
+   JOIN
+      partitions c
+      ON c.relid = x.indrelid
+   JOIN
+      pg_class y
+      ON c.relid = y.oid
+   JOIN
+      pg_class i
+      ON i.oid = x.indexrelid
+   LEFT JOIN
+      pg_namespace n
+      ON n.oid = y.relnamespace
+   LEFT JOIN
+      pg_tablespace t
+      ON t.oid = i.reltablespace
+WHERE
+   y.relkind = 'r'::"char"
+   AND i.relkind = 'i'::"char"
+   AND
+   (
+      i.relname,
+      n.nspname,
+      y.relname
+   )
+   NOT IN
+   (
+      SELECT
+         connrel,
+         relschema,
+         rel
+      FROM
+         part_constraint
+   )
+;
+                                ?column?                                 
+-------------------------------------------------------------------------
+  DROP INDEX sales_idx ;
+  DROP INDEX ptidxc ;
+  DROP INDEX ptidxc_1_prt_pt1 ;
+  DROP INDEX ptidxc_1_prt_pt2 ;
+  DROP INDEX ptidxc_1_prt_pt3 ;
+  DROP INDEX ptidxc_bitmap ;
+  DROP INDEX ptidxc_bitmap_1_prt_pt1 ;
+  DROP INDEX ptidxc_bitmap_1_prt_pt2 ;
+  DROP INDEX ptidxc_bitmap_1_prt_pt3 ;
+  DROP INDEX ptidxb_prt_2 ;
+  DROP INDEX ptidxb_prt_2_bitmap ;
+  DROP INDEX ptidxc_prt_2 ;
+  DROP INDEX ptidxc_prt_2_bitmap ;
+  DROP INDEX sales_idx_1_prt_outlying_dates ;
+  DROP INDEX sales_idx_1_prt_outlying_dates_2_prt_usa ;
+  DROP INDEX sales_idx_1_prt_outlying_dates_2_prt_asia ;
+  DROP INDEX sales_idx_1_prt_outlying_dates_2_prt_europe ;
+  DROP INDEX sales_idx_1_prt_outlying_dates_2_prt_other_regions ;
+  DROP INDEX sales_idx_1_prt_2 ;
+  DROP INDEX sales_idx_1_prt_2_2_prt_usa ;
+  DROP INDEX sales_idx_1_prt_2_2_prt_asia ;
+  DROP INDEX sales_idx_1_prt_2_2_prt_europe ;
+  DROP INDEX sales_idx_1_prt_2_2_prt_other_regions ;
+  DROP INDEX sales_idx_1_prt_3 ;
+  DROP INDEX sales_idx_1_prt_3_2_prt_usa ;
+  DROP INDEX sales_idx_1_prt_3_2_prt_asia ;
+  DROP INDEX sales_idx_1_prt_3_2_prt_europe ;
+  DROP INDEX sales_idx_1_prt_3_2_prt_other_regions ;
+  DROP INDEX sales_idx_1_prt_4 ;
+  DROP INDEX sales_idx_1_prt_4_2_prt_usa ;
+  DROP INDEX sales_idx_1_prt_4_2_prt_asia ;
+  DROP INDEX sales_idx_1_prt_4_2_prt_europe ;
+  DROP INDEX sales_idx_1_prt_4_2_prt_other_regions ;
+  DROP INDEX sales_idx_bitmap ;
+  DROP INDEX sales_idx_bitmap_1_prt_outlying_dates ;
+  DROP INDEX sales_idx_bitmap_1_prt_outlying_dates_2_prt_usa ;
+  DROP INDEX sales_idx_bitmap_1_prt_outlying_dates_2_prt_asia ;
+  DROP INDEX sales_idx_bitmap_1_prt_outlying_dates_2_prt_europe ;
+  DROP INDEX sales_idx_bitmap_1_prt_outlying_dates_2_prt_other_regions ;
+  DROP INDEX sales_idx_bitmap_1_prt_2 ;
+  DROP INDEX sales_idx_bitmap_1_prt_2_2_prt_usa ;
+  DROP INDEX sales_idx_bitmap_1_prt_2_2_prt_asia ;
+  DROP INDEX sales_idx_bitmap_1_prt_2_2_prt_europe ;
+  DROP INDEX sales_idx_bitmap_1_prt_2_2_prt_other_regions ;
+  DROP INDEX sales_idx_bitmap_1_prt_3 ;
+  DROP INDEX sales_idx_bitmap_1_prt_3_2_prt_usa ;
+  DROP INDEX sales_idx_bitmap_1_prt_3_2_prt_asia ;
+  DROP INDEX sales_idx_bitmap_1_prt_3_2_prt_europe ;
+  DROP INDEX sales_idx_bitmap_1_prt_3_2_prt_other_regions ;
+  DROP INDEX sales_idx_bitmap_1_prt_4 ;
+  DROP INDEX sales_idx_bitmap_1_prt_4_2_prt_usa ;
+  DROP INDEX sales_idx_bitmap_1_prt_4_2_prt_asia ;
+  DROP INDEX sales_idx_bitmap_1_prt_4_2_prt_europe ;
+  DROP INDEX sales_idx_bitmap_1_prt_4_2_prt_other_regions ;
+  DROP INDEX sales_1_prt_2_idx ;
+  DROP INDEX sales_1_prt_3_2_prt_asia_idx ;
+  DROP INDEX sales_1_prt_outlying_dates_idx ;
+  DROP INDEX sales_unique_idx ;
+  DROP INDEX sales_unique_idx_1_prt_outlying_dates ;
+  DROP INDEX sales_unique_idx_1_prt_outlying_dates_2_prt_usa ;
+  DROP INDEX sales_unique_idx_1_prt_outlying_dates_2_prt_asia ;
+  DROP INDEX sales_unique_idx_1_prt_outlying_dates_2_prt_europe ;
+  DROP INDEX sales_unique_idx_1_prt_outlying_dates_2_prt_other_regions ;
+  DROP INDEX sales_unique_idx_1_prt_2 ;
+  DROP INDEX sales_unique_idx_1_prt_2_2_prt_usa ;
+  DROP INDEX sales_unique_idx_1_prt_2_2_prt_asia ;
+  DROP INDEX sales_unique_idx_1_prt_2_2_prt_europe ;
+  DROP INDEX sales_unique_idx_1_prt_2_2_prt_other_regions ;
+  DROP INDEX sales_unique_idx_1_prt_3 ;
+  DROP INDEX sales_unique_idx_1_prt_3_2_prt_usa ;
+  DROP INDEX sales_unique_idx_1_prt_3_2_prt_asia ;
+  DROP INDEX sales_unique_idx_1_prt_3_2_prt_europe ;
+  DROP INDEX sales_unique_idx_1_prt_3_2_prt_other_regions ;
+  DROP INDEX sales_unique_idx_1_prt_4 ;
+  DROP INDEX sales_unique_idx_1_prt_4_2_prt_usa ;
+  DROP INDEX sales_unique_idx_1_prt_4_2_prt_asia ;
+  DROP INDEX sales_unique_idx_1_prt_4_2_prt_europe ;
+  DROP INDEX sales_unique_idx_1_prt_4_2_prt_other_regions ;
+(78 rows)
+
+Executing command: /usr/local/gpdb5/bin/psql -d postgres -p 15432 -f pre-upgrade//gen_drop_primary_unique_constraint.sql --echo-queries --quiet
+WITH CTE as
+(
+   SELECT
+      oid,
+      *
+   FROM
+      pg_class
+   WHERE
+      oid NOT IN
+      (
+         SELECT DISTINCT
+            parrelid
+         FROM
+            pg_partition
+         UNION ALL
+         SELECT DISTINCT
+            parchildrelid
+         FROM
+            pg_partition_rule
+      )
+)
+SELECT
+   'ALTER TABLE ' || n.nspname || '.' || cc.relname || ' DROP CONSTRAINT ' || conname || ' CASCADE;'
+FROM
+   pg_constraint con
+   JOIN
+      pg_depend dep
+      ON (refclassid, classid, objsubid) =
+      (
+         'pg_constraint'::regclass,
+         'pg_class'::regclass,
+         0
+      )
+      AND refobjid = con.oid
+      AND deptype = 'i'
+      AND contype IN
+      (
+         'u',
+         'p'
+      )
+   JOIN
+      CTE c
+      ON objid = c.oid
+      AND relkind = 'i'
+   JOIN
+      CTE cc
+      ON cc.oid = con.conrelid
+   JOIN
+      pg_namespace n
+      ON (n.oid = cc.relnamespace)
+WHERE
+   conname <> c.relname ;
+                                                     ?column?                                                     
+------------------------------------------------------------------------------------------------------------------
+ ALTER TABLE public.table_with_unique_constraint DROP CONSTRAINT table_with_unique_constraint_uniq_au_ti CASCADE;
+ ALTER TABLE public.table_with_primary_constraint DROP CONSTRAINT table_with_primary_constraint_au_ti CASCADE;
+(2 rows)
+

@@ -4,6 +4,7 @@
 syntax = "proto3";
 
 package idl;
+option go_package = "idl";
 
 import "cli_to_hub.proto";
 

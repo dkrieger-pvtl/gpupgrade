@@ -7,7 +7,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cloudfoundry/gosigar v1.1.0
 	github.com/golang/mock v1.4.4
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.1
 	github.com/google/renameio v0.1.0
 	github.com/greenplum-db/gp-common-go-libs v1.0.4
 	github.com/hashicorp/go-multierror v1.0.0
@@ -22,5 +22,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 	golang.org/x/sys v0.0.0-20200806125547-5acd03effb82
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-	google.golang.org/grpc v1.24.0
+	google.golang.org/grpc v1.27.0
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v0.0.0-20200810225334-2983360ff4e7 // indirect
+	google.golang.org/protobuf v1.25.0
 )
