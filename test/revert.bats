@@ -7,12 +7,30 @@ load helpers
 load tablespace_helpers
 load teardown_helpers
 
+setup_state_dirs() {
+    set -x
+    local hosts=("$@")
+    local state_dir
+
+    # Create a temporary state directory locally, on the master segment.
+    state_dir=`mktemp -d /tmp/gpupgrade.XXXXXX`
+    export GPUPGRADE_HOME="${state_dir}/gpupgrade"
+
+    # The hosts list will contain the master host, which we already created a
+    # directory for. That's okay; mkdir -p will ignore it. We still need the
+    # teardown.
+    for host in "${hosts[@]}"; do
+        ssh "$host" mkdir -p "$state_dir"
+        register_teardown ssh "$host" rm -r "$state_dir"
+    done
+    set +x
+}
+
 setup() {
     skip_if_no_gpdb
 
-    STATE_DIR=`mktemp -d /tmp/gpupgrade.XXXXXX`
-    export GPUPGRADE_HOME="${STATE_DIR}/gpupgrade"
-    echo $GPUPGRADE_HOME
+    HOSTS=(mdw smdw sdw1 sdw2 sdw3) # TODO
+    setup_state_dirs "${HOSTS[@]}"
 
     gpupgrade kill-services
 
@@ -175,9 +193,6 @@ test_revert_after_execute() {
         --verbose 3>&-
 
     gpupgrade execute --verbose
-
-    # On GPDB5, restore the primary and master directories before starting the cluster. Hack until revert handles this case
-    restore_cluster
 
     gpupgrade revert --verbose
 
