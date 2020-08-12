@@ -8,7 +8,6 @@ load tablespace_helpers
 load teardown_helpers
 
 setup_state_dirs() {
-    set -x
     local hosts=("$@")
     local state_dir
 
@@ -23,7 +22,6 @@ setup_state_dirs() {
         ssh "$host" mkdir -p "$state_dir"
         register_teardown ssh "$host" rm -r "$state_dir"
     done
-    set +x
 }
 
 setup() {
@@ -44,6 +42,13 @@ teardown() {
     run_teardowns
 }
 
+host_process_is_running() {
+    local host=$1
+    local pattern=$2
+
+    ssh "$host" "ps -ef | grep -wGc '$pattern'"
+}
+
 @test "reverting after initialize succeeds" {
     local target_hosts_dirs upgradeID
 
@@ -56,26 +61,26 @@ teardown() {
         --verbose 3>&-
 
     # grab cluster data before revert destroys it
-    target_hosts_dirs=$(jq -r '.Target.Primaries[] | .DataDir' "${GPUPGRADE_HOME}/config.json")
+    target_hosts_dirs=$(jq -r '.Target.Primaries[] | .Hostname + " " + .DataDir' "${GPUPGRADE_HOME}/config.json")
     upgradeID=$(gpupgrade config show --id)
 
     gpupgrade revert --verbose
 
     # gpupgrade processes are stopped
     ! process_is_running "[g]pupgrade hub" || fail 'expected hub to have been stopped'
-    ! process_is_running "[g]pupgrade agent" || fail 'expected agent to have been stopped'
+    for host in "${HOSTS[@]}"; do
+	! host_process_is_running "$host" "[g]pupgrade agent" || fail "expected agent to have been stopped on host ${host}"
+    done
 
     # target data directories are deleted
-    while read -r datadir; do
-        run stat "$datadir"
-        ! [ $status -eq 0 ] || fail "expected datadir ${datadir} to have been deleted"
+    while read -r host datadir; do
+        ssh "$host" "[ ! -d '$datadir' ]" || fail "expected datadir ${host}:${datadir} to have been deleted"
     done <<< "${target_hosts_dirs}"
 
     # the GPUPGRADE_HOME directory is deleted
-    if [ -d "${GPUPGRADE_HOME}" ]; then
-        echo "expected GPUPGRADE_HOME directory ${GPUPGRADE_HOME} to have been deleted"
-        exit 1
-    fi
+    for host in "${HOSTS[@]}"; do
+        ssh "$host" "[ ! -d '$GPUPGRADE_HOME' ]" || fail "expected GPUPGRADE_HOME directory ${host}:${GPUPGRADE_HOME} to have been deleted"
+    done
 
     # check that the archived log directory corresponds to this tests upgradeID
     if [[ -z $(find "${HOME}/gpAdminLogs/gpupgrade-${upgradeID}-"* -type d) ]]; then
