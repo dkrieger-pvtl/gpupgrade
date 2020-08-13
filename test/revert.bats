@@ -155,6 +155,7 @@ test_revert_after_execute() {
     if is_GPDB5 "$GPHOME_SOURCE"; then
         local tablespace_table="tablespace_table"
         create_tablespace_with_table "$tablespace_table"
+        register_teardown delete_tablespace_data "$tablespace_table"
     fi
 
     # Add a table

@@ -55,11 +55,10 @@ create_tablespace_with_table() {
 				CREATE TABLE "$tablespace_table"(a int) TABLESPACE batsTbsp;
 				INSERT INTO "$tablespace_table" SELECT i from generate_series(1,100)i;
 EOF
-    register_teardown _delete_tablespace_data "$tablespace_table"
 }
 
 # This is 5X-only
-_delete_tablespace_data() {
+delete_tablespace_data() {
    local tablespace_table=${1:-batsTable}
 
     "${GPHOME_SOURCE}"/bin/psql -d postgres -v ON_ERROR_STOP=1 <<- EOF
