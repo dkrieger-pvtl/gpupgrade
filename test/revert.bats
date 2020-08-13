@@ -9,18 +9,17 @@ load teardown_helpers
 
 setup_state_dirs() {
     local hosts=("$@")
-    local state_dir
 
     # Create a temporary state directory locally, on the master segment.
-    state_dir=`mktemp -d /tmp/gpupgrade.XXXXXX`
-    export GPUPGRADE_HOME="${state_dir}/gpupgrade"
+    STATE_DIR=`mktemp -d /tmp/gpupgrade.XXXXXX`
+    export GPUPGRADE_HOME="${STATE_DIR}/gpupgrade"
 
     # The hosts list will contain the master host, which we already created a
     # directory for. That's okay; mkdir -p will ignore it. We still need the
     # teardown.
     for host in "${hosts[@]}"; do
-        ssh "$host" mkdir -p "$state_dir"
-        register_teardown ssh "$host" rm -r "$state_dir"
+        ssh "$host" mkdir -p "$STATE_DIR"
+        register_teardown ssh "$host" rm -r "$STATE_DIR"
     done
 }
 
@@ -47,6 +46,34 @@ host_process_is_running() {
     local pattern=$2
 
     ssh "$host" "ps -ef | grep -wGc '$pattern'"
+}
+
+# query_host_datadirs returns a host/datadir pair for each segment in the
+# cluster. Each pair is on its own line, separated by a tab. Arguments are
+# GPHOME, PGPORT, and an optional WHERE clause to use when querying
+# gp_segment_configuration.
+query_host_datadirs() {
+    local gphome=$1
+    local port=$2
+    local where_clause=${3:-true}
+
+    local sql="SELECT hostname, datadir FROM gp_segment_configuration WHERE ${where_clause} ORDER BY content, role"
+
+     if is_GPDB5 "$gphome"; then
+        sql="
+        SELECT s.hostname,
+               e.fselocation as datadir
+        FROM gp_segment_configuration s
+        JOIN pg_filespace_entry e ON s.dbid = e.fsedbid
+        JOIN pg_filespace f ON e.fsefsoid = f.oid
+        WHERE f.fsname = 'pg_system' AND ${where_clause}
+        ORDER BY s.content, s.role"
+    fi
+
+    run "$gphome"/bin/psql -AtF$'\t' -p "$port" postgres -c "$sql"
+    [ "$status" -eq 0 ] || fail "$output"
+
+    echo "$output"
 }
 
 @test "reverting after initialize succeeds" {
@@ -91,31 +118,30 @@ host_process_is_running() {
 test_revert_after_execute() {
     local mode="$1"
     local target_master_port=6020
-    local old_config new_config mirrors primaries rows
+    local old_config new_config mirrors primaries rows host datadir
 
     # Save segment configuration
     old_config=$(get_segment_configuration "${GPHOME_SOURCE}")
 
     # Place marker files on mirrors
     MARKER=source-cluster.MARKER
-    mirrors=($(query_datadirs $GPHOME_SOURCE $PGPORT "role='m'"))
-    for datadir in "${mirrors[@]}"; do
-        touch "$datadir/${MARKER}"
-    done
+    mirrors=$(query_host_datadirs $GPHOME_SOURCE $PGPORT "role='m'")
+    while read -r host datadir; do
+        ssh "$host" touch "$datadir/${MARKER}"
+    done <<< "$mirrors"
 
     # Cleanup marker files in all directories since on success link mode rsyncs
     # the marker file to primaries, and the test can fail at any point.
-    local datadirs
-    datadirs=($(query_datadirs $GPHOME_SOURCE $PGPORT))
-    for datadir in "${datadirs[@]}"; do
-        register_teardown rm -f "$datadir/${MARKER}"
-    done
+    local segments
+    segments=$(query_host_datadirs $GPHOME_SOURCE $PGPORT)
+    while read -r host datadir; do
+        register_teardown ssh "$host" rm -f "$datadir/${MARKER}"
+    done <<< "$segments"
 
     # Add a tablespace, which only works when upgrading from 5X.
     if is_GPDB5 "$GPHOME_SOURCE"; then
         local tablespace_table="tablespace_table"
         create_tablespace_with_table "$tablespace_table"
-        register_teardown delete_tablespace_data "$tablespace_table"
     fi
 
     # Add a table
@@ -158,14 +184,14 @@ test_revert_after_execute() {
     fi
 
     # Verify marker files on primaries
-    primaries=($(query_datadirs $GPHOME_SOURCE $PGPORT "role='p'"))
-    for datadir in "${primaries[@]}"; do
+    primaries=$(query_host_datadirs $GPHOME_SOURCE $PGPORT "role='p'")
+    while read -r host datadir; do
         if [ "$mode" = "link" ]; then
-            [ -f "${datadir}/${MARKER}" ] || fail "in link mode using rsync expected ${MARKER} marker file to be in datadir: $datadir"
+            ssh "$host" "[ -f '${datadir}/${MARKER}' ]" || fail "in link mode using rsync expected ${MARKER} marker file to be in datadir: $host:$datadir"
         else
-            [ ! -f "${datadir}/${MARKER}" ] || fail "in copy mode using gprecoverseg unexpected ${MARKER} marker file in datadir: $datadir"
+            ssh "$host" "[ ! -f '${datadir}/${MARKER}' ]" || fail "in copy mode using gprecoverseg unexpected ${MARKER} marker file in datadir: $host:$datadir"
         fi
-    done
+    done <<< "$primaries"
 
     # Check that transactions can be started on the source
     $PSQL postgres --single-transaction -c "SELECT version()" || fail "unable to start transaction"
@@ -239,10 +265,10 @@ is_source_standby_in_sync() {
 }
 
 is_source_standby_running() {
-    local standby_datadir
-    standby_datadir=$(query_datadirs "$GPHOME_SOURCE" "$PGPORT" "content = '-1' AND role = 'm'")
+    local host datadir
+    read -r host datadir <<<"$(query_host_datadirs "$GPHOME_SOURCE" "$PGPORT" "content = '-1' AND role = 'm'")"
 
-    if ! "${GPHOME_SOURCE}"/bin/pg_ctl status -D "$standby_datadir" > /dev/null; then
+    if ! ssh "$host" "${GPHOME_SOURCE}"/bin/pg_ctl status -D "$datadir" > /dev/null; then
         return 1
     fi
 }
