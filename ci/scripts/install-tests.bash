@@ -49,7 +49,7 @@ source "$GPHOME_SOURCE"/greenplum_path.sh
 sed -i.bak -E 's/(^GPPATH=`find) (\$GPSEARCH -name .*$)/\1 -H \2/' gpdb_src_source/gpAux/gpdemo/demo_cluster.sh
 
 pushd gpdb_src_source/gpAux/gpdemo
-    time su gpadmin -c "make create-demo-cluster MASTER_DATADIR=/tmp"
+    time su gpadmin -c "make create-demo-cluster"
     source gpdemo-env.sh
 popd
 
