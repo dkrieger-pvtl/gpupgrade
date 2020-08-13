@@ -23,10 +23,23 @@ setup_state_dirs() {
     done
 }
 
+# Prints all unique hostnames in the source cluster, one per line.
+all_hosts() {
+    # Use GROUP BY/ORDER BY MIN() rather than SELECT DISTINCT so that results
+    # are ordered by dbid; that's the host order most devs are used to for test
+    # clusters.
+    "$GPHOME_SOURCE"/bin/psql -At postgres -c "
+        SELECT hostname
+          FROM gp_segment_configuration
+         GROUP BY hostname
+         ORDER BY MIN(dbid);
+    "
+}
+
 setup() {
     skip_if_no_gpdb
 
-    HOSTS=(mdw smdw sdw1 sdw2 sdw3) # TODO
+    HOSTS=($(all_hosts))
     setup_state_dirs "${HOSTS[@]}"
 
     gpupgrade kill-services
