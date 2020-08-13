@@ -75,12 +75,8 @@ done
 scp -rpq gpupgrade_src gpadmin@mdw:/home/gpadmin
 
 # Install bats on mdw
-# TODO: install this to /usr/local with correct permissions
-scp -rpq bats gpadmin@mdw:/home/gpadmin
-ssh mdw bash <<EOF
-    set -eux -o pipefail
-    /home/gpadmin/bats/install.sh /home/gpadmin/bats_bin
-EOF
+scp -rpq bats centos@mdw:~
+ssh centos@mdw sudo ./bats/install.sh /usr/local
 
 if is_GPDB5 "$GPHOME_SOURCE"; then
   drop_gphdfs_roles
@@ -88,13 +84,13 @@ fi
 
 time ssh mdw bash <<EOF
     set -eux -o pipefail
-    echo "HELLO WORLD"
 
-    export GPHOME_SOURCE="$GPHOME_SOURCE"
-    export GPHOME_TARGET="$GPHOME_TARGET"
+    source /usr/local/greenplum-db-source/greenplum_path.sh
+    export GPHOME_TARGET=/usr/local/greenplum-db-target
     export PGPORT="$PGPORT"
     export MASTER_DATA_DIRECTORY="$MASTER_DATA_DIRECTORY"
-     /home/gpadmin/bats_bin/bin/bats gpupgrade_src/test/args.bats
+
+    ./gpupgrade_src/test/args.bats
 EOF
 
 echo 'bats test successful.'
