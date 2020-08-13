@@ -61,6 +61,8 @@ mapfile -t hosts < cluster_env_files/hostfile_all
 
 export GPHOME_SOURCE=/usr/local/greenplum-db-source
 export GPHOME_TARGET=/usr/local/greenplum-db-target
+export PGPORT="$MASTER_PORT"
+export MASTER_DATA_DIRECTORY=/data/gpdata/master/gpseg-1
 
 # Install gpupgrade binary onto the cluster machines.
 chmod +x bin_gpupgrade/gpupgrade
@@ -87,6 +89,11 @@ fi
 time ssh mdw bash <<EOF
     set -eux -o pipefail
     echo "HELLO WORLD"
+
+    export GPHOME_SOURCE="$GPHOME_SOURCE"
+    export GPHOME_TARGET="$GPHOME_TARGET"
+    export PGPORT="$PGPORT"
+    export MASTER_DATA_DIRECTORY="$MASTER_DATA_DIRECTORY"
      /home/gpadmin/bats_bin/bin/bats gpupgrade_src/test/args.bats
 EOF
 
