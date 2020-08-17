@@ -3,6 +3,66 @@
 # Copyright (c) 2017-2020 VMware, Inc. or its affiliates
 # SPDX-License-Identifier: Apache-2.0
 
+groups:
+- name: all
+  jobs:
+  - build
+  - lint
+  - noinstall-tests
+  
+  -6-to-6-install-tests
+  -5-to-6-install-tests
+  
+  -6-to-6-centos-6
+  -6-to-6-centos-7
+  -5-to-6-centos-6
+  -5-to-6-centos-7
+  -5-to-6-link-mode-centos-6
+  -5-to-6-primaries-only-centos-6
+  -5-to-6-no-standby-centos-6
+  -5-to-6-retail-demo-centos-6
+  -5-to-6-link-mode-centos-7
+  -5-to-6-primaries-only-centos-7
+  -5-to-6-no-standby-centos-7
+  -5-to-6-retail-demo-centos-7
+  
+  -6-to-6-multihost-bats-centos-6
+  -6-to-6-multihost-bats-centos-7
+  -5-to-6-multihost-bats-centos-6
+  -5-to-6-multihost-bats-centos-7
+  - publish-release-candidate
+
+- name: CheckJobs
+  jobs:
+  
+  -6-to-6-install-tests
+  -5-to-6-install-tests
+
+- name: UpgradeJobs
+  jobs:
+  
+  -6-to-6-centos-6
+  -6-to-6-centos-7
+  -5-to-6-centos-6
+  -5-to-6-centos-7
+  -5-to-6-link-mode-centos-6
+  -5-to-6-primaries-only-centos-6
+  -5-to-6-no-standby-centos-6
+  -5-to-6-retail-demo-centos-6
+  -5-to-6-link-mode-centos-7
+  -5-to-6-primaries-only-centos-7
+  -5-to-6-no-standby-centos-7
+  -5-to-6-retail-demo-centos-7
+
+- name: MultihostBatsJobs
+  jobs:
+  
+  -6-to-6-multihost-bats-centos-6
+  -6-to-6-multihost-bats-centos-7
+  -5-to-6-multihost-bats-centos-6
+  -5-to-6-multihost-bats-centos-7
+
+
 resource_types:
 - name: gcs
   type: docker-image
