@@ -34,8 +34,19 @@ import (
 	"github.com/greenplum-db/gpupgrade/ci/scripts/filters"
 )
 
-type ReplacementFunc func(line string) string
-var replacementFuncs []ReplacementFunc
+// function to identify if the buf and line pattern matches a pattern
+type IdentifierFunc func(buf []string, line string) bool
+
+// function to use for formatting a block identified by IdentifierFunc
+type FormatFunc func(line string, allTokens []string) (string, []string, bool)
+
+// identifier and corresponding formatting func
+type Formatting struct {
+	IdentifierFunc
+	FormatFunc
+}
+
+var formatting []Formatting
 
 var lineRegexes []*regexp.Regexp
 var blockRegexes []*regexp.Regexp
@@ -58,8 +69,10 @@ func init() {
 		"COMMENT ON DATABASE postgres IS",
 	}
 
-	replacementFuncs = []ReplacementFunc{
-		filters.FormatWithClause,
+	formatting = []Formatting{
+		{filters.IsViewOrRuleDdl, filters.BuildViewOrRuleDdl},
+		{filters.IsTriggerDdl, filters.BuildTriggerDdl},
+		{filters.IsWithClause, filters.BuildWithClause},
 	}
 
 	for _, pattern := range linePatterns {
@@ -91,6 +104,25 @@ func write(out io.Writer, lines ...string) {
 	}
 }
 
+func formatStmt(allTokens []string, line string, bf FormatFunc, buf []string) (string, []string, FormatFunc) {
+	// if allTokens are already populated, continue formatting
+	if len(allTokens) > 0 {
+		completeDDL, resultTokens, _ := bf(line, allTokens)
+		return completeDDL, resultTokens, bf
+	}
+
+	for _, r := range formatting {
+		// identify if any formatting is applicable and call the corresponding formatting function
+		if r.IdentifierFunc(buf, line) {
+			completeDDL, resultTokens, _ := r.FormatFunc(line, allTokens)
+			return completeDDL, resultTokens, r.FormatFunc
+		}
+	}
+
+	// nothing to format
+	return "", nil, nil
+}
+
 func Filter(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	// there are lines in icw regression suite requiring buffer
@@ -99,25 +131,28 @@ func Filter(in io.Reader, out io.Writer) {
 
 	var buf []string // lines buffered for look-ahead
 
-	// temporary storage for view/rule ddl processing
+	// temporary storage for formatting statements
 	var allTokens []string
-	var formattingViewOrRuleDdlStmt = false
+	var formatFunc FormatFunc
 
 nextline:
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		// TODO: make it more generic, wherein, all the rules are applied
-		// in a coherent manner, and their complexity is hidden from this
-		// main loop
-		if formattingViewOrRuleDdlStmt || filters.IsViewOrRuleDdl(buf, line) {
-			formattingViewOrRuleDdlStmt = true
-			completeDdl, resultTokens, finishedFormatting := filters.BuildViewOrRuleDdl(line, allTokens)
-			allTokens = resultTokens
-			if finishedFormatting {
-				buf = writeBufAndLine(out, buf, completeDdl)
-				formattingViewOrRuleDdlStmt = false
+		completeDDL, resultTokens, f := formatStmt(allTokens, line, formatFunc, buf)
+		// if a formatting function is identified, continue formatting until finished
+		if f != nil {
+			if len(completeDDL) > 0 {
+				buf = writeBufAndLine(out, buf, completeDDL)
+
+				// reset the temporary storage
 				allTokens = nil
+				formatFunc = nil
+			} else {
+				// maintain the tokens and the formatting function identified to
+				// process the upcoming lines
+				allTokens = resultTokens
+				formatFunc = f
 			}
 
 			continue nextline
@@ -143,10 +178,6 @@ nextline:
 				buf = buf[:0]
 				continue nextline
 			}
-		}
-
-		for _, replacementFunc := range replacementFuncs {
-			line = replacementFunc(line)
 		}
 
 		buf = writeBufAndLine(out, buf, line)

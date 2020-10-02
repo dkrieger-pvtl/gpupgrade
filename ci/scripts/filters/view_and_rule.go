@@ -72,11 +72,9 @@ func FormatViewOrRuleDdl(allTokens []string) string {
 func BuildViewOrRuleDdl(line string, allTokens []string) (string, []string, bool) {
 	tokens := strings.Fields(line)
 	allTokens = append(allTokens, tokens...)
-	formattingFinished := false
 	// if the DDL terminator exists process the whole DDL statement
 	if strings.Contains(line, ";") {
-		formattingFinished = true
-		return FormatViewOrRuleDdl(allTokens), allTokens, formattingFinished
+		return FormatViewOrRuleDdl(allTokens), allTokens, true
 	}
-	return "", allTokens, formattingFinished
+	return "", allTokens, true
 }

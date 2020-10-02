@@ -8,16 +8,21 @@ import (
 	"strings"
 )
 
-var withClauseRegex = regexp.MustCompile(`(.*WITH\s\(tablename[^,]*,)(.*)`)
+var withClauseRegex *regexp.Regexp
 
-func FormatWithClause(line string) string {
+func init() {
+	withClauseRegex = regexp.MustCompile(`(.*WITH\s\(tablename[^,]*,)(.*)`)
+}
+
+func IsWithClause(_ []string, line string) bool {
+	return withClauseRegex.MatchString(line)
+}
+
+func BuildWithClause(line string, _ []string) (string, []string, bool) {
 	result := withClauseRegex.FindAllStringSubmatch(line, -1)
-	if result == nil {
-		return line
-	}
 	groups := result[0]
 	// replace all occurrences of single quotes
 	stringWithoutSingleQuotes := strings.ReplaceAll(groups[2], "'", "")
 
-	return groups[1] + stringWithoutSingleQuotes
+	return groups[1] + stringWithoutSingleQuotes, nil, true
 }
