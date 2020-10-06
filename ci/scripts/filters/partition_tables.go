@@ -18,11 +18,11 @@ func IsWithClause(_ []string, line string) bool {
 	return withClauseRegex.MatchString(line)
 }
 
-func BuildWithClause(line string, _ []string) (string, []string, bool) {
+func BuildWithClause(line string, _ []string) (string, []string) {
 	result := withClauseRegex.FindAllStringSubmatch(line, -1)
 	groups := result[0]
 	// replace all occurrences of single quotes
 	stringWithoutSingleQuotes := strings.ReplaceAll(groups[2], "'", "")
 
-	return groups[1] + stringWithoutSingleQuotes, nil, true
+	return groups[1] + stringWithoutSingleQuotes, nil
 }

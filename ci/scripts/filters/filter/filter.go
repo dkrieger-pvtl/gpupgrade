@@ -34,16 +34,16 @@ import (
 	"github.com/greenplum-db/gpupgrade/ci/scripts/filters"
 )
 
-// function to identify if the buf and line pattern matches a pattern
-type IdentifierFunc func(buf []string, line string) bool
+// function to identify if the buf and line pattern matches a pattern and should be replaced
+type shouldReplace func(buf []string, line string) bool
 
-// function to use for formatting a block identified by IdentifierFunc
-type FormatFunc func(line string, allTokens []string) (string, []string, bool)
+// function to use for formatting a block
+type replace func(line string, allTokens []string) (string, []string)
 
 // identifier and corresponding formatting func
 type Formatting struct {
-	IdentifierFunc
-	FormatFunc
+	shouldReplace
+	replace
 }
 
 var formatting []Formatting
@@ -69,6 +69,7 @@ func init() {
 		"COMMENT ON DATABASE postgres IS",
 	}
 
+	// patten matching functions and corresponding replacement functions
 	formatting = []Formatting{
 		{filters.IsViewOrRuleDdl, filters.BuildViewOrRuleDdl},
 		{filters.IsTriggerDdl, filters.BuildTriggerDdl},
@@ -104,18 +105,24 @@ func write(out io.Writer, lines ...string) {
 	}
 }
 
-func formatStmt(allTokens []string, line string, bf FormatFunc, buf []string) (string, []string, FormatFunc) {
+// While reading the dump, all the keywords of a statement are stored in allTokens and
+// once the terminator ';' is seen, all the keywords are combined into a string with a desired format and allTokens is
+// reset by the caller
+// if allTokens is not empty, formatStmt will consider that a replace function has already been identified
+// and it is processing the next lines read from the dump.
+// if allToken is not empty, it means that a replace function is yet to be identified based on pattern matching
+func formatStmt(allTokens []string, line string, replaceFunc replace, buf []string) (string, []string, replace) {
 	// if allTokens are already populated, continue formatting
 	if len(allTokens) > 0 {
-		completeDDL, resultTokens, _ := bf(line, allTokens)
-		return completeDDL, resultTokens, bf
+		completeDDL, allTokens := replaceFunc(line, allTokens)
+		return completeDDL, allTokens, replaceFunc
 	}
 
 	for _, r := range formatting {
 		// identify if any formatting is applicable and call the corresponding formatting function
-		if r.IdentifierFunc(buf, line) {
-			completeDDL, resultTokens, _ := r.FormatFunc(line, allTokens)
-			return completeDDL, resultTokens, r.FormatFunc
+		if r.shouldReplace(buf, line) {
+			completeDDL, allTokens := r.replace(line, allTokens)
+			return completeDDL, allTokens, r.replace
 		}
 	}
 
@@ -133,13 +140,13 @@ func Filter(in io.Reader, out io.Writer) {
 
 	// temporary storage for formatting statements
 	var allTokens []string
-	var formatFunc FormatFunc
+	var replaceFunc replace
 
 nextline:
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		completeDDL, resultTokens, f := formatStmt(allTokens, line, formatFunc, buf)
+		completeDDL, resultTokens, f := formatStmt(allTokens, line, replaceFunc, buf)
 		// if a formatting function is identified, continue formatting until finished
 		if f != nil {
 			if len(completeDDL) > 0 {
@@ -147,12 +154,12 @@ nextline:
 
 				// reset the temporary storage
 				allTokens = nil
-				formatFunc = nil
+				replaceFunc = nil
 			} else {
 				// maintain the tokens and the formatting function identified to
 				// process the upcoming lines
 				allTokens = resultTokens
-				formatFunc = f
+				replaceFunc = f
 			}
 
 			continue nextline

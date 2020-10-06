@@ -48,8 +48,8 @@ func FormatTriggerDdl(allTokens []string) string {
 	return line
 }
 
-func BuildTriggerDdl(line string, allTokens []string) (string, []string, bool) {
+func BuildTriggerDdl(line string, allTokens []string) (string, []string) {
 	tokens := strings.Fields(line)
 	allTokens = append(allTokens, tokens...)
-	return FormatTriggerDdl(allTokens), allTokens, true
+	return FormatTriggerDdl(allTokens), allTokens
 }

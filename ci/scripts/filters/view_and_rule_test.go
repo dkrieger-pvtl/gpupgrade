@@ -49,13 +49,11 @@ func TestBuildViewOrRuleDdl(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			completeDdl, resultTokens, finishedFormatting := BuildViewOrRuleDdl(tt.args.line, tt.args.allTokens)
+			completeDdl, resultTokens := BuildViewOrRuleDdl(tt.args.line, tt.args.allTokens)
 			if completeDdl != tt.result.line {
 				t.Errorf("got %v, want %v", completeDdl, tt.result.line)
 			}
-			if finishedFormatting != tt.result.finishedFormatting {
-				t.Errorf("got %t, want %t", finishedFormatting, tt.result.finishedFormatting)
-			}
+
 			if !reflect.DeepEqual(resultTokens, tt.result.resultTokens) {
 				t.Errorf("got %q, want %q", resultTokens, tt.result.resultTokens)
 			}

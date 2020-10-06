@@ -69,12 +69,12 @@ func FormatViewOrRuleDdl(allTokens []string) string {
 	return line
 }
 
-func BuildViewOrRuleDdl(line string, allTokens []string) (string, []string, bool) {
+func BuildViewOrRuleDdl(line string, allTokens []string) (string, []string) {
 	tokens := strings.Fields(line)
 	allTokens = append(allTokens, tokens...)
 	// if the DDL terminator exists process the whole DDL statement
 	if strings.Contains(line, ";") {
-		return FormatViewOrRuleDdl(allTokens), allTokens, true
+		return FormatViewOrRuleDdl(allTokens), allTokens
 	}
-	return "", allTokens, true
+	return "", allTokens
 }
