@@ -35,21 +35,22 @@ import (
 )
 
 // function to identify if the buf and line pattern matches a pattern and should be replaced
-type shouldReplace func(buf []string, line string) bool
+type shouldReformat func(buf []string, line string) bool
 
-// function to use for formatting a block
-type replace func(line string, allTokens []string) (string, []string)
+// function to use for reformatters a block
+type reformat func(line string, allTokens []string) (string, []string)
 
-// identifier and corresponding formatting func
-type Formatting struct {
-	shouldReplace
-	replace
+// identifier and corresponding reformatters func
+type Reformatting struct {
+	shouldReformat
+	reformat
 }
 
-var formatting []Formatting
-
-var lineRegexes []*regexp.Regexp
-var blockRegexes []*regexp.Regexp
+var (
+	reformatters []Reformatting
+	lineRegexes  []*regexp.Regexp
+	blockRegexes []*regexp.Regexp
+)
 
 func init() {
 	// linePatterns remove exactly what is matched, on a line-by-line basis.
@@ -69,8 +70,8 @@ func init() {
 		"COMMENT ON DATABASE postgres IS",
 	}
 
-	// patten matching functions and corresponding replacement functions
-	formatting = []Formatting{
+	// patten matching functions and corresponding reformat functions
+	reformatters = []Reformatting{
 		{filters.IsViewOrRuleDdl, filters.BuildViewOrRuleDdl},
 		{filters.IsTriggerDdl, filters.BuildTriggerDdl},
 		{filters.IsWithClause, filters.BuildWithClause},
@@ -105,29 +106,41 @@ func write(out io.Writer, lines ...string) {
 	}
 }
 
-// While reading the dump, all the keywords of a statement are stored in allTokens and
-// once the terminator ';' is seen, all the keywords are combined into a string with a desired format and allTokens is
-// reset by the caller
-// if allTokens is not empty, formatStmt will consider that a replace function has already been identified
-// and it is processing the next lines read from the dump.
-// if allToken is not empty, it means that a replace function is yet to be identified based on pattern matching
-func formatStmt(allTokens []string, line string, replaceFunc replace, buf []string) (string, []string, replace) {
-	// if allTokens are already populated, continue formatting
-	if len(allTokens) > 0 {
-		completeDDL, allTokens := replaceFunc(line, allTokens)
-		return completeDDL, allTokens, replaceFunc
+type reformatStmt struct {
+	tokens       []string
+	reformatFunc reformat
+	completeDDL  string
+}
+
+func NewReformatStmt() *reformatStmt {
+	return &reformatStmt{}
+}
+
+func (r *reformatStmt) reformatting() bool {
+	return r.reformatFunc != nil
+}
+
+func (r *reformatStmt) done() bool {
+	return r.completeDDL != ""
+}
+
+func (r *reformatStmt) find(rs []Reformatting, buf []string, line string) {
+	if r.reformatting() {
+		return
 	}
 
-	for _, r := range formatting {
-		// identify if any formatting is applicable and call the corresponding formatting function
-		if r.shouldReplace(buf, line) {
-			completeDDL, allTokens := r.replace(line, allTokens)
-			return completeDDL, allTokens, r.replace
+	for _, x := range rs {
+		if x.shouldReformat(buf, line) {
+			r.reformatFunc = x.reformat
+			return
 		}
 	}
+}
 
-	// nothing to format
-	return "", nil, nil
+func (r *reformatStmt) do(line string) {
+	if r.reformatFunc != nil {
+		r.completeDDL, r.tokens = r.reformatFunc(line, r.tokens)
+	}
 }
 
 func Filter(in io.Reader, out io.Writer) {
@@ -138,34 +151,23 @@ func Filter(in io.Reader, out io.Writer) {
 
 	var buf []string // lines buffered for look-ahead
 
-	// temporary storage for formatting statements
-	var allTokens []string
-	var replaceFunc replace
+	var reformatter = NewReformatStmt()
 
 nextline:
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		completeDDL, resultTokens, f := formatStmt(allTokens, line, replaceFunc, buf)
-		// if a formatting function is identified, continue formatting until finished
-		if f != nil {
-			if len(completeDDL) > 0 {
-				buf = writeBufAndLine(out, buf, completeDDL)
-
-				// reset the temporary storage
-				allTokens = nil
-				replaceFunc = nil
-			} else {
-				// maintain the tokens and the formatting function identified to
-				// process the upcoming lines
-				allTokens = resultTokens
-				replaceFunc = f
+		reformatter.find(reformatters, buf, line)
+		if reformatter.reformatting() {
+			reformatter.do(line)
+			if reformatter.done() {
+				buf = writeBufAndLine(out, buf, reformatter.completeDDL)
+				reformatter = NewReformatStmt()
 			}
-
 			continue nextline
 		}
 
-		// First filter on a line-by-line basis.
+		// Filter on a line-by-line basis.
 		for _, r := range lineRegexes {
 			if r.MatchString(line) {
 				continue nextline
