@@ -391,7 +391,10 @@ func initialize() *cobra.Command {
 			// dump on failure.
 			cmd.SilenceUsage = true
 
-			st := commanders.NewStep(idl.Step_INITIALIZE, &step.BufferedStreams{}, verbose)
+			st, err := commanders.NewStep(idl.Step_INITIALIZE, &step.BufferedStreams{}, verbose)
+			if err != nil {
+				return err
+			}
 
 			st.RunInternalSubstep(func() error {
 				err := cli.ValidateVersions(sourceGPHome, targetGPHome)
@@ -404,7 +407,12 @@ func initialize() *cobra.Command {
 			})
 
 			st.RunInternalSubstep(func() error {
-				return commanders.CreateStateDir()
+				err := commanders.CreateStateDir()
+				if err != nil {
+					return err
+				}
+
+				return commanders.Write(idl.Step_INITIALIZE, idl.Status_RUNNING)
 			})
 
 			st.RunInternalSubstep(func() error {
@@ -493,7 +501,10 @@ func execute() *cobra.Command {
 			cmd.SilenceUsage = true
 			var response commanders.ExecuteResponse
 
-			st := commanders.NewStep(idl.Step_EXECUTE, &step.BufferedStreams{}, verbose)
+			st, err := commanders.NewStep(idl.Step_EXECUTE, &step.BufferedStreams{}, verbose)
+			if err != nil {
+				return err
+			}
 
 			st.RunHubSubstep(func(streams step.OutStreams) error {
 				client, err := connectToHub()
@@ -546,7 +557,10 @@ func finalize() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			var response commanders.FinalizeResponse
 
-			st := commanders.NewStep(idl.Step_FINALIZE, &step.BufferedStreams{}, verbose)
+			st, err := commanders.NewStep(idl.Step_FINALIZE, &step.BufferedStreams{}, verbose)
+			if err != nil {
+				return err
+			}
 
 			st.RunHubSubstep(func(streams step.OutStreams) error {
 				client, err := connectToHub()
@@ -585,7 +599,10 @@ func revert() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			var response commanders.RevertResponse
 
-			st := commanders.NewStep(idl.Step_REVERT, &step.BufferedStreams{}, verbose)
+			st, err := commanders.NewStep(idl.Step_REVERT, &step.BufferedStreams{}, verbose)
+			if err != nil {
+				return err
+			}
 
 			st.RunHubSubstep(func(streams step.OutStreams) error {
 				client, err := connectToHub()

@@ -15,12 +15,16 @@ import (
 	"github.com/greenplum-db/gpupgrade/cli"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
+	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 	"github.com/greenplum-db/gpupgrade/utils/stopwatch"
 )
 
+const StepFileName = "steps.json"
+
 type CLIStep struct {
 	stepName      string
+	step          idl.Step
 	streams       *step.BufferedStreams
 	verbose       bool
 	timer         *stopwatch.Stopwatch
@@ -29,20 +33,30 @@ type CLIStep struct {
 	err           error
 }
 
-func NewStep(step idl.Step, streams *step.BufferedStreams, verbose bool) *CLIStep {
+func NewStep(step idl.Step, streams *step.BufferedStreams, verbose bool) (*CLIStep, error) {
+	var err error
 	stepName := strings.Title(strings.ToLower(step.String()))
 
 	fmt.Println()
 	fmt.Println(stepName + " in progress.")
 	fmt.Println()
 
-	return &CLIStep{
+	st := &CLIStep{
 		stepName:      stepName,
+		step:          step,
 		streams:       streams,
 		verbose:       verbose,
 		timer:         stopwatch.Start(),
 		suggestRevert: true,
 	}
+
+	// For Write to succeed the state directory needs to have been created
+	// which has not yet been done when NewStep is called for Initialize.
+	if step != idl.Step_INITIALIZE {
+		err = Write(step, idl.Status_RUNNING)
+	}
+
+	return st, err
 }
 
 func (s *CLIStep) Err() error {
@@ -60,6 +74,10 @@ func (s *CLIStep) RunHubSubstep(f func(streams step.OutStreams) error) {
 			return
 		}
 
+		if wErr := Write(s.step, idl.Status_FAILED); wErr != nil {
+			s.err = errorlist.Append(s.err, wErr)
+		}
+
 		s.err = err
 	}
 }
@@ -75,6 +93,10 @@ func (s *CLIStep) RunInternalSubstep(f func() error) {
 			return
 		}
 
+		if wErr := Write(s.step, idl.Status_FAILED); wErr != nil {
+			s.err = errorlist.Append(s.err, wErr)
+		}
+
 		s.err = err
 	}
 }
@@ -84,6 +106,16 @@ func (s *CLIStep) RunCLISubstep(substep idl.Substep, f func(streams step.OutStre
 	defer func() {
 		if err != nil {
 			s.err = xerrors.Errorf("substep %q: %w", substep, err)
+
+			// If deleting the state directory on the master host failed we
+			// cannot write status failed since the state directory may not exist.
+			if substep == idl.Substep_DELETE_MASTER_STATEDIR {
+				return
+			}
+
+			if wErr := Write(s.step, idl.Status_FAILED); wErr != nil {
+				s.err = errorlist.Append(s.err, wErr)
+			}
 		}
 	}()
 
@@ -135,6 +167,14 @@ func (s *CLIStep) SetNextActions(suggestRevert bool) {
 func (s *CLIStep) Complete(completedText string) error {
 	logDuration(s.stepName, s.verbose, s.timer.Stop())
 
+	// After Finalize and Revert have completed the state directory no longer
+	// exists. Thus, the status cannot be updated.
+	if s.step != idl.Step_FINALIZE && s.step != idl.Step_REVERT {
+		if wErr := Write(s.step, idl.Status_COMPLETE); wErr != nil {
+			s.err = errorlist.Append(s.err, wErr)
+		}
+	}
+
 	if s.Err() != nil {
 		fmt.Println()
 		return cli.NewNextActions(s.Err(), strings.ToLower(s.stepName), s.suggestRevert)
@@ -169,4 +209,26 @@ func logDuration(operation string, verbose bool, timer *stopwatch.Stopwatch) {
 		fmt.Println()
 	}
 	gplog.Debug(msg)
+}
+
+func Write(stepName idl.Step, status idl.Status) error {
+	path, err := utils.GetJSONFile(utils.GetStateDir(), StepFileName)
+	if err != nil {
+		return xerrors.Errorf("getting %q file: %w", StepFileName, err)
+	}
+
+	store := step.NewFileStore(path)
+
+	if status == idl.Status_SKIPPED {
+		// Special case: we want to mark an explicitly-skipped substep COMPLETE
+		// on disk.
+		status = idl.Status_COMPLETE
+	}
+
+	err = store.Write(stepName, idl.Substep_INTERNAL_STEP_STATUS, status)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
