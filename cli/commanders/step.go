@@ -232,3 +232,31 @@ func Write(stepName idl.Step, status idl.Status) error {
 
 	return nil
 }
+
+func HasStepStarted(stepName idl.Step) (bool, error) {
+	return HasStatus(stepName, func(status idl.Status) bool {
+		return status != idl.Status_UNKNOWN_STATUS
+	})
+}
+
+func HasStepCompleted(stepName idl.Step) (bool, error) {
+	return HasStatus(stepName, func(status idl.Status) bool {
+		return status == idl.Status_COMPLETE
+	})
+}
+
+func HasStatus(stepName idl.Step, check func(status idl.Status) bool) (bool, error) {
+	path, err := utils.GetJSONFile(utils.GetStateDir(), StepFileName)
+	if err != nil {
+		return false, xerrors.Errorf("getting %q file: %w", StepFileName, err)
+	}
+
+	store := step.NewFileStore(path)
+
+	status, err := store.Read(stepName, idl.Substep_INTERNAL_STEP_STATUS)
+	if err != nil {
+		return false, err
+	}
+
+	return check(status), nil
+}
