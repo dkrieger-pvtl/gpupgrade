@@ -56,7 +56,7 @@ func Begin(stateDir string, step idl.Step, sender idl.MessageSender) (*Step, err
 		return nil, xerrors.Errorf(`logging step "%s": %w`, step, err)
 	}
 
-	statusPath, err := GetStatusFile(stateDir)
+	statusPath, err := GetSubstepFile(stateDir)
 	if err != nil {
 		return nil, xerrors.Errorf("step %q: %w", step, err)
 	}
@@ -66,36 +66,12 @@ func Begin(stateDir string, step idl.Step, sender idl.MessageSender) (*Step, err
 	return New(step, sender, NewFileStore(statusPath), streams), nil
 }
 
-// Returns path to status file, and if one does not exist it creates an empty
-// JSON file.
-func GetStatusFile(stateDir string) (path string, err error) {
-	path = filepath.Join(stateDir, SubstepFileName)
-
-	f, err := os.OpenFile(path, os.O_EXCL|os.O_CREATE|os.O_WRONLY, 0600)
-	if os.IsExist(err) {
-		return path, nil
-	}
-	if err != nil {
-		return "", err
-	}
-
-	defer func() {
-		if cErr := f.Close(); cErr != nil {
-			err = errorlist.Append(err, cErr)
-		}
-	}()
-
-	// MarshallJSON requires a well-formed JSON file
-	_, err = f.WriteString("{}")
-	if err != nil {
-		return "", err
-	}
-
-	return path, nil
+func GetSubstepFile(stateDir string) (path string, err error) {
+	return utils.GetJSONFile(stateDir, SubstepFileName)
 }
 
 func HasRun(step idl.Step, substep idl.Substep) (bool, error) {
-	path, err := GetStatusFile(utils.GetStateDir())
+	path, err := GetSubstepFile(utils.GetStateDir())
 	if err != nil {
 		return false, xerrors.Errorf("status file: %w", err)
 	}
