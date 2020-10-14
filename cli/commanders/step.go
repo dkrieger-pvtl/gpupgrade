@@ -37,6 +37,11 @@ func NewStep(step idl.Step, streams *step.BufferedStreams, verbose bool) (*CLISt
 	var err error
 	stepName := strings.Title(strings.ToLower(step.String()))
 
+	err = ValidateStep(step)
+	if err != nil {
+		return nil, err
+	}
+
 	fmt.Println()
 	fmt.Println(stepName + " in progress.")
 	fmt.Println()
@@ -209,6 +214,115 @@ func logDuration(operation string, verbose bool, timer *stopwatch.Stopwatch) {
 		fmt.Println()
 	}
 	gplog.Debug(msg)
+}
+
+type preconditions struct {
+	notStarted idl.Step
+	started    idl.Step
+	completed  idl.Step
+}
+
+// TODO: disallow initialize/execute/finalize once revert has started?
+var validate = map[idl.Step]preconditions{
+	idl.Step_INITIALIZE: {
+		notStarted: idl.Step_EXECUTE,
+	},
+	idl.Step_EXECUTE: {
+		notStarted: idl.Step_FINALIZE,
+		completed:  idl.Step_INITIALIZE,
+	},
+	idl.Step_FINALIZE: {
+		completed: idl.Step_EXECUTE,
+	},
+	idl.Step_REVERT: {
+		notStarted: idl.Step_FINALIZE,
+		started:    idl.Step_INITIALIZE,
+	},
+}
+
+type ValidateStepError struct {
+	step       idl.Step
+	conditions preconditions
+	lookupErr  error
+}
+
+func NewValidateStepError(step idl.Step, conditions preconditions, lookupErr error) ValidateStepError {
+	return ValidateStepError{step: step, conditions: conditions, lookupErr: lookupErr}
+}
+
+func (v ValidateStepError) Error() string {
+	msg := fmt.Sprintf("Step %s cannot be run:", v.step.String())
+	if v.lookupErr != nil {
+		return fmt.Sprintf("%s\nCannot determine if step is running: %s", msg, v.lookupErr.Error())
+	}
+
+	if v.conditions.notStarted != idl.Step_UNKNOWN_STEP {
+		msg += fmt.Sprintf("\nstep %s must not have started", v.conditions.notStarted.String())
+	}
+
+	if v.conditions.started != idl.Step_UNKNOWN_STEP {
+		msg += fmt.Sprintf("\nstep %s must have started", v.conditions.started.String())
+	}
+
+	if v.conditions.completed != idl.Step_UNKNOWN_STEP {
+		msg += fmt.Sprintf("\nstep %s must have completed", v.conditions.completed.String())
+	}
+
+	return msg
+}
+
+func (v ValidateStepError) Unwrap() error {
+	return v.lookupErr
+}
+
+// TODO: return an error type that provides the reasons the current step cannot run
+// TODO: consider how to fix case of file not existing before INTIALIZ....
+func ValidateStep(stepName idl.Step) error {
+	conditions, ok := validate[stepName]
+	if !ok {
+		return NewValidateStepError(stepName, conditions, fmt.Errorf("internal error: cannot lookup step name"))
+	}
+
+	if conditions.notStarted != idl.Step_UNKNOWN_STEP {
+		hasStarted, err := HasStepStarted(conditions.notStarted)
+		if stepName == idl.Step_INITIALIZE {
+			var pathErr *os.PathError
+			if errors.As(err, &pathErr) {
+				return nil
+			}
+		}
+		if hasStarted || err != nil {
+			return NewValidateStepError(stepName, conditions, err)
+		}
+	}
+
+	if conditions.started != idl.Step_UNKNOWN_STEP {
+		hasStarted, err := HasStepStarted(conditions.started)
+		if stepName == idl.Step_INITIALIZE {
+			var pathErr *os.PathError
+			if errors.As(err, &pathErr) {
+				return nil
+			}
+		}
+		if !hasStarted || err != nil {
+			return NewValidateStepError(stepName, conditions, err)
+		}
+	}
+
+	if conditions.completed != idl.Step_UNKNOWN_STEP {
+		hasCompleted, err := HasStepCompleted(conditions.completed)
+		if stepName == idl.Step_INITIALIZE {
+			var pathErr *os.PathError
+			if errors.As(err, &pathErr) {
+				return nil
+			}
+		}
+		if !hasCompleted || err != nil {
+			return NewValidateStepError(stepName, conditions, err)
+		}
+	}
+
+	return nil
 }
 
 func Write(stepName idl.Step, status idl.Status) error {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -405,6 +406,142 @@ func TestSubstep(t *testing.T) {
 		var nextActionsErr cli.NextActions
 		if !errors.As(err, &nextActionsErr) {
 			t.Errorf("got %T, want %T", err, nextActionsErr)
+		}
+	})
+}
+
+func TestValidateStepWithStatusFile(t *testing.T) {
+	dir := testutils.GetTempDir(t, "")
+	defer testutils.MustRemoveAll(t, dir)
+
+	resetEnv := testutils.SetEnv(t, "GPUPGRADE_HOME", dir)
+	defer resetEnv()
+
+	path := filepath.Join(dir, "steps.json")
+	testutils.MustWriteToFile(t, path, "{}")
+
+	t.Run("fails when execute, finalize, revert ran before initialize has started", func(t *testing.T) {
+		steps := []idl.Step{
+			idl.Step_EXECUTE,
+			idl.Step_FINALIZE,
+			idl.Step_REVERT,
+		}
+
+		for _, s := range steps {
+			err := commanders.ValidateStep(s)
+			var validateErr commanders.ValidateStepError
+			if !errors.As(err, &validateErr) {
+				t.Fatalf("got %T, want %T", err, validateErr)
+			}
+
+			//TODO: check contents of error message
+		}
+	})
+
+	t.Run("fails when execute, finalize ran before initialize has completed", func(t *testing.T) {
+		testutils.MustWriteToFile(t, path, "{}")
+		store := step.NewFileStore(path)
+		err := store.Write(idl.Step_INITIALIZE, idl.Substep_INTERNAL_STEP_STATUS, idl.Status_RUNNING)
+		if err != nil {
+			t.Errorf("store.Write returned error %+v", err)
+		}
+
+		steps := []idl.Step{
+			idl.Step_EXECUTE,
+			idl.Step_FINALIZE,
+		}
+
+		for _, s := range steps {
+			err := commanders.ValidateStep(s)
+			var validateErr commanders.ValidateStepError
+			if !errors.As(err, &validateErr) {
+				t.Fatalf("%s: got %T, want %T", s, err, validateErr)
+			}
+
+			//TODO: check contents of error message
+		}
+	})
+
+	t.Run("fails when initialize is run after execute has started", func(t *testing.T) {
+		// ensure initialize has been run
+		testutils.MustWriteToFile(t, path, "{}")
+		store := step.NewFileStore(path)
+		err := store.Write(idl.Step_EXECUTE, idl.Substep_INTERNAL_STEP_STATUS, idl.Status_RUNNING)
+		if err != nil {
+			t.Errorf("store.Write returned error %+v", err)
+		}
+
+		err = commanders.ValidateStep(idl.Step_INITIALIZE)
+		var validateErr commanders.ValidateStepError
+		if !errors.As(err, &validateErr) {
+			t.Fatalf("got %T, want %T", err, validateErr)
+		}
+
+		//	expected := `To proceed with the upgrade, run "gpupgrade finalize".
+		//To return the cluster to its original state, run "gpupgrade revert".`
+		//	if nextActionsErr.NextActions != expected {
+		//		t.Errorf("got %q want %q", nextActionsErr.NextActions, expected)
+		//	}
+	})
+
+	t.Run("fails when finalize is run before execute", func(t *testing.T) {
+		// ensure initialize has been run
+		testutils.MustWriteToFile(t, path, "{}")
+		store := step.NewFileStore(path)
+		err := store.Write(idl.Step_INITIALIZE, idl.Substep_SAVING_SOURCE_CLUSTER_CONFIG, idl.Status_COMPLETE)
+		if err != nil {
+			t.Errorf("store.Write returned error %+v", err)
+		}
+
+		err = commanders.ValidateStep(idl.Step_FINALIZE)
+		var validateErr commanders.ValidateStepError
+		if !errors.As(err, &validateErr) {
+			t.Fatalf("got %T, want %T", err, validateErr)
+		}
+
+		//		expected := `To proceed with the upgrade, run "gpupgrade execute".
+		//To return the cluster to its original state, run "gpupgrade revert".`
+		//		if nextActionsErr.NextActions != expected {
+		//			t.Errorf("got %q want %q", nextActionsErr.NextActions, expected)
+		//		}
+		//	})
+	})
+}
+
+func TestValidateStepWithNoStatusFile(t *testing.T) {
+	resetEnv := testutils.SetEnv(t, "GPUPGRADE_HOME", "/does/not/exist")
+	defer resetEnv()
+
+	t.Run("does not error when initialize is run with no status file", func(t *testing.T) {
+		err := commanders.ValidateStep(idl.Step_INITIALIZE)
+		if err != nil {
+			t.Errorf("ValidateStep returned error %+v", err)
+		}
+	})
+
+	t.Run("fails with additional error context when execute, finalize, revert are run before initialize with no status file", func(t *testing.T) {
+		steps := []idl.Step{
+			idl.Step_EXECUTE,
+			idl.Step_FINALIZE,
+			idl.Step_REVERT,
+		}
+
+		for _, s := range steps {
+			err := commanders.ValidateStep(s)
+			var nextActionsErr cli.NextActions
+			if !errors.As(err, &nextActionsErr) {
+				t.Errorf("got %T, want %T", err, nextActionsErr)
+			}
+			//
+			//			expected := `To begin the upgrade, run "gpupgrade initialize".`
+			//			if nextActionsErr.NextActions != expected {
+			//				t.Errorf("got %q want %q", nextActionsErr.NextActions, expected)
+			//			}
+			//
+			//			expected = "status file: open /does/not/exist/status.json: no such file or directory"
+			//			if !strings.HasPrefix(err.Error(), expected) {
+			//				t.Errorf("want error %q to begin with %q", err, expected)
+			//			}
 		}
 	})
 }
