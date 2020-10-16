@@ -11,28 +11,39 @@ import "fmt"
 type NextActions struct {
 	error
 	Subcommand    string // the gpupgrade subcommand name to print
+	NextAction    string
 	suggestRevert bool
 }
 
-func NewNextActions(err error, subcommand string, suggestRevert bool) NextActions {
+func NewNextActions(err error, subcommand string, suggestRevert bool, nextAction string) NextActions {
 	return NextActions{
 		error:         err,
 		Subcommand:    subcommand,
 		suggestRevert: suggestRevert,
+		NextAction:    nextAction,
 	}
 }
 
 func (n NextActions) PrintHelp() {
-	text := `
+	text := fmt.Sprintf(`
 NEXT ACTIONS
 ------------
 Please address the above issue and run "gpupgrade %s" again.
-`
+`, n.Subcommand)
+
 	if n.suggestRevert {
 		text += `
 
 If you would like to return the cluster to its original state, please run "gpupgrade revert".
 `
 	}
-	fmt.Printf(text, n.Subcommand)
+
+	if n.NextAction != "" {
+		text = `
+NEXT ACTIONS
+------------
+` + n.NextAction
+	}
+
+	fmt.Print(text)
 }

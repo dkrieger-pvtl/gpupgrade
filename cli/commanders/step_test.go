@@ -350,7 +350,7 @@ func TestSubstep(t *testing.T) {
 
 		subcommand := "subcommand"
 		st.RunHubSubstep(func(streams step.OutStreams) error {
-			return cli.NewNextActions(errors.New("oops"), subcommand, false)
+			return cli.NewNextActions(errors.New("oops"), subcommand, false, "")
 		})
 
 		err = st.Complete("")

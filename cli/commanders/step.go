@@ -169,7 +169,7 @@ func (s *CLIStep) Complete(completedText string) error {
 			return nextActions
 		}
 
-		return cli.NewNextActions(s.Err(), strings.ToLower(s.stepName), true)
+		return cli.NewNextActions(s.Err(), strings.ToLower(s.stepName), true, "")
 	}
 
 	fmt.Println(completedText)

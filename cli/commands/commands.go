@@ -412,7 +412,7 @@ func initialize() *cobra.Command {
 
 				err := cli.ValidateVersions(sourceGPHome, targetGPHome)
 				if err != nil {
-					return cli.NewNextActions(err, strings.ToLower(idl.Step_INITIALIZE.String()), false)
+					return cli.NewNextActions(err, strings.ToLower(idl.Step_INITIALIZE.String()), false, "")
 				}
 
 				return nil
