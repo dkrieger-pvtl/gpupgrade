@@ -4,8 +4,11 @@
 package commanders
 
 import (
+	"errors"
+
 	"golang.org/x/xerrors"
 
+	"github.com/greenplum-db/gpupgrade/cli"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/utils"
@@ -63,4 +66,95 @@ func (s *StepStore) HasStatus(step idl.Step, check func(status idl.Status) bool)
 	}
 
 	return check(status), nil
+}
+
+type validStep struct {
+	idl.Step
+	nextAction string
+}
+
+type stepConditions struct {
+	notStarted []validStep
+	completed  []validStep
+}
+
+const NextActionRunInitialize = `To begin the upgrade, run "gpupgrade initialize".`
+
+const NextActionRunExecute = `To proceed with the upgrade, run "gpupgrade execute".
+To return the cluster to its original state, run "gpupgrade revert".`
+
+const NextActionRunFinalize = `To proceed with the upgrade, run "gpupgrade finalize".
+To return the cluster to its original state, run "gpupgrade revert".`
+
+const NextActionCompleteFinalize = `To proceed with the upgrade, run "gpupgrade finalize.`
+
+// stepConditions are conditions are are expected to have been met for the
+// current step. The next action message is printed if the condition is not met.
+var validate = map[idl.Step]stepConditions{
+	idl.Step_INITIALIZE: {
+		notStarted: []validStep{
+			{idl.Step_EXECUTE, NextActionRunExecute},
+			{idl.Step_FINALIZE, NextActionRunFinalize},
+		},
+	},
+	idl.Step_EXECUTE: {
+		notStarted: []validStep{
+			{idl.Step_FINALIZE, NextActionRunFinalize},
+		},
+		completed: []validStep{
+			{idl.Step_INITIALIZE, NextActionRunInitialize},
+		},
+	},
+	idl.Step_FINALIZE: {
+		completed: []validStep{
+			{idl.Step_INITIALIZE, NextActionRunInitialize},
+			{idl.Step_EXECUTE, NextActionRunExecute},
+		},
+	},
+	idl.Step_REVERT: {
+		notStarted: []validStep{
+			{idl.Step_FINALIZE, NextActionCompleteFinalize},
+		},
+		completed: []validStep{
+			{idl.Step_INITIALIZE, NextActionRunInitialize},
+		},
+	},
+}
+
+func (s *StepStore) ValidateStep(currentStep idl.Step) (err error) {
+	stepErr := errors.New(`gpupgrade commands must be issued in correct order
+  1. initialize   runs pre-upgrade checks and prepares the cluster for upgrade
+  2. execute      upgrades the master and primary segments to the target
+                  Greenplum version
+  3. finalize     upgrades the standby master and mirror segments to the target
+                  Greenplum version. Revert cannot be run after finalize has started.
+Use "gpupgrade --help" for more information`)
+
+	conditions := validate[currentStep]
+
+	// ensure specified steps have not started
+	for _, st := range conditions.notStarted {
+		started, err := s.HasStepStarted(st.Step)
+		if err != nil {
+			return err
+		}
+
+		if started {
+			return cli.NewNextActions(stepErr, currentStep.String(), false, st.nextAction)
+		}
+	}
+
+	// check if required steps have completed
+	for _, st := range conditions.completed {
+		completed, err := s.HasStepCompleted(st.Step)
+		if err != nil {
+			return err
+		}
+
+		if !completed {
+			return cli.NewNextActions(stepErr, currentStep.String(), false, st.nextAction)
+		}
+	}
+
+	return nil
 }

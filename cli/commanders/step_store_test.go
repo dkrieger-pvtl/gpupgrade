@@ -7,12 +7,15 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/greenplum-db/gpupgrade/cli"
 	"github.com/greenplum-db/gpupgrade/cli/commanders"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/testutils"
+	"github.com/greenplum-db/gpupgrade/utils"
 )
 
 func TestStepStore(t *testing.T) {
@@ -217,4 +220,135 @@ func TestStepStore(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestValidateStep(t *testing.T) {
+	stateDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(stateDir); err != nil {
+			t.Errorf("removing temp directory: %v", err)
+		}
+	}()
+
+	resetEnv := testutils.SetEnv(t, "GPUPGRADE_HOME", stateDir)
+	defer resetEnv()
+
+	store, err := commanders.NewStepStore()
+	if err != nil {
+		t.Fatalf("NewStepStore failed: %v", err)
+	}
+
+	t.Run("fails when execute, finalize, and revert are run and initialize has not completed", func(t *testing.T) {
+		clearStore(t)
+
+		steps := []idl.Step{
+			idl.Step_EXECUTE,
+			idl.Step_FINALIZE,
+			idl.Step_REVERT,
+		}
+
+		for _, s := range steps {
+			err := store.ValidateStep(s)
+			var nextActionsErr cli.NextActions
+			if !errors.As(err, &nextActionsErr) {
+				t.Errorf("got %T, want %T", err, nextActionsErr)
+			}
+
+			if nextActionsErr.NextAction != commanders.NextActionRunInitialize {
+				t.Errorf("got %q want %q", nextActionsErr.NextAction, commanders.NextActionRunInitialize)
+			}
+		}
+	})
+
+	t.Run("fails when initialize is run and execute has already started", func(t *testing.T) {
+		clearStore(t)
+
+		mustWriteStatus(t, store, idl.Step_EXECUTE, idl.Status_RUNNING)
+
+		err = store.ValidateStep(idl.Step_INITIALIZE)
+		var nextActionsErr cli.NextActions
+		if !errors.As(err, &nextActionsErr) {
+			t.Errorf("got %T, want %T", err, nextActionsErr)
+		}
+
+		if nextActionsErr.NextAction != commanders.NextActionRunExecute {
+			t.Errorf("got %q want %q", nextActionsErr.NextAction, commanders.NextActionRunFinalize)
+		}
+	})
+
+	t.Run("fails when finalize is run and execute has not completed", func(t *testing.T) {
+		clearStore(t)
+
+		mustWriteStatus(t, store, idl.Step_INITIALIZE, idl.Status_COMPLETE)
+
+		err = store.ValidateStep(idl.Step_FINALIZE)
+		var nextActionsErr cli.NextActions
+		if !errors.As(err, &nextActionsErr) {
+			t.Errorf("got %T, want %T", err, nextActionsErr)
+		}
+
+		if nextActionsErr.NextAction != commanders.NextActionRunExecute {
+			t.Errorf("got %q want %q", nextActionsErr.NextAction, commanders.NextActionRunExecute)
+		}
+	})
+
+	t.Run("fails when revert is run and finalize has already been started", func(t *testing.T) {
+		clearStore(t)
+
+		mustWriteStatus(t, store, idl.Step_INITIALIZE, idl.Status_COMPLETE)
+		mustWriteStatus(t, store, idl.Step_EXECUTE, idl.Status_COMPLETE)
+		mustWriteStatus(t, store, idl.Step_FINALIZE, idl.Status_RUNNING)
+
+		err = store.ValidateStep(idl.Step_REVERT)
+		var nextActionsErr cli.NextActions
+		if !errors.As(err, &nextActionsErr) {
+			t.Errorf("got %T, want %T", err, nextActionsErr)
+		}
+
+		if nextActionsErr.NextAction != commanders.NextActionCompleteFinalize {
+			t.Errorf("got %q want %q", nextActionsErr.NextAction, commanders.NextActionCompleteFinalize)
+		}
+	})
+
+	t.Run("fails when initialize, execute are run after finalize has started", func(t *testing.T) {
+		clearStore(t)
+
+		mustWriteStatus(t, store, idl.Step_FINALIZE, idl.Status_RUNNING)
+
+		steps := []idl.Step{
+			idl.Step_INITIALIZE,
+			idl.Step_EXECUTE,
+		}
+
+		for _, s := range steps {
+			err := store.ValidateStep(s)
+			var nextActionsErr cli.NextActions
+			if !errors.As(err, &nextActionsErr) {
+				t.Errorf("got %T, want %T", err, nextActionsErr)
+			}
+
+			if nextActionsErr.NextAction != commanders.NextActionRunFinalize {
+				t.Errorf("got %q want %q", nextActionsErr.NextAction, commanders.NextActionRunFinalize)
+			}
+		}
+	})
+}
+
+func clearStore(t *testing.T) {
+	t.Helper()
+
+	path := filepath.Join(utils.GetStateDir(), commanders.StepsFileName)
+	testutils.MustWriteToFile(t, path, "{}")
+}
+
+func mustWriteStatus(t *testing.T, store *commanders.StepStore, step idl.Step, status idl.Status) {
+	t.Helper()
+
+	err := store.Write(step, status)
+	if err != nil {
+		t.Errorf("store.Write returned error %+v", err)
+	}
 }

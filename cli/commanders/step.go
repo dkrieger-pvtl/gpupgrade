@@ -43,6 +43,11 @@ func NewStep(step idl.Step, streams *step.BufferedStreams, verbose bool) (*CLISt
 		return &CLIStep{}, err
 	}
 
+	err = store.ValidateStep(step)
+	if err != nil {
+		return nil, err
+	}
+
 	stepName := strings.Title(strings.ToLower(step.String()))
 
 	fmt.Println()
