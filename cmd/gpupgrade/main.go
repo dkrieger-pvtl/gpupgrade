@@ -16,6 +16,7 @@ import (
 
 	"github.com/greenplum-db/gpupgrade/cli"
 	"github.com/greenplum-db/gpupgrade/cli/commands"
+	"github.com/greenplum-db/gpupgrade/upgrade"
 	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/daemon"
 )
@@ -28,6 +29,10 @@ func main() {
 		os.Exit(1)
 	}
 	gplog.InitializeLogging("gpupgrade_cli", logdir)
+
+	//Assign a new universal upgrade identifier.
+	upgradeID := upgrade.NewID()
+	fmt.Println(upgradeID)
 
 	root := commands.BuildRootCommand()
 	// Silence usage since Cobra prints usage for all errors rather than just
