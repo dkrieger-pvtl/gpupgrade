@@ -63,7 +63,7 @@ TEST_PACKAGES := ./...
 # testing. For now, disable test caching for the Make recipes with -count=1;
 # anyone who would like caching back can always use `go test` directly.
 check-go:
-	go test -count=1 $(TEST_PACKAGES)
+	go test -race -count=1 $(TEST_PACKAGES)
 
 check-bats:
 	bats -r ./test
@@ -89,7 +89,7 @@ EXTENSION = $($(OS)_EXTENSION)
 .PHONY: build build_linux build_mac
 
 build:
-	$(BUILD_ENV) go build -o gpupgrade$(EXTENSION) $(BUILD_FLAGS) github.com/greenplum-db/gpupgrade/cmd/gpupgrade
+	$(BUILD_ENV) go build -race -o gpupgrade$(EXTENSION) $(BUILD_FLAGS) github.com/greenplum-db/gpupgrade/cmd/gpupgrade
 	go generate ./cli/bash
 
 build_linux: OS := LINUX
@@ -100,7 +100,7 @@ BUILD_FLAGS = -gcflags="all=-N -l"
 override BUILD_FLAGS += -ldflags "$(VERSION_LD_STR)"
 
 install:
-	go install $(BUILD_FLAGS) github.com/greenplum-db/gpupgrade/cmd/gpupgrade
+	go install -race $(BUILD_FLAGS) github.com/greenplum-db/gpupgrade/cmd/gpupgrade
 
 # To lint, you must install golangci-lint via one of the supported methods
 # listed at
