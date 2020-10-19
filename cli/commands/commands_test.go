@@ -265,32 +265,32 @@ func TestInitializeWarningMessageIfAny(t *testing.T) {
 		{
 			name: "both standby and mirror does not exist",
 			input: commanders.InitializeCreateClusterResponse{
-				HasMirrors: "false",
-				HasStandby: "false",
+				HasMirrors: false,
+				HasStandby: false,
 			},
 			expected: fmt.Sprintf(InitializeWarningMessage, "standby and mirror segments"),
 		},
 		{
 			name: "only mirrors does not exist",
 			input: commanders.InitializeCreateClusterResponse{
-				HasMirrors: "false",
-				HasStandby: "true",
+				HasMirrors: false,
+				HasStandby: true,
 			},
 			expected: fmt.Sprintf(InitializeWarningMessage, "mirror segments"),
 		},
 		{
 			name: "only standby does not exist",
 			input: commanders.InitializeCreateClusterResponse{
-				HasMirrors: "true",
-				HasStandby: "false",
+				HasMirrors: true,
+				HasStandby: false,
 			},
 			expected: fmt.Sprintf(InitializeWarningMessage, "standby"),
 		},
 		{
 			name: "both standby and mirrors exist",
 			input: commanders.InitializeCreateClusterResponse{
-				HasMirrors: "true",
-				HasStandby: "true",
+				HasMirrors: true,
+				HasStandby: true,
 			},
 			expected: "",
 		},

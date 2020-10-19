@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
@@ -173,12 +172,15 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 		return DeleteStateDirectories(s.agentConns, s.Source.MasterHostname())
 	})
 
-	message := &idl.Message{Contents: &idl.Message_Response{Response: &idl.Response{Data: map[string]string{
-		idl.ResponseKey_source_port.String():                  strconv.Itoa(s.Source.MasterPort()),
-		idl.ResponseKey_source_master_data_directory.String(): s.Source.MasterDataDir(),
-		idl.ResponseKey_source_version.String():               s.Source.Version.VersionString,
-		idl.ResponseKey_revert_log_archive_directory.String(): archiveDir,
-	}}}}
+	message := &idl.Message{Contents: &idl.Message_RevertResponse{RevertResponse: &idl.RevertResponse{
+		Source: &idl.Cluster{
+			Port:                int32(s.Source.MasterPort()),
+			MasterDataDirectory: s.Source.MasterDataDir(),
+		},
+		SourceVersion:       s.Source.Version.VersionString,
+		LogArchiveDirectory: archiveDir,
+	}}}
+
 	if err := stream.Send(message); err != nil {
 		return xerrors.Errorf("sending response message: %w", err)
 	}

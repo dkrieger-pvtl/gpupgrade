@@ -6,7 +6,6 @@ package commanders_test
 import (
 	"errors"
 	"io"
-	"reflect"
 	"testing"
 
 	"github.com/greenplum-db/gpupgrade/cli/commanders"
@@ -182,37 +181,85 @@ func TestUILoop(t *testing.T) {
 		}
 	})
 
-	t.Run("returns a map of strings that are processed in the stream", func(t *testing.T) {
-		firstMap := make(map[string]string)
-		firstMap["a"] = "b"
-		firstMap["e"] = "f"
-
-		secondMap := make(map[string]string)
-		secondMap["a"] = "c"
-		secondMap["g"] = "5432"
-
-		msgs := msgStream{
-			{Contents: &idl.Message_Response{
-				Response: &idl.Response{Data: firstMap},
-			}},
-			{Contents: &idl.Message_Response{
-				Response: &idl.Response{Data: secondMap},
-			}},
+	t.Run("processes responses successfully", func(t *testing.T) {
+		cases := []struct {
+			name     string
+			msgs     msgStream
+			expected commanders.UILoopResponse
+		}{
+			{
+				name: "processes initialize response successfully",
+				msgs: msgStream{&idl.Message{
+					Contents: &idl.Message_InitializeResponse{
+						InitializeResponse: &idl.InitializeResponse{HasMirrors: true, HasStandby: false}}}},
+				expected: commanders.UILoopResponse{
+					InitializeCreateClusterResponse: commanders.InitializeCreateClusterResponse{
+						HasMirrors: true,
+					},
+				},
+			},
+			{
+				name: "processes execute response successfully",
+				msgs: msgStream{&idl.Message{
+					Contents: &idl.Message_ExecuteResponse{
+						ExecuteResponse: &idl.ExecuteResponse{
+							Target: &idl.Cluster{
+								Port:                15423,
+								MasterDataDirectory: "/data/gpseg-1"}}}}},
+				expected: commanders.UILoopResponse{
+					ExecuteResponse: commanders.ExecuteResponse{
+						TargetPort:          15423,
+						TargetMasterDataDir: "/data/gpseg-1",
+					},
+				},
+			},
+			{
+				name: "processes finalize response successfully",
+				msgs: msgStream{&idl.Message{
+					Contents: &idl.Message_FinalizeResponse{
+						FinalizeResponse: &idl.FinalizeResponse{
+							Target: &idl.Cluster{
+								Port:                15423,
+								MasterDataDirectory: "/data/gpseg-1"}}}}},
+				expected: commanders.UILoopResponse{
+					FinalizeResponse: commanders.FinalizeResponse{
+						TargetPort:          15423,
+						TargetMasterDataDir: "/data/gpseg-1",
+					},
+				},
+			},
+			{
+				name: "processes revert response successfully",
+				msgs: msgStream{&idl.Message{
+					Contents: &idl.Message_RevertResponse{
+						RevertResponse: &idl.RevertResponse{
+							Source: &idl.Cluster{
+								Port:                1111,
+								MasterDataDirectory: "/data/gpseg-2",
+							},
+							SourceVersion:       "5.0",
+							LogArchiveDirectory: "/gpAdminLogs/1112",
+						}}}},
+				expected: commanders.UILoopResponse{
+					RevertResponse: commanders.RevertResponse{
+						SourcePort:          1111,
+						SourceMasterDataDir: "/data/gpseg-2",
+						Version:             "5.0",
+						ArchiveDir:          "/gpAdminLogs/1112",
+					},
+				},
+			},
 		}
 
-		actual, err := commanders.UILoop(&msgs, false)
+		for _, c := range cases {
+			actual, err := commanders.UILoop(&c.msgs, false)
+			if err != nil {
+				t.Errorf("got unexpected err %+v", err)
+			}
 
-		if err != nil {
-			t.Errorf("got unexpected err %+v", err)
-		}
-
-		expected := make(map[string]string)
-		expected["a"] = "c"
-		expected["e"] = "f"
-		expected["g"] = "5432"
-
-		if !reflect.DeepEqual(actual, expected) {
-			t.Errorf("got map %#v want %#v", actual, expected)
+			if actual != c.expected {
+				t.Errorf("got %#v, want %#v", actual, c.expected)
+			}
 		}
 	})
 

@@ -555,7 +555,7 @@ If you are satisfied with the state of the cluster, run "gpupgrade finalize"
 to proceed with the upgrade.
 
 To return the cluster to its original state, run "gpupgrade revert".
-`, response.TargetPort, response.TargetMasterDataDir))
+`, strconv.Itoa(response.TargetPort), response.TargetMasterDataDir))
 		},
 	}
 
@@ -597,7 +597,7 @@ func finalize() *cobra.Command {
 Finalize completed successfully.
 
 The target cluster is now upgraded and is ready to be used. The PGPORT is %s and the MASTER_DATA_DIRECTORY is %s.
-`, response.TargetPort, response.TargetMasterDataDir))
+`, strconv.Itoa(response.TargetPort), response.TargetMasterDataDir))
 		},
 	}
 
@@ -664,7 +664,7 @@ To restart the upgrade, run "gpupgrade initialize" again.
 
 To use the reverted cluster, you must recreate any tables, indexes, and/or 
 roles that were dropped or altered to pass the pg_upgrade checks.
-`, response.Version, response.SourcePort, response.SourceMasterDataDir, response.ArchiveDir))
+`, response.Version, strconv.Itoa(response.SourcePort), response.SourceMasterDataDir, response.ArchiveDir))
 		},
 	}
 
@@ -1005,11 +1005,11 @@ func addHelpToCommand(cmd *cobra.Command, help string) *cobra.Command {
 
 func InitializeWarningMessageIfAny(response commanders.InitializeCreateClusterResponse) string {
 	message := ""
-	if response.HasStandby == "false" && response.HasMirrors == "false" {
+	if !response.HasStandby && !response.HasMirrors {
 		message = "standby and mirror segments"
-	} else if response.HasMirrors == "false" {
+	} else if !response.HasMirrors {
 		message = "mirror segments"
-	} else if response.HasStandby == "false" {
+	} else if !response.HasStandby {
 		message = "standby"
 	}
 

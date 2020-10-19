@@ -16,23 +16,30 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils/stopwatch"
 )
 
+type UILoopResponse struct {
+	InitializeCreateClusterResponse
+	ExecuteResponse
+	FinalizeResponse
+	RevertResponse
+}
+
 type InitializeCreateClusterResponse struct {
-	HasMirrors string
-	HasStandby string
+	HasMirrors bool
+	HasStandby bool
 }
 
 type ExecuteResponse struct {
-	TargetPort          string
+	TargetPort          int
 	TargetMasterDataDir string
 }
 
 type FinalizeResponse struct {
-	TargetPort          string
+	TargetPort          int
 	TargetMasterDataDir string
 }
 
 type RevertResponse struct {
-	SourcePort          string
+	SourcePort          int
 	SourceMasterDataDir string
 	Version             string
 	ArchiveDir          string
@@ -76,10 +83,7 @@ func InitializeCreateCluster(client idl.CliToHubClient, verbose bool) (Initializ
 		return InitializeCreateClusterResponse{}, xerrors.Errorf("InitializeCreateCluster: %w", err)
 	}
 
-	return InitializeCreateClusterResponse{
-		HasMirrors: response[idl.ResponseKey_source_has_mirrors.String()],
-		HasStandby: response[idl.ResponseKey_source_has_standby.String()],
-	}, nil
+	return response.InitializeCreateClusterResponse, nil
 }
 
 func Execute(client idl.CliToHubClient, verbose bool) (ExecuteResponse, error) {
@@ -95,10 +99,7 @@ func Execute(client idl.CliToHubClient, verbose bool) (ExecuteResponse, error) {
 		return ExecuteResponse{}, xerrors.Errorf("Execute: %w", err)
 	}
 
-	return ExecuteResponse{
-		TargetPort:          response[idl.ResponseKey_target_port.String()],
-		TargetMasterDataDir: response[idl.ResponseKey_target_master_data_directory.String()],
-	}, nil
+	return response.ExecuteResponse, nil
 }
 
 func Finalize(client idl.CliToHubClient, verbose bool) (FinalizeResponse, error) {
@@ -113,11 +114,7 @@ func Finalize(client idl.CliToHubClient, verbose bool) (FinalizeResponse, error)
 		return FinalizeResponse{}, xerrors.Errorf("Finalize: %w", err)
 	}
 
-	return FinalizeResponse{
-			TargetPort:          response[idl.ResponseKey_target_port.String()],
-			TargetMasterDataDir: response[idl.ResponseKey_target_master_data_directory.String()],
-		},
-		nil
+	return response.FinalizeResponse, nil
 }
 
 func Revert(client idl.CliToHubClient, verbose bool) (RevertResponse, error) {
@@ -132,16 +129,11 @@ func Revert(client idl.CliToHubClient, verbose bool) (RevertResponse, error) {
 		return RevertResponse{}, xerrors.Errorf("Revert: %w", err)
 	}
 
-	return RevertResponse{
-		SourcePort:          response[idl.ResponseKey_source_port.String()],
-		SourceMasterDataDir: response[idl.ResponseKey_source_master_data_directory.String()],
-		Version:             response[idl.ResponseKey_source_version.String()],
-		ArchiveDir:          response[idl.ResponseKey_revert_log_archive_directory.String()],
-	}, nil
+	return response.RevertResponse, nil
 }
 
-func UILoop(stream receiver, verbose bool) (map[string]string, error) {
-	data := make(map[string]string)
+func UILoop(stream receiver, verbose bool) (UILoopResponse, error) {
+	var response UILoopResponse
 	var lastStep idl.Substep
 	var err error
 
@@ -185,10 +177,38 @@ func UILoop(stream receiver, verbose bool) (map[string]string, error) {
 				fmt.Println()
 			}
 
-		case *idl.Message_Response:
-			// NOTE: the latest message will clobber earlier keys
-			for k, v := range x.Response.Data {
-				data[k] = v
+		case *idl.Message_InitializeResponse:
+			response = UILoopResponse{
+				InitializeCreateClusterResponse: InitializeCreateClusterResponse{
+					HasMirrors: x.InitializeResponse.HasMirrors,
+					HasStandby: x.InitializeResponse.HasStandby,
+				},
+			}
+
+		case *idl.Message_ExecuteResponse:
+			response = UILoopResponse{
+				ExecuteResponse: ExecuteResponse{
+					TargetPort:          int(x.ExecuteResponse.Target.Port),
+					TargetMasterDataDir: x.ExecuteResponse.Target.MasterDataDirectory,
+				},
+			}
+
+		case *idl.Message_FinalizeResponse:
+			response = UILoopResponse{
+				FinalizeResponse: FinalizeResponse{
+					TargetPort:          int(x.FinalizeResponse.Target.Port),
+					TargetMasterDataDir: x.FinalizeResponse.Target.MasterDataDirectory,
+				},
+			}
+
+		case *idl.Message_RevertResponse:
+			response = UILoopResponse{
+				RevertResponse: RevertResponse{
+					SourcePort:          int(x.RevertResponse.Source.Port),
+					SourceMasterDataDir: x.RevertResponse.Source.MasterDataDirectory,
+					Version:             x.RevertResponse.SourceVersion,
+					ArchiveDir:          x.RevertResponse.LogArchiveDirectory,
+				},
 			}
 
 		default:
@@ -201,10 +221,10 @@ func UILoop(stream receiver, verbose bool) (map[string]string, error) {
 	}
 
 	if err != io.EOF {
-		return data, err
+		return response, err
 	}
 
-	return data, nil
+	return response, nil
 }
 
 // FormatStatus returns a status string based on the upgrade status message.
