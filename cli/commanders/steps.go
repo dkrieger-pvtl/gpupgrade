@@ -70,20 +70,20 @@ func Initialize(client idl.CliToHubClient, request *idl.InitializeRequest, verbo
 	return nil
 }
 
-func InitializeCreateCluster(client idl.CliToHubClient, verbose bool) (InitializeCreateClusterResponse, error) {
+func InitializeCreateCluster(client idl.CliToHubClient, verbose bool) (*idl.InitializeResponse, error) {
 	stream, err := client.InitializeCreateCluster(context.Background(),
 		&idl.InitializeCreateClusterRequest{},
 	)
 	if err != nil {
-		return InitializeCreateClusterResponse{}, xerrors.Errorf("initialize create cluster: %w", err)
+		return &idl.InitializeResponse{}, xerrors.Errorf("initialize create cluster: %w", err)
 	}
 
 	response, err := UILoop(stream, verbose)
 	if err != nil {
-		return InitializeCreateClusterResponse{}, xerrors.Errorf("InitializeCreateCluster: %w", err)
+		return &idl.InitializeResponse{}, xerrors.Errorf("InitializeCreateCluster: %w", err)
 	}
 
-	return response.InitializeCreateClusterResponse, nil
+	return response.GetInitialize(), nil
 }
 
 func Execute(client idl.CliToHubClient, verbose bool) (ExecuteResponse, error) {
@@ -132,8 +132,8 @@ func Revert(client idl.CliToHubClient, verbose bool) (RevertResponse, error) {
 	return response.RevertResponse, nil
 }
 
-func UILoop(stream receiver, verbose bool) (UILoopResponse, error) {
-	var response UILoopResponse
+func UILoop(stream receiver, verbose bool) (*idl.Response, error) {
+	var response *idl.Response
 	var lastStep idl.Substep
 	var err error
 
@@ -177,40 +177,8 @@ func UILoop(stream receiver, verbose bool) (UILoopResponse, error) {
 				fmt.Println()
 			}
 
-		case *idl.Message_InitializeResponse:
-			response = UILoopResponse{
-				InitializeCreateClusterResponse: InitializeCreateClusterResponse{
-					HasMirrors: x.InitializeResponse.HasMirrors,
-					HasStandby: x.InitializeResponse.HasStandby,
-				},
-			}
-
-		case *idl.Message_ExecuteResponse:
-			response = UILoopResponse{
-				ExecuteResponse: ExecuteResponse{
-					TargetPort:          int(x.ExecuteResponse.Target.Port),
-					TargetMasterDataDir: x.ExecuteResponse.Target.MasterDataDirectory,
-				},
-			}
-
-		case *idl.Message_FinalizeResponse:
-			response = UILoopResponse{
-				FinalizeResponse: FinalizeResponse{
-					TargetPort:          int(x.FinalizeResponse.Target.Port),
-					TargetMasterDataDir: x.FinalizeResponse.Target.MasterDataDirectory,
-				},
-			}
-
-		case *idl.Message_RevertResponse:
-			response = UILoopResponse{
-				RevertResponse: RevertResponse{
-					SourcePort:          int(x.RevertResponse.Source.Port),
-					SourceMasterDataDir: x.RevertResponse.Source.MasterDataDirectory,
-					Version:             x.RevertResponse.SourceVersion,
-					ArchiveDir:          x.RevertResponse.LogArchiveDirectory,
-				},
-			}
-
+		case *idl.Message_Response:
+			response = x.Response
 		default:
 			panic(fmt.Sprintf("unknown message type: %T", x))
 		}

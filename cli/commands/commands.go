@@ -463,7 +463,7 @@ func initialize() *cobra.Command {
 				return commanders.CheckDiskSpace(client, diskFreeRatio)
 			})
 
-			var response commanders.InitializeCreateClusterResponse
+			var response *idl.InitializeResponse
 			st.RunHubSubstep(func(streams step.OutStreams) error {
 				if stopBeforeClusterCreation {
 					return step.Skip
@@ -1003,13 +1003,13 @@ func addHelpToCommand(cmd *cobra.Command, help string) *cobra.Command {
 	return cmd
 }
 
-func InitializeWarningMessageIfAny(response commanders.InitializeCreateClusterResponse) string {
+func InitializeWarningMessageIfAny(response *idl.InitializeResponse) string {
 	message := ""
-	if !response.HasStandby && !response.HasMirrors {
+	if !response.GetHasStandby() && !response.GetHasMirrors() {
 		message = "standby and mirror segments"
-	} else if !response.HasMirrors {
+	} else if !response.GetHasMirrors() {
 		message = "mirror segments"
-	} else if !response.HasStandby {
+	} else if !response.GetHasStandby() {
 		message = "standby"
 	}
 

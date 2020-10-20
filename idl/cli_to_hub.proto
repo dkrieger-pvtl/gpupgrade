@@ -123,11 +123,17 @@ message Message {
   oneof contents {
     Chunk chunk = 1;
     SubstepStatus status = 2;
-    InitializeResponse initializeResponse = 3;
-    ExecuteResponse executeResponse = 4;
-    FinalizeResponse finalizeResponse = 5;
-    RevertResponse revertResponse = 6;
+    Response response = 3;
   }
+}
+
+message Response {
+    oneof contents2 {
+        InitializeResponse initialize = 1;
+        ExecuteResponse execute = 2;
+        FinalizeResponse finalize = 3;
+        RevertResponse revert = 4;
+    }
 }
 
 message InitializeResponse {
@@ -140,11 +146,11 @@ message Cluster {
   string MasterDataDirectory = 2;
 }
 
-message FinalizeResponse {
-  Cluster target = 1;
+message ExecuteResponse {
+    Cluster target = 1;
 }
 
-message ExecuteResponse {
+message FinalizeResponse {
   Cluster target = 1;
 }
 
