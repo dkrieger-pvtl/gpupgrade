@@ -1,0 +1,12 @@
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# direnv files
+.envrc
+
+# dynamic supporting ansible files
+ansible_hosts

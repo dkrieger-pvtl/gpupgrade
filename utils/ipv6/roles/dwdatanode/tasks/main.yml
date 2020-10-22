@@ -1,0 +1,10 @@
+---
+# tasks file for dwdatanode
+- name: Create data warehouse node data directories
+  file:
+    path: /data/gpdb{{ item[0] }}/{{ item[1] }}
+    state: directory
+    mode: '0777'
+  with_nested:
+    - "{{ range(1,greenplum.segments_per_host+1)|list }}"
+    - ['primary', 'mirror']
