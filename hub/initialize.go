@@ -49,6 +49,10 @@ func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initi
 		return FillConfiguration(s.Config, conn, stream, in, s.SaveConfig)
 	})
 
+	st.RunInternalSubstep(func() error {
+		return ValidateGpupgradeVersion(s.Source.MasterHostname(), AgentHosts(s.Source))
+	})
+
 	st.Run(idl.Substep_START_AGENTS, func(_ step.OutStreams) error {
 		_, err := RestartAgents(context.Background(), nil, AgentHosts(s.Source), s.AgentPort, s.StateDir)
 		return err
