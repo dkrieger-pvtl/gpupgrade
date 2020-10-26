@@ -6,6 +6,7 @@ package hub_test
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -79,13 +80,9 @@ func TestValidateGpupgradeVersion(t *testing.T) {
 	t.Run("reports version mismatch between hub and agent", func(t *testing.T) {
 		hub.GetVersionFunc = func(host, path string) (string, error) {
 			if host == hubHost {
-				return `Version: 0.4.0
-Commit: e28033a
-Release: Dev Build`, nil
+				return "Version: 0.4.0 Commit: 21b66d7 Release: Dev Build", nil
 			}
-			return `Version: 0.2.0
-Commit: e28023a
-Release: Dev Build`, nil
+			return "Version: 0.3.0 Commit: 22b77d7 Release: Dev Build", nil
 		}
 		defer ResetGetVersion()
 
@@ -94,9 +91,9 @@ Release: Dev Build`, nil
 			t.Errorf("expected an error")
 		}
 
-		expectedSuffix := fmt.Sprintf("Agents with mismatched version: %s", strings.Join(agentHosts, ", "))
-		if !strings.HasSuffix(err.Error(), expectedSuffix) {
-			t.Errorf("expected error to have suffix %q", expectedSuffix)
+		expectedRegex := regexp.MustCompile(`Mismatched Agents:.*\nsdw1.*\nsdw2`)
+		if !expectedRegex.Match([]byte(err.Error())) {
+			t.Errorf("expected sdw1 and sdw2 in mismatched agents, got %s", err)
 		}
 	})
 }

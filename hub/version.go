@@ -5,17 +5,38 @@ package hub
 
 import (
 	"fmt"
-	"os/exec"
 	"sort"
-	"strings"
 	"sync"
 
+	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"golang.org/x/xerrors"
 
-	"github.com/greenplum-db/gp-common-go-libs/gplog"
+	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
 
 var GetVersionFunc = GetVersion
+
+type agentVersion struct {
+	host    string
+	version string
+	err     error
+}
+
+type agents map[string]string
+
+func (a agents) String() string {
+	hosts := make([]string, 0, len(a))
+	for h := range a {
+		hosts = append(hosts, h)
+	}
+
+	s := ""
+	sort.Strings(hosts)
+	for _, k := range hosts {
+		s += fmt.Sprintf("%s: %s\n", k, a[k])
+	}
+	return s
+}
 
 func ValidateGpupgradeVersion(hubHost string, agentHosts []string) error {
 	path, err := getBinaryPath()
@@ -29,59 +50,53 @@ func ValidateGpupgradeVersion(hubHost string, agentHosts []string) error {
 	}
 
 	var wg sync.WaitGroup
-	errs := make(chan error, len(agentHosts))
-	mismatchedHostsChan := make(chan string, len(agentHosts))
+	agentChan := make(chan agentVersion, len(agentHosts))
 
 	for _, host := range agentHosts {
 		wg.Add(1)
 		go func(host string) {
 			defer wg.Done()
-
 			version, err := GetVersionFunc(host, path)
-			if err != nil {
-				errs <- err
-				return
-			}
-
-			if hubVersion != version {
-				mismatchedHostsChan <- host
-			}
+			agentChan <- agentVersion{host, version, err}
 		}(host)
 	}
 
 	wg.Wait()
-	close(errs)
-	close(mismatchedHostsChan)
+	close(agentChan)
 
-	var mismatchedHosts []string
-	for host := range mismatchedHostsChan {
-		mismatchedHosts = append(mismatchedHosts, host)
+	var errs error
+	mismatchedAgents := make(agents)
+	for agent := range agentChan {
+		errs = errorlist.Append(errs, agent.err)
+		if hubVersion != agent.version {
+			mismatchedAgents[agent.host] = agent.version
+		}
 	}
 
-	if len(mismatchedHosts) == 0 {
+	if errs != nil {
+		return errs
+	}
+
+	if len(mismatchedAgents) == 0 {
 		return nil
 	}
 
-	sort.Strings(mismatchedHosts)
-	return xerrors.Errorf(`Version mismatch between gpupgrade hub and agent hosts. Found hub version:
-%s
+	return xerrors.Errorf(`Version mismatch between gpupgrade hub and agent hosts. 
+Hub version: %s
 
-Agents with mismatched version: %s`, hubVersion, strings.Join(mismatchedHosts, ", "))
+Mismatched Agents:
+%s`, hubVersion, mismatchedAgents.String())
 }
 
 func GetVersion(host, path string) (string, error) {
 	cmd := execCommand("ssh", host, fmt.Sprintf(`bash -c "%s version"`, path))
 	gplog.Debug("running cmd %q", cmd.String())
-	version, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		var exitErr *exec.ExitError
-		if xerrors.As(err, &exitErr) {
-			return "", xerrors.Errorf("%q failed with %q: %w", cmd.String(), exitErr.Stderr, err)
-		}
-		return "", xerrors.Errorf("%q failed with: %w", cmd.String(), err)
+		return "", xerrors.Errorf("%q failed with %q: %w", cmd.String(), string(output), err)
 	}
 
-	gplog.Debug("output: %q", version)
+	gplog.Debug("output: %q", output)
 
-	return string(version), nil
+	return string(output), nil
 }
