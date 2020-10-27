@@ -19,17 +19,14 @@ terraform apply
 jq -r '.resources[] | select(.type == "tls_private_key") | .instances[0].attributes.private_key_pem' terraform.tfstate > files/gp_cm.pem
 chmod 600 files/gp_cm.pem
 
-JUMPBOX_IPV4=$( jq -r '.outputs."gp_cm_eespino_jumpbox-public-IPv4".value' terraform.tfstate )
-MDW_IPV4=$( jq -r '.outputs."gp_cm_eespino_mdw-public-IPv4".value' terraform.tfstate )
-MDW_IPV6=$( jq -r '.outputs."gp_cm_eespino_mdw-public-IPv6".value[0][0]' terraform.tfstate )
-SDW1_IPV4=$( jq -r '.outputs."gp_cm_eespino_sdw1-public-IPv4".value' terraform.tfstate )
-SDW1_IPV6=$( jq -r '.outputs."gp_cm_eespino_sdw1-public-IPv6".value[0][0]' terraform.tfstate )
-SDW2_IPV4=$( jq -r '.outputs."gp_cm_eespino_sdw2-public-IPv4".value' terraform.tfstate )
-SDW2_IPV6=$( jq -r '.outputs."gp_cm_eespino_sdw2-public-IPv6".value[0][0]' terraform.tfstate )
-SDW3_IPV4=$( jq -r '.outputs."gp_cm_eespino_sdw3-public-IPv4".value' terraform.tfstate )
-SDW3_IPV6=$( jq -r '.outputs."gp_cm_eespino_sdw3-public-IPv6".value[0][0]' terraform.tfstate )
-SDW4_IPV4=$( jq -r '.outputs."gp_cm_eespino_sdw4-public-IPv4".value' terraform.tfstate )
-SDW4_IPV6=$( jq -r '.outputs."gp_cm_eespino_sdw4-public-IPv6".value[0][0]' terraform.tfstate )
+
+JUMPBOX_IPV4=$( jq -r '.outputs."gp_dev_jumpbox-public-IPv4".value' terraform.tfstate )
+MDW_IPV4=$( jq -r '.outputs."gp_dev_dwnodes-public-IPv4".value[0]' terraform.tfstate )
+MDW_IPV6=$( jq -r '.outputs."gp_dev_dwnodes-private-IPv6".value[0]' terraform.tfstate )
+SDW1_IPV4=$( jq -r '.outputs."gp_dev_dwnodes-public-IPv4".value[1]' terraform.tfstate )
+SDW1_IPV6=$( jq -r '.outputs."gp_dev_dwnodes-private-IPv6".value[1]' terraform.tfstate )
+SDW2_IPV4=$( jq -r '.outputs."gp_dev_dwnodes-public-IPv4".value[2]' terraform.tfstate )
+SDW2_IPV6=$( jq -r '.outputs."gp_dev_dwnodes-private-IPv6".value[2]' terraform.tfstate )
 
 ping ${JUMPBOX_IPV4}
 ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${JUMPBOX_IPV4}
@@ -174,6 +171,15 @@ psql postgres -c 'SELECT * FROM gp_stat_replication'
 cd $HOME/gpdb/gpMgmt
 make -f Makefile.behave behave tags=gpstop
   #+END_SRC
+
+
+
+
+
+
+----------------------START HERE=========================
+
+
 * General Workflow
 ** Assumes direnv is being used, update with your AWS and TanzuNet credentials.
    #+BEGIN_SRC shell :results raw
@@ -183,91 +189,107 @@ make -f Makefile.behave behave tags=gpstop
    You can adjust the number of segments with dwnode_count (one is used for master).
    #+BEGIN_SRC shell :results raw
    terraform init
-   terraform apply -var dwnode_count=5 -var dwcluster_name="gp_cm_espino" -auto-approve
+   terraform apply -var dwnode_count=3 -var dwcluster_name="gp_cm_dkrieger_CCP2n_3" -auto-approve
    #+END_SRC
 ** Bring in infrastructure values into environment
    #+BEGIN_SRC shell :results raw
    direnv allow
    #+END_SRC
+** get pem file
+jq -r '.resources[] | select(.type == "tls_private_key") | .instances[0].attributes.private_key_pem' terraform.tfstate > files/gp_cm.pem
+chmod 600 files/gp_cm.pem
 ** Retrieve Terraform infrastructaure information - needed for Ansible
    #+BEGIN_SRC shell :results raw
 ./gen_ansible_hosts.bash
    #+END_SRC
 
+JUMPBOX_IPV4=$( jq -r '.outputs."gp_dev_jumpbox-public-IPv4".value' terraform.tfstate )
+MDW_IPV4=$( jq -r '.outputs."gp_dev_dwnodes-public-IPv4".value[0]' terraform.tfstate )
+MDW_IPV6=$( jq -r '.outputs."gp_dev_dwnodes-private-IPv6".value[0]' terraform.tfstate )
+SDW1_IPV4=$( jq -r '.outputs."gp_dev_dwnodes-public-IPv4".value[1]' terraform.tfstate )
+SDW1_IPV6=$( jq -r '.outputs."gp_dev_dwnodes-private-IPv6".value[1]' terraform.tfstate )
+SDW2_IPV4=$( jq -r '.outputs."gp_dev_dwnodes-public-IPv4".value[2]' terraform.tfstate )
+SDW2_IPV6=$( jq -r '.outputs."gp_dev_dwnodes-private-IPv6".value[2]' terraform.tfstate )
+
    #+BEGIN_SRC shell :results raw
 ping -c2 ${JUMPBOX_IPV4}
 ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${JUMPBOX_IPV4}
-ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${MDW_IPV4}
-ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${SDW1_IPV4}
-ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${SDW2_IPV4}
-ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${SDW3_IPV4}
-ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${SDW4_IPV4}
+
+ansible-galaxy init common
+ansible-galaxy init jumpbox
+ansible-galaxy init dwcommon
+ansible-galaxy init dwcontroller
+ansible-galaxy init dwdatanode
+
   #+END_SRC
 ** Run ansible playbook
    You can adjust the number of segments per host by editing gpdb-vars.yml
    #+BEGIN_SRC shell :results raw
 ansible-playbook --inventory-file=ansible_hosts ansible-playbook-all.yml -e @gpdb-vars.yml
    #+END_SRC
-** Log into DW Controller (master) node
-   #+BEGIN_SRC shell :results raw
-ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${MDW_IPV4}
-   #+END_SRC
+
 ** Disable IPV4
    #+BEGIN_SRC shell :results raw
 ssh -oStrictHostKeyChecking=no -i files/gp_cm.pem centos@${JUMPBOX_IPV4}
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no -o ConnectTimeout=2 $i hostname; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo cat /etc/resolv.conf"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo sed -i -e 's|^search|## search|' -e 's|^nameserver|## nameserver|' /etc/resolv.conf"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo cat /etc/resolv.conf"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip a"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip a | grep \"inet \""; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip addr del \$(/sbin/ip -4 addr show ens5 | grep inet | awk '{print \$2}') dev ens5"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip addr del 127.0.0.1/8 dev lo"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip a"; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no -o ConnectTimeout=2 $i hostname; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo hostnamectl set-hostname $i"; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i hostname; done
+for i in mdw_ipv4 sdw1_ipv4 smdw_ipv4; do ssh -oStrictHostKeyChecking=no -o ConnectTimeout=2 $i hostname; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo cat /etc/resolv.conf"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo sed -i -e 's|^search|## search|' -e 's|^nameserver|## nameserver|' /etc/resolv.conf"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo cat /etc/resolv.conf"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip a"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip a | grep \"inet \""; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo dhclient -v -4 -r"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo mv /var/lib/dhclient/dhclient--ens5.lease /home/centos"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip addr del \$(/sbin/ip -4 addr show ens5 | grep inet | awk '{print \$2}') dev ens5"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip addr del 127.0.0.1/8 dev lo"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo ip a"; done
+for i in mdw_ipv4 sdw1_ipv4 smdw_ipv4; do ssh -oStrictHostKeyChecking=no -o ConnectTimeout=2 $i hostname; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i "sudo hostnamectl set-hostname $i"; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i hostname; done
    #+END_SRC
-** Ensure you have connectivity to all segment nodes
+** Ensure you have connectivity to all segment nodes to ipv6 and not ipv4
 *** IPv4
    #+BEGIN_SRC shell :results raw
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i hostname; done
+for i in  mdw_ipv4 sdw1_ipv4 smdw_ipv4 ; do ssh -oStrictHostKeyChecking=no -o ConnectTimeout=2 $i hostname; done
    #+END_SRC
 *** IPv6
    #+BEGIN_SRC shell :results raw
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i hostname; done
+for i in  mdw_ipv6 sdw1_ipv6 smdw_ipv6 ; do ssh -oStrictHostKeyChecking=no $i hostname; done
    #+END_SRC
 ** Adjust active GP version
-*** IPv4
-    #+BEGIN_SRC shell :results raw
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i postgres --gp-version; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i sudo ls -al /usr/local; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i sudo chown -R centos:centos /usr/local/greenplum-db-6.11.2; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i sudo chown -R centos:centos /usr/local/greenplum-db-5.28.2; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i 'sudo rm /usr/local/greenplum-db; sudo ln -s /usr/local/greenplum-db-5.28.2 /usr/local/greenplum-db'; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i 'sudo rm /usr/local/greenplum-db; sudo ln -s /usr/local/greenplum-db-6.11.2 /usr/local/greenplum-db'; done
-    #+END_SRC
+
 *** IPv6
     #+BEGIN_SRC shell :results raw
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i postgres --gp-version; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i sudo ls -al /usr/local; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i sudo chown -R centos:centos /usr/local/greenplum-db-6.11.2; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i sudo chown -R centos:centos /usr/local/greenplum-db-5.28.2; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i 'sudo rm /usr/local/greenplum-db; sudo ln -s /usr/local/greenplum-db-5.28.2 /usr/local/greenplum-db'; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i 'sudo rm /usr/local/greenplum-db; sudo ln -s /usr/local/greenplum-db-6.11.2 /usr/local/greenplum-db'; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i postgres --gp-version; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i sudo ls -al /usr/local; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i sudo chown -R centos:centos /usr/local/greenplum-db-6.11.2; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i sudo chown -R centos:centos /usr/local/greenplum-db-5.28.2; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i 'sudo rm /usr/local/greenplum-db; sudo ln -s /usr/local/greenplum-db-5.28.2 /usr/local/greenplum-db'; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i 'sudo rm /usr/local/greenplum-db; sudo ln -s /usr/local/greenplum-db-6.11.2 /usr/local/greenplum-db'; done
     #+END_SRC
+
+
+change hostnames:
+* edit jumpbox /etc/hosts to remove all entries from _ipv6
+*     sudo  hostnamectl set-hostname mdw
+*  sudo hostnamectl set-hostname sdw1
+*  sudo hostnamectl set-hostname smdw
+
+[centos@mdw ~]$ ssh smdw  "mkdir -p /data/gpdata/master"
+[centos@mdw ~]$ ssh sdw1  "mkdir -p /data/gpdata/primary"
+[centos@mdw ~]$ ssh sdw1  "mkdir -p /data/gpdata/mirror"
+
 ** Check Greenplum processes and cleanup
 *** IPv4
     #+BEGIN_SRC shell :results raw
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i ps auxww | grep postgres; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i pkill postgres; done
-for i in mdw_ipv4 sdw{1..4}_ipv4; do ssh -oStrictHostKeyChecking=no $i 'rm -rf /data/gpdb/master/* /data/gpdb/standby/* /data/gpdb*/*/* /home/centos/gpAdminLogs'; done
+for i in mdw_ipv4 sdw1_ipv4 smdw_ipv4; do ssh -oStrictHostKeyChecking=no $i ps auxww | grep postgres; done
+for i in mdw_ipv4 sdw1_ipv4 smdw_ipv4; do ssh -oStrictHostKeyChecking=no $i pkill postgres; done
+for i in mdw_ipv4 sdw1_ipv4 smdw_ipv4; do ssh -oStrictHostKeyChecking=no $i 'rm -rf /data/gpdb/master/* /data/gpdb/standby/* /data/gpdb*/*/* /home/centos/gpAdminLogs'; done
     #+END_SRC
 *** IPv6
     #+BEGIN_SRC shell :results raw
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i ps auxww | grep postgres; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i pkill postgres; done
-for i in mdw_ipv6 sdw{1..4}_ipv6; do ssh -oStrictHostKeyChecking=no $i 'rm -rf /data/gpdb/master/* /data/gpdb/standby/* /data/gpdb*/*/* /home/centos/gpAdminLogs'; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i ps auxww | grep postgres; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i pkill postgres; done
+for i in mdw_ipv6 sdw1_ipv6 smdw_ipv6; do ssh -oStrictHostKeyChecking=no $i 'rm -rf /data/gpdb/master/* /data/gpdb/standby/* /data/gpdb*/*/* /home/centos/gpAdminLogs'; done
     #+END_SRC
 ** Exchange keys (not required)
    #+BEGIN_SRC shell :results raw
@@ -297,6 +319,8 @@ make -f Makefile.behave behave tags=gprecoverseg
 
 #in progress
 
+make sure all "localhost ... 127.0.0.1" entries are NOT in pg_hba.conf on all nodes
+
 #failed
 hostname - sdw1
 permission denied
@@ -318,3 +342,22 @@ make -f Makefile.behave behave tags=gpaddmirrors
    #+BEGIN_SRC shell :results raw
 terraform destroy -auto-approve
    #+END_SRC
+
+
+TO build GPDB 5x:
+* NOTE: this installs to /usr/local/gpdb
+* reboot machine to re-enable networking
+ sudo yum install bison
+  sudo yum install zlib-devel
+  sudo yum install flex
+  sudo yum install readline-devel
+    sudo yum install python-devel
+
+   ./configure --disable-gpcloud --enable-depend --enable-debug --enable-cassert  --with-python --without-libxml --prefix=/usr/local/gpdb/ --disable-orca CFLAGS=-O0
+  make
+  sudo ln -s /usr/local/gpdb /usr/local/greenplum-db
+ * logout; login
+  make install -s
+  * go through steps to remove ipv4 networking above
+  * transfer /usr/local/gpdb to all other nodes and relink /usr/local/greenplum-devel too
+  export PATH=/usr/local/gpdb/ext/python/bin:$PATH

@@ -7,11 +7,11 @@ variable "aws_zone" {
 }
 
 variable "dwcluster_name" {
-  default = "gp_cm"
+  default = "gp_cm_dkriegerCCP2n"
 }
 
 variable "dwnode_count" {
-  default = 5
+  default = 2
 }
 
 variable "dwnode_instance_type" {
