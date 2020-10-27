@@ -318,3 +318,6 @@ make -f Makefile.behave behave tags=gpaddmirrors
    #+BEGIN_SRC shell :results raw
 terraform destroy -auto-approve
    #+END_SRC
+
+
+dkrieger_test notes again
