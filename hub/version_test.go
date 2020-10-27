@@ -4,6 +4,7 @@
 package hub_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -31,13 +32,15 @@ func ResetGetVersion() {
 func TestValidateGpupgradeVersion(t *testing.T) {
 	testlog.SetupLogger()
 
-	hub.SetExecCommand(exectest.NewCommand(gpupgradeVersion))
-	defer hub.ResetExecCommand()
-
 	agentHosts := []string{"sdw1", "sdw2"}
 	hubHost := "mdw"
 
-	t.Run("ValidateGpupgradeVersion successfully validates the version of gpupgrade on hub and agents", func(t *testing.T) {
+	version_0_3_0 := "Version: 0.3.0 Commit: 35fae54 Release: Dev Build"
+	version_0_4_0 := "Version: 0.4.0 Commit: 21b66d7 Release: Dev Build"
+
+	agentError := errors.New("sdw2: bad agent connection")
+
+	t.Run("ValidateGpupgradeVersion successfully requests the version of gpupgrade on hub and agents", func(t *testing.T) {
 		var expectedArgs []string
 		for _, host := range append(agentHosts, hubHost) {
 			expectedArgs = append(expectedArgs, fmt.Sprintf(`%s bash -c "%s/gpupgrade version"`, host, mustGetExecutablePath(t)))
@@ -67,6 +70,18 @@ func TestValidateGpupgradeVersion(t *testing.T) {
 		}
 	})
 
+	t.Run("matches version information from host and agents", func(t *testing.T) {
+		hub.GetVersionFunc = func(host, path string) (string, error) {
+			return version_0_4_0, nil
+		}
+		defer ResetGetVersion()
+
+		err := hub.ValidateGpupgradeVersion(hubHost, agentHosts)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
 	t.Run("errors when execCommand fails", func(t *testing.T) {
 		hub.SetExecCommand(exectest.NewCommand(hub.Failure))
 		defer hub.ResetExecCommand()
@@ -77,12 +92,31 @@ func TestValidateGpupgradeVersion(t *testing.T) {
 		}
 	})
 
+	t.Run("errors when agent cannot retrieve version information", func(t *testing.T) {
+		hub.GetVersionFunc = func(host, path string) (string, error) {
+			if host != agentHosts[1] {
+				return version_0_4_0, nil
+			}
+			return "", agentError
+		}
+		defer ResetGetVersion()
+
+		err := hub.ValidateGpupgradeVersion(hubHost, agentHosts)
+		if err == nil {
+			t.Errorf("expected an error")
+		}
+
+		if !errors.Is(err, agentError) {
+			t.Errorf("expected %v, got %v", agentError, err)
+		}
+	})
+
 	t.Run("reports version mismatch between hub and agent", func(t *testing.T) {
 		hub.GetVersionFunc = func(host, path string) (string, error) {
 			if host == hubHost {
-				return "Version: 0.4.0 Commit: 21b66d7 Release: Dev Build", nil
+				return version_0_4_0, nil
 			}
-			return "Version: 0.3.0 Commit: 22b77d7 Release: Dev Build", nil
+			return version_0_3_0, nil
 		}
 		defer ResetGetVersion()
 
