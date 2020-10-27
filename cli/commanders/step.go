@@ -4,6 +4,7 @@
 package commanders
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -33,28 +34,39 @@ type Step struct {
 	err         error
 }
 
-func NewStep(step idl.Step, streams *step.BufferedStreams, verbose bool, confirmationText string) (*Step, error) {
+func NewStep(currentStep idl.Step, streams *step.BufferedStreams, verbose bool, automatic bool, confirmationText string) (*Step, error) {
 	store, err := NewStepStore()
 	if err != nil {
-		gplog.Error("creating step store: %v", err)
+		gplog.Error("creating currentStep store: %v", err)
 		context := fmt.Sprintf("Note: If commands were issued in order, ensure gpupgrade can write to %s", utils.GetStateDir())
 		wrappedErr := xerrors.Errorf("%v\n\n%v", StepErr, context)
 		return &Step{}, cli.NewNextActions(wrappedErr, RunInitialize)
 	}
 
-	err = store.ValidateStep(step)
+	err = store.ValidateStep(currentStep)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println(confirmationText)
+	if !automatic {
+		fmt.Println(confirmationText)
 
-	err = store.Write(step, idl.Status_RUNNING)
+		proceed, err := Prompt(bufio.NewReader(os.Stdin))
+		if err != nil {
+			return &Step{}, err
+		}
+
+		if !proceed {
+			return &Step{}, step.Skip
+		}
+	}
+
+	err = store.Write(currentStep, idl.Status_RUNNING)
 	if err != nil {
 		return &Step{}, err
 	}
 
-	stepName := strings.Title(strings.ToLower(step.String()))
+	stepName := strings.Title(strings.ToLower(currentStep.String()))
 
 	fmt.Println()
 	fmt.Println(stepName + " in progress.")
@@ -62,7 +74,7 @@ func NewStep(step idl.Step, streams *step.BufferedStreams, verbose bool, confirm
 
 	return &Step{
 		stepName: stepName,
-		step:     step,
+		step:     currentStep,
 		store:    store,
 		streams:  streams,
 		verbose:  verbose,
@@ -214,4 +226,27 @@ func logDuration(operation string, verbose bool, timer *stopwatch.Stopwatch) {
 		fmt.Println()
 	}
 	gplog.Debug(msg)
+}
+
+func Prompt(reader *bufio.Reader) (bool, error) {
+	for {
+		fmt.Print("Continue with gpupgrade initialize?  Yy|Nn: ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return false, err
+		}
+
+		input = strings.ToLower(strings.TrimSpace(input))
+		switch input {
+		case "y":
+			fmt.Println()
+			fmt.Print("Proceeding with upgrade")
+			fmt.Println()
+			return true, nil
+		case "n":
+			fmt.Println()
+			fmt.Print("Canceling upgrade")
+			return false, nil
+		}
+	}
 }

@@ -311,6 +311,7 @@ func version() *cobra.Command {
 
 func initialize() *cobra.Command {
 	var file string
+	var automatic bool
 	var sourceGPHome, targetGPHome string
 	var sourcePort int
 	var hubPort int
@@ -335,11 +336,11 @@ func initialize() *cobra.Command {
 			}
 
 			// If the file flag is set check that no other flags are specified
-			// other than verbose.
+			// other than verbose and automatic.
 			if cmd.Flag("file").Changed {
 				var err error
 				cmd.Flags().Visit(func(flag *pflag.Flag) {
-					if flag.Name != "file" && flag.Name != "verbose" {
+					if flag.Name != "file" && flag.Name != "verbose" && flag.Name != "automatic" {
 						err = errors.New("The file flag cannot be used with any other flag.")
 					}
 				})
@@ -457,8 +458,13 @@ Before proceeding, ensure the following have occurred:
 To skip this summary, use the --automatic | -a  flag.
 `, logdir, configPath, sourceGPHome, targetGPHome, mode, diskFreeRatio, sourcePort, ports, hubPort, agentPort)
 
-			st, err := commanders.NewStep(idl.Step_INITIALIZE, &step.BufferedStreams{}, verbose, confirmationText)
+			st, err := commanders.NewStep(idl.Step_INITIALIZE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
+				if errors.Is(err, step.Skip) {
+					// If user cancels don't return an error to main to avoid
+					// printing "Error:".
+					return nil
+				}
 				return err
 			}
 
@@ -540,6 +546,7 @@ To return the cluster to its original state, run "gpupgrade revert".`,
 		},
 	}
 	subInit.Flags().StringVarP(&file, "file", "f", "", "the configuration file to use")
+	subInit.Flags().BoolVarP(&automatic, "automatic", "a", false, "do not prompt for confirmation to proceed")
 	subInit.Flags().StringVar(&sourceGPHome, "source-gphome", "", "path for the source Greenplum installation")
 	subInit.Flags().StringVar(&targetGPHome, "target-gphome", "", "path for the target Greenplum installation")
 	subInit.Flags().IntVar(&sourcePort, "source-master-port", 5432, "master port for source gpdb cluster")
@@ -558,6 +565,7 @@ To return the cluster to its original state, run "gpupgrade revert".`,
 
 func execute() *cobra.Command {
 	var verbose bool
+	var automatic bool
 
 	cmd := &cobra.Command{
 		Use:   "execute",
@@ -589,7 +597,7 @@ WARNING: Do not perform operations on the source cluster until gpupgrade is
 finalized or reverted.
 `, logdir)
 
-			st, err := commanders.NewStep(idl.Step_EXECUTE, &step.BufferedStreams{}, verbose, confirmationText)
+			st, err := commanders.NewStep(idl.Step_EXECUTE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
 				return err
 			}
@@ -630,12 +638,15 @@ To return the cluster to its original state, run "gpupgrade revert".`,
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print the output stream from all substeps")
+	cmd.Flags().BoolVarP(&automatic, "automatic", "a", false, "do not prompt for confirmation to proceed")
+	cmd.Flags().MarkHidden("automatic") //nolint
 
 	return addHelpToCommand(cmd, ExecuteHelp)
 }
 
 func finalize() *cobra.Command {
 	var verbose bool
+	var automatic bool
 
 	cmd := &cobra.Command{
 		Use:   "finalize",
@@ -668,7 +679,7 @@ WARNING: Do not perform operations on the source and target clusters until gpupg
 finalized or reverted.
 `, logdir)
 
-			st, err := commanders.NewStep(idl.Step_FINALIZE, &step.BufferedStreams{}, verbose, confirmationText)
+			st, err := commanders.NewStep(idl.Step_FINALIZE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
 				return err
 			}
@@ -703,12 +714,15 @@ indexes, and roles that were dropped or altered to resolve migration issues.`,
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print the output stream from all substeps")
+	cmd.Flags().BoolVarP(&automatic, "automatic", "a", false, "do not prompt for confirmation to proceed")
+	cmd.Flags().MarkHidden("automatic") //nolint
 
 	return addHelpToCommand(cmd, FinalizeHelp)
 }
 
 func revert() *cobra.Command {
 	var verbose bool
+	var automatic bool
 
 	cmd := &cobra.Command{
 		Use:   "revert",
@@ -740,7 +754,7 @@ WARNING: Do not perform operations on the source and target clusters until gpupg
 has completed.
 `, logdir)
 
-			st, err := commanders.NewStep(idl.Step_REVERT, &step.BufferedStreams{}, verbose, confirmationText)
+			st, err := commanders.NewStep(idl.Step_REVERT, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
 				return err
 			}
@@ -793,6 +807,8 @@ To restart the upgrade, run "gpupgrade initialize" again.`,
 	}
 
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print the output stream from all substeps")
+	cmd.Flags().BoolVarP(&automatic, "automatic", "a", false, "do not prompt for confirmation to proceed")
+	cmd.Flags().MarkHidden("automatic") //nolint
 
 	return addHelpToCommand(cmd, RevertHelp)
 }
