@@ -425,8 +425,13 @@ func initialize() *cobra.Command {
 			confirmationText := fmt.Sprintf(initializePrompt,
 				logdir, configPath, sourceGPHome, targetGPHome, mode,
 				diskFreeRatio, sourcePort, ports, hubPort, agentPort)
-
-			st, err := commanders.NewStep(idl.Step_INITIALIZE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
+			st, err := commanders.NewStep(idl.Step_INITIALIZE,
+										  commanders.Options{
+											Streams: &step.BufferedStreams{},
+										  	Verbose: verbose, 
+										  	Automatic: automatic, 
+										  	ConfirmationText:confirmationText,
+										  })
 			if err != nil {
 				if errors.Is(err, commanders.UserAbort) {
 					return nil
@@ -546,9 +551,12 @@ func execute() *cobra.Command {
 				return err
 			}
 
-			confirmationText := fmt.Sprintf(executePrompt, logdir)
-
-			st, err := commanders.NewStep(idl.Step_EXECUTE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
+			st, err := commanders.NewStep(idl.Step_EXECUTE,	commanders.Options{
+				Streams: &step.BufferedStreams{},
+				Verbose: verbose,
+				Automatic: automatic,
+				ConfirmationText:fmt.Sprintf(executePrompt, logdir),
+			})
 			if err != nil {
 				if errors.Is(err, commanders.UserAbort) {
 					return nil
@@ -614,9 +622,13 @@ func finalize() *cobra.Command {
 				return err
 			}
 
-			confirmationText := fmt.Sprintf(finalizePrompt, logdir)
-
-			st, err := commanders.NewStep(idl.Step_FINALIZE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
+			st, err := commanders.NewStep(idl.Step_FINALIZE,
+				commanders.Options{
+					Streams: &step.BufferedStreams{},
+					Verbose: verbose,
+					Automatic: automatic,
+					ConfirmationText:fmt.Sprintf(finalizePrompt, logdir),
+				})
 			if err != nil {
 				if errors.Is(err, commanders.UserAbort) {
 					return nil
@@ -676,9 +688,13 @@ func revert() *cobra.Command {
 				return err
 			}
 
-			confirmationText := fmt.Sprintf(revertPrompt, logdir)
-
-			st, err := commanders.NewStep(idl.Step_REVERT, &step.BufferedStreams{}, verbose, automatic, confirmationText)
+			st, err := commanders.NewStep(idl.Step_REVERT,
+				commanders.Options{
+					Streams: &step.BufferedStreams{},
+					Verbose: verbose,
+					Automatic: automatic,
+					ConfirmationText:fmt.Sprintf(revertPrompt, logdir),
+				})
 			if err != nil {
 				if errors.Is(err, commanders.UserAbort) {
 					return nil
