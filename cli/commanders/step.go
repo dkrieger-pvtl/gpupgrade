@@ -53,11 +53,11 @@ func NewStep(currentStep idl.Step, streams *step.BufferedStreams, verbose bool, 
 
 		proceed, err := Prompt(bufio.NewReader(os.Stdin))
 		if err != nil {
-			return &Step{}, err
+			return &Step{}, fmt.Errorf("obtaining user response: %w", err)
 		}
 
 		if !proceed {
-			return &Step{}, step.Skip
+			return &Step{}, UserAbort
 		}
 	}
 
@@ -250,3 +250,9 @@ func Prompt(reader *bufio.Reader) (bool, error) {
 		}
 	}
 }
+
+var UserAbort = userAbort{}
+
+type userAbort struct{}
+
+func (s userAbort) Error() string { return "user aborted" }

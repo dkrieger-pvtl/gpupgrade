@@ -460,9 +460,7 @@ To skip this summary, use the --automatic | -a  flag.
 
 			st, err := commanders.NewStep(idl.Step_INITIALIZE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
-				if errors.Is(err, step.Skip) {
-					// If user cancels don't return an error to main to avoid
-					// printing "Error:".
+				if errors.Is(err, commanders.UserAbort) {
 					return nil
 				}
 				return err
@@ -599,6 +597,9 @@ finalized or reverted.
 
 			st, err := commanders.NewStep(idl.Step_EXECUTE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
+				if errors.Is(err, commanders.UserAbort) {
+					return nil
+				}
 				return err
 			}
 
@@ -681,6 +682,9 @@ finalized or reverted.
 
 			st, err := commanders.NewStep(idl.Step_FINALIZE, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
+				if errors.Is(err, commanders.UserAbort) {
+					return nil
+				}
 				return err
 			}
 
@@ -756,6 +760,9 @@ has completed.
 
 			st, err := commanders.NewStep(idl.Step_REVERT, &step.BufferedStreams{}, verbose, automatic, confirmationText)
 			if err != nil {
+				if errors.Is(err, commanders.UserAbort) {
+					return nil
+				}
 				return err
 			}
 
