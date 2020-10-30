@@ -44,6 +44,10 @@ func main() {
 		// We use gplog.Debug instead of Error so the error is not displayed
 		// twice to the user in the terminal.
 		gplog.Debug("%+v", err)
+		var he *cli.CLIError
+		if errors.As(err, &he) {
+			gplog.Debug("\n%s\n", he.FullInfo())
+		}
 
 		// Print any additional actions that should be taken by the user.
 		var actions cli.NextActions

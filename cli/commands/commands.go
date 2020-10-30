@@ -327,6 +327,7 @@ func initialize() *cobra.Command {
 		Short: "prepare the system for upgrade",
 		Long:  InitializeHelp,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
+
 			// mark the required flags when the file flag is not set
 			if !cmd.Flag("file").Changed {
 				cmd.MarkFlagRequired("source-gphome")      //nolint
