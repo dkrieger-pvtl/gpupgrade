@@ -37,6 +37,7 @@ WHERE c.oid = a.attrelid
   AND NOT a.attisdropped
   AND a.atttypid = 'pg_catalog.name'::pg_catalog.regtype
   AND c.relnamespace = n.oid
+  AND c.relkind = 'r'
   AND -- exclude possible orphaned temp tables
         n.nspname !~ '^pg_temp_'
   AND n.nspname !~ '^pg_toast_temp_'
