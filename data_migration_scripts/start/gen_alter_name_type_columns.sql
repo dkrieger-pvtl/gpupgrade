@@ -26,6 +26,15 @@
 -- The DDL command to alter the name datatype is executed on root partitions and
 -- non-partitioned tables. The ALTER command executed on root partitions cascades
 -- to child partitions, and thus are excluded here.
+WITH distcols as
+(
+   SELECT
+      localoid,
+      unnest(attrnums) attnum
+   from
+      gp_distribution_policy
+),
+
 SELECT 'DO $$ BEGIN ALTER TABLE ' || c.oid::pg_catalog.regclass ||
        ' ALTER COLUMN ' || pg_catalog.quote_ident(a.attname) ||
        ' TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(''' || c.oid::pg_catalog.regclass || '''); END $$;'
@@ -49,8 +58,14 @@ FROM
       AND a.attnum > 1
       AND NOT a.attisdropped
       AND a.atttypid = 'pg_catalog.name'::pg_catalog.regtype
-Where
-   c.oid NOT IN
+   LEFT JOIN distcols
+      ON a.attnum = distcols.attnum
+      AND a.attrelid = distcols.localoid
+WHERE
+   -- exclude table entries which has a distribution key using name data type
+   distcols.attnum is NULL
+   -- exclude child partitions
+   AND c.oid NOT IN
        (SELECT DISTINCT parchildrelid
        FROM pg_catalog.pg_partition_rule)
    -- if there is a view dependent on a relation having name column, exclude
