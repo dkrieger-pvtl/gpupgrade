@@ -34,7 +34,13 @@ WITH distcols as
    from
       gp_distribution_policy
 ),
-
+partitionedKeys as
+(
+   SELECT
+      DISTINCT parrelid, unnest(paratts) att_num
+   FROM
+      pg_catalog.pg_partition p
+)
 SELECT 'DO $$ BEGIN ALTER TABLE ' || c.oid::pg_catalog.regclass ||
        ' ALTER COLUMN ' || pg_catalog.quote_ident(a.attname) ||
        ' TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(''' || c.oid::pg_catalog.regclass || '''); END $$;'
@@ -61,9 +67,14 @@ FROM
    LEFT JOIN distcols
       ON a.attnum = distcols.attnum
       AND a.attrelid = distcols.localoid
+   LEFT JOIN partitionedKeys
+      ON a.attnum = partitionedKeys.att_num
+      AND a.attrelid = partitionedKeys.parrelid
 WHERE
    -- exclude table entries which has a distribution key using name data type
    distcols.attnum is NULL
+   -- exclude partition tables entries which has partition columns using name data type
+   AND partitionedKeys.parrelid is NULL
    -- exclude child partitions
    AND c.oid NOT IN
        (SELECT DISTINCT parchildrelid
