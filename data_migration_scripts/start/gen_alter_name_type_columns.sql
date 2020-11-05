@@ -29,23 +29,29 @@
 SELECT 'DO $$ BEGIN ALTER TABLE ' || c.oid::pg_catalog.regclass ||
        ' ALTER COLUMN ' || pg_catalog.quote_ident(a.attname) ||
        ' TYPE VARCHAR(63); EXCEPTION WHEN feature_not_supported THEN PERFORM pg_temp.notsupported(''' || c.oid::pg_catalog.regclass || '''); END $$;'
-FROM pg_catalog.pg_class c,
-     pg_catalog.pg_namespace n,
-     pg_catalog.pg_attribute a
-WHERE c.oid = a.attrelid
-  AND a.attnum > 1
-  AND NOT a.attisdropped
-  AND a.atttypid = 'pg_catalog.name'::pg_catalog.regtype
-  AND c.relnamespace = n.oid
-  AND c.relkind = 'r'
-  AND -- exclude possible orphaned temp tables
-        n.nspname !~ '^pg_temp_'
-  AND n.nspname !~ '^pg_toast_temp_'
-  AND n.nspname NOT IN ('pg_catalog',
-                        'information_schema',
-                        'gp_toolkit')
-  AND c.oid NOT IN
-      (SELECT DISTINCT parchildrelid
+FROM
+   pg_catalog.pg_class c
+   JOIN
+      pg_catalog.pg_namespace n
+      ON c.relnamespace = n.oid
+      AND c.relkind = 'r'
+      AND n.nspname !~ '^pg_temp_'
+      AND n.nspname !~ '^pg_toast_temp_'
+      AND n.nspname NOT IN
+      (
+         'pg_catalog',
+         'information_schema',
+         'gp_toolkit'
+      )
+   JOIN
+      pg_catalog.pg_attribute a
+      ON c.oid = a.attrelid
+      AND a.attnum > 1
+      AND NOT a.attisdropped
+      AND a.atttypid = 'pg_catalog.name'::pg_catalog.regtype
+Where
+   c.oid NOT IN
+       (SELECT DISTINCT parchildrelid
        FROM pg_catalog.pg_partition_rule)
    -- if there is a view dependent on a relation having name column, exclude
    -- the relation from the output
