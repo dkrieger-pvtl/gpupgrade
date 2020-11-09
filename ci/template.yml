@@ -575,7 +575,7 @@ jobs:
           type: docker-image
           source:
             repository: golang
-            tag: '1.15'
+            tag: '1.15.4'
         inputs:
           - name: gpupgrade_src
           - name: bin_gpupgrade
