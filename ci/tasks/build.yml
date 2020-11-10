@@ -7,7 +7,7 @@ image_resource:
   type: docker-image
   source:
     repository: golang
-    tag: '1.15.4'
+    tag: '1.15'
 
 inputs:
 - name: gpupgrade_src
@@ -27,3 +27,5 @@ run:
 
     make
     GOBIN=$(realpath ../build_artifacts) make install
+    echo BENGIE
+    go version
