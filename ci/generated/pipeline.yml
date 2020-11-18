@@ -84,13 +84,6 @@ resources:
     regexp: release_candidates/gpdb_rpm_installer_centos7/gpdb5/greenplum-db-(5.*)-rhel7-x86_64.rpm
 
 
-- name: bin_gpupgrade
-  type: gcs
-  source:
-    bucket: ((cm-intermediates-bucket))
-    json_key: ((cm-gcs-service-account-key))
-    versioned_file: gpupgrade
-
 - name: rpm_gpupgrade_oss
   type: gcs
   source:
@@ -105,12 +98,19 @@ resources:
     json_key: ((cm-gcs-service-account-key))
     regexp: enterprise/greenplum-upgrade-(.*).rpm
 
-- name: bin_gpupgrade_rc
+- name: rpm_gpupgrade_oss_rc
   type: gcs
   source:
     bucket: ((cm-artifacts-bucket))
     json_key: ((cm-gcs-service-account-key))
-    regexp: release-candidates/gpupgrade-rc-(.*)-linux_x86_64
+    regexp: release-candidates/oss/greenplum-upgrade-(.*).rpm
+
+- name: rpm_gpupgrade_enterprise_rc
+  type: gcs
+  source:
+    bucket: ((cm-artifacts-bucket))
+    json_key: ((cm-gcs-service-account-key))
+    regexp: release-candidates/enterprise/greenplum-upgrade-(.*).rpm
 
 - name: bats
   type: git
@@ -283,9 +283,6 @@ jobs:
   - task: build
     file: gpupgrade_src/ci/tasks/build.yml
   - in_parallel:
-    - put: bin_gpupgrade
-      params:
-        file: build_artifacts/gpupgrade
     - put: rpm_gpupgrade_oss
       params:
         file: build_artifacts_oss/greenplum-upgrade*.rpm
@@ -383,7 +380,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -448,7 +445,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -479,7 +476,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -544,7 +541,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -575,7 +572,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -644,7 +641,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -676,7 +673,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -745,7 +742,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -777,7 +774,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -846,7 +843,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -879,7 +876,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -948,7 +945,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -967,7 +964,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1035,7 +1032,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -1054,7 +1051,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1133,7 +1130,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -1166,7 +1163,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1235,7 +1232,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -1268,7 +1265,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1337,7 +1334,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -1356,7 +1353,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1424,7 +1421,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -1443,7 +1440,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1522,7 +1519,7 @@ jobs:
         - name: ccp_src
         - name: cluster_env_files
         - name: gpupgrade_src
-        - name: bin_gpupgrade
+        - name: rpm_gpupgrade_enterprise
         run:
           path: gpupgrade_src/ci/scripts/upgrade-cluster.bash
       params:
@@ -1555,7 +1552,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1615,7 +1612,7 @@ jobs:
           - name: ccp_src
           - name: cluster_env_files
           - name: gpupgrade_src
-          - name: bin_gpupgrade
+          - name: rpm_gpupgrade_enterprise
           - name: bats
         run:
           path: gpupgrade_src/ci/scripts/bats-on-cluster.bash
@@ -1634,7 +1631,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1694,7 +1691,7 @@ jobs:
           - name: ccp_src
           - name: cluster_env_files
           - name: gpupgrade_src
-          - name: bin_gpupgrade
+          - name: rpm_gpupgrade_enterprise
           - name: bats
         run:
           path: gpupgrade_src/ci/scripts/bats-on-cluster.bash
@@ -1713,7 +1710,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1777,7 +1774,7 @@ jobs:
           - name: ccp_src
           - name: cluster_env_files
           - name: gpupgrade_src
-          - name: bin_gpupgrade
+          - name: rpm_gpupgrade_enterprise
           - name: bats
         run:
           path: gpupgrade_src/ci/scripts/bats-on-cluster.bash
@@ -1796,7 +1793,7 @@ jobs:
   # will prevent concourse from becoming overloaded.
   plan:
     - in_parallel:
-        - get: bin_gpupgrade
+        - get: rpm_gpupgrade_enterprise
           trigger: true
           passed: [ build ]
         - get: gpupgrade_src
@@ -1860,7 +1857,7 @@ jobs:
           - name: ccp_src
           - name: cluster_env_files
           - name: gpupgrade_src
-          - name: bin_gpupgrade
+          - name: rpm_gpupgrade_enterprise
           - name: bats
         run:
           path: gpupgrade_src/ci/scripts/bats-on-cluster.bash
@@ -1897,7 +1894,7 @@ jobs:
           - 6-to-6-multihost-bats-centos-7
           - 5-to-6-multihost-bats-centos-6
           - 5-to-6-multihost-bats-centos-7
-      - get: bin_gpupgrade
+      - get: rpm_gpupgrade_enterprise
         passed:
           - build
           - 6-to-6-centos-6
@@ -1916,6 +1913,7 @@ jobs:
           - 6-to-6-multihost-bats-centos-7
           - 5-to-6-multihost-bats-centos-6
           - 5-to-6-multihost-bats-centos-7
+    - get: rpm_gpupgrade_oss
     - task: version-rc
       config:
         platform: linux
@@ -1926,13 +1924,19 @@ jobs:
             tag: '1.15'
         inputs:
           - name: gpupgrade_src
-          - name: bin_gpupgrade
+          - name: rpm_gpupgrade_oss
+          - name: rpm_gpupgrade_enterprise
         outputs:
-          - name: gpupgrade_bin_path
+          - name: build_artifacts_rc_oss
+          - name: build_artifacts_rc_enterprise
         run:
           path: gpupgrade_src/ci/scripts/version-rc.sh
-    - put: bin_gpupgrade_rc
-      params:
-        file: gpupgrade_bin_path/gpupgrade-rc-*-linux_x86_64
+    - in_parallel:
+      - put: rpm_gpupgrade_oss_rc
+        params:
+          file: build_artifacts_rc_oss/greenplum-upgrade*.rpm
+      - put: rpm_gpupgrade_enterprise_rc
+        params:
+          file: build_artifacts_rc_enterprise/greenplum-upgrade*.rpm
   on_failure:
     <<: *slack_alert

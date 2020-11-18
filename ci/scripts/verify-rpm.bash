@@ -10,6 +10,10 @@ RELEASE=$2
 VERSION=$(git describe --tags --abbrev=0)
 
 verify_gpugprade_version_output() {
+  echo "XXXYYYZZZ"
+  sleep 300
+  echo "AWAKE"
+  /usr/local/greenplum-upgrade/gpupgrade version
   [[ $(/usr/local/greenplum-upgrade/gpupgrade version) == *"Version: ${VERSION}"* ]]
   [[ $(/usr/local/greenplum-upgrade/gpupgrade version) == *"Release: ${RELEASE}"* ]]
 }
