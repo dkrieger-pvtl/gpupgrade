@@ -84,7 +84,7 @@ func getMinVersion(version semver.Version, minVersions map[int]string) string {
 
 var gpdbVersion = GPDBVersion
 
-func VerifyAllowedGPDBVersions(sourceGPHome, targetGPHome string) error {
+func VerifyCompatibleGPDBVersions(sourceGPHome, targetGPHome string) error {
 	var err error
 
 	vErr := validateVersion(sourceGPHome, "source")

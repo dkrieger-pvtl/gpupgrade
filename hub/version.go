@@ -23,7 +23,17 @@ type HostVersionInfo struct {
 	err              error
 }
 
-func VerifyGpupgradeAndGPDBVersionsAcrossHosts(agentHosts []string, hubHost string) error {
+type BadVersion map[string][]string
+
+func (b BadVersion) String() string {
+	var text string
+	for version, hosts := range b {
+		text += fmt.Sprintf("%q: %s\n", version, strings.Join(hosts, ", "))
+	}
+	return text
+}
+
+func VerifyMatchingGpupgradeAndGPDBVersions(agentHosts []string, hubHost string) error {
 	hubGpupgradeVersion, err := GetGpupgradeVersionFunc(hubHost)
 	if err != nil {
 		return xerrors.Errorf("getting hub version: %w", err)
@@ -37,7 +47,6 @@ func VerifyGpupgradeAndGPDBVersionsAcrossHosts(agentHosts []string, hubHost stri
 
 		go func(host string) {
 			defer wg.Done()
-
 			gpupgradeVersion, err := GetGpupgradeVersionFunc(host)
 			versionChan <- HostVersionInfo{host: host, gpupgradeVersion: gpupgradeVersion, err: err}
 		}(host)
@@ -47,12 +56,11 @@ func VerifyGpupgradeAndGPDBVersionsAcrossHosts(agentHosts []string, hubHost stri
 	close(versionChan)
 
 	var errs error
-	gpupgradeVersionToHosts := make(map[string][]string)
+	badGpupgradeVersions := make(BadVersion)
 	for agent := range versionChan {
 		errs = errorlist.Append(errs, agent.err)
-
 		if hubGpupgradeVersion != agent.gpupgradeVersion {
-			gpupgradeVersionToHosts[agent.gpupgradeVersion] = append(gpupgradeVersionToHosts[agent.gpupgradeVersion], agent.host)
+			badGpupgradeVersions[agent.gpupgradeVersion] = append(badGpupgradeVersions[agent.gpupgradeVersion], agent.host)
 		}
 	}
 
@@ -60,17 +68,12 @@ func VerifyGpupgradeAndGPDBVersionsAcrossHosts(agentHosts []string, hubHost stri
 		return errs
 	}
 
-	if len(gpupgradeVersionToHosts) != 0 {
-		var text string
-		for gpupgradeVersion, hosts := range gpupgradeVersionToHosts {
-			text += fmt.Sprintf("%q: %s\n", gpupgradeVersion, strings.Join(hosts, ", "))
-		}
-
+	if len(badGpupgradeVersions) != 0 {
 		return xerrors.Errorf(`Version mismatch between gpupgrade hub and agent hosts. 
 Hub version: %q
 
 Mismatched Agents:
-%s`, hubGpupgradeVersion, text)
+%s`, hubGpupgradeVersion, badGpupgradeVersions.String())
 	}
 
 	return nil

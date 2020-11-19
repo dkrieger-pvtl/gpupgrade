@@ -97,7 +97,7 @@ func TestValidateVersions(t *testing.T) {
 			gpdbVersion = GPDBVersion
 		}()
 
-		err := VerifyAllowedGPDBVersions("/does/not/matter", "/does/not/matter")
+		err := VerifyCompatibleGPDBVersions("/does/not/matter", "/does/not/matter")
 		if err != nil {
 			t.Errorf("got unexpected error %#v", err)
 		}
@@ -145,7 +145,7 @@ func TestValidateVersionsErrorCases(t *testing.T) {
 				gpdbVersion = GPDBVersion
 			}()
 
-			err := VerifyAllowedGPDBVersions("/does/not/matter", "/does/not/matter")
+			err := VerifyCompatibleGPDBVersions("/does/not/matter", "/does/not/matter")
 
 			// make sure both source and target produce an error and that they match
 			// the expected error string

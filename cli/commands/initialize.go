@@ -173,7 +173,7 @@ func initialize() *cobra.Command {
 					return nil
 				}
 
-				err := greenplum.VerifyAllowedGPDBVersions(sourceGPHome, targetGPHome)
+				err := greenplum.VerifyCompatibleGPDBVersions(sourceGPHome, targetGPHome)
 				if err != nil {
 					nextActions := fmt.Sprintf(`Please address the above issue and run "gpupgrade %s" again.`, strings.ToLower(idl.Step_INITIALIZE.String()))
 					return cli.NewNextActions(err, nextActions)
