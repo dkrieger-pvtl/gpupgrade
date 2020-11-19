@@ -264,15 +264,20 @@ jobs:
   plan:
   - get: gpupgrade_src
     trigger: true
+  - get: rpm_gpupgrade_enterprise
+    trigger: true
+    passed: [ build ]
   - task: lint
     config:
       platform: linux
       image_resource:
         type: docker-image
         source:
-          repository: golangci/golangci-lint
+          repository: pivotaldata/gpdb6-centos7-test
+          tag: latest
       inputs:
         - name: gpupgrade_src
+        - name: rpm_gpupgrade_enterprise
       run:
         path: bash
         args:
@@ -280,8 +285,10 @@ jobs:
           - |
             set -ex
 
-            cd gpupgrade_src
-            make lint
+            echo "123456"
+            rpm -ivh rpm_gpupgrade_enterprise/greenplum-upgrade*.rpm
+            /usr/local/greenplum-upgrade/gpupgrade version
+
   on_failure:
     <<: *slack_alert
 
