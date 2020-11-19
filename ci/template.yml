@@ -68,14 +68,14 @@ resources:
   source:
     bucket: ((cm-intermediates-bucket))
     json_key: ((cm-gcs-service-account-key))
-    regexp: oss/greenplum-upgrade-(.*).rpm
+    versioned_file: oss/greenplum-upgrade.el7.x86_64.rpm
 
 - name: rpm_gpupgrade_enterprise
   type: gcs
   source:
     bucket: ((cm-intermediates-bucket))
     json_key: ((cm-gcs-service-account-key))
-    regexp: enterprise/greenplum-upgrade-(.*).rpm
+    versioned_file: enterprise/greenplum-upgrade.el7.x86_64.rpm
 
 - name: rpm_gpupgrade_oss_rc
   type: gcs
