@@ -1872,7 +1872,6 @@ jobs:
   plan:
     - in_parallel:
       - get: gpupgrade_src
-        trigger: true
         passed:
           - build
           - noinstall-tests
@@ -1894,13 +1893,29 @@ jobs:
           - 6-to-6-multihost-bats-centos-7
           - 5-to-6-multihost-bats-centos-6
           - 5-to-6-multihost-bats-centos-7
-      - get: rpm_gpupgrade_oss
-        trigger: true
-        passed: [ build ]
       - get: rpm_gpupgrade_enterprise
-        trigger: true
-        passed: [ build ]
-    - task: version-rc
+        passed:
+          - build
+          - 6-to-6-centos-6
+          - 6-to-6-centos-7
+          - 5-to-6-centos-6
+          - 5-to-6-centos-7
+          - 5-to-6-link-mode-centos-6
+          - 5-to-6-primaries-only-centos-6
+          - 5-to-6-no-standby-centos-6
+          - 5-to-6-retail-demo-centos-6
+          - 5-to-6-link-mode-centos-7
+          - 5-to-6-primaries-only-centos-7
+          - 5-to-6-no-standby-centos-7
+          - 5-to-6-retail-demo-centos-7
+          - 6-to-6-multihost-bats-centos-6
+          - 6-to-6-multihost-bats-centos-7
+          - 5-to-6-multihost-bats-centos-6
+          - 5-to-6-multihost-bats-centos-7
+      - get: rpm_gpupgrade_oss
+        passed:
+          - build
+    - task: add-semver
       config:
         platform: linux
         image_resource:
@@ -1916,7 +1931,7 @@ jobs:
           - name: build_artifacts_rc_oss
           - name: build_artifacts_rc_enterprise
         run:
-          path: gpupgrade_src/ci/scripts/version-rc.sh
+          path: gpupgrade_src/ci/scripts/add-semver.sh
     - in_parallel:
       - put: rpm_gpupgrade_oss_rc
         params:

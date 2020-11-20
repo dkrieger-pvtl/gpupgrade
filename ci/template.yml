@@ -562,7 +562,6 @@ jobs:
   plan:
     - in_parallel:
       - get: gpupgrade_src
-        trigger: true
         passed:
           - build
           - noinstall-tests
@@ -575,13 +574,19 @@ jobs:
           {{- range .MultihostBatsJobs}}
           - {{ .Name }}
           {{- end}}
-      - get: rpm_gpupgrade_oss
-        trigger: true
-        passed: [ build ]
       - get: rpm_gpupgrade_enterprise
-        trigger: true
-        passed: [ build ]
-    - task: version-rc
+        passed:
+          - build
+          {{- range .UpgradeJobs}}
+          - {{ .Name }}
+          {{- end}}
+          {{- range .MultihostBatsJobs}}
+          - {{ .Name }}
+          {{- end}}
+      - get: rpm_gpupgrade_oss
+        passed:
+          - build
+    - task: add-semver
       config:
         platform: linux
         image_resource:
@@ -597,7 +602,7 @@ jobs:
           - name: build_artifacts_rc_oss
           - name: build_artifacts_rc_enterprise
         run:
-          path: gpupgrade_src/ci/scripts/version-rc.sh
+          path: gpupgrade_src/ci/scripts/add-semver.sh
     - in_parallel:
       - put: rpm_gpupgrade_oss_rc
         params:
