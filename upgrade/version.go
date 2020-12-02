@@ -13,24 +13,24 @@ import (
 )
 
 func GpupgradeVersion() (string, error) {
-	return getGpupgradeVersion("")
+	return version("")
 }
 
 func GpupgradeVersionOnHost(host string) (string, error) {
-	return getGpupgradeVersion(host)
+	return version(host)
 }
 
 type GpupgradeVersions struct{}
 
-func (g *GpupgradeVersions) HubVersion() (string, error) {
+func (g *GpupgradeVersions) LocalVersion() (string, error) {
 	return GpupgradeVersion()
 }
 
-func (g *GpupgradeVersions) AgentVersion(host string) (string, error) {
+func (g *GpupgradeVersions) RemoteVersion(host string) (string, error) {
 	return GpupgradeVersionOnHost(host)
 }
 
-func getGpupgradeVersion(host string) (string, error) {
+func version(host string) (string, error) {
 	gpupgradePath, err := utils.GetGpupgradePath()
 	if err != nil {
 		return "", xerrors.Errorf("getting gpupgrade binary path: %w", err)

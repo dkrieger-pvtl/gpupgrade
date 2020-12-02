@@ -27,11 +27,11 @@ type Versions struct {
 	agentErr     error
 }
 
-func (t *Versions) HubVersion() (string, error) {
+func (t *Versions) LocalVersion() (string, error) {
 	return t.hubVersion, t.hubErr
 }
 
-func (t *Versions) AgentVersion(host string) (string, error) {
+func (t *Versions) RemoteVersion(host string) (string, error) {
 	return t.agentVersion, t.agentErr
 }
 

@@ -14,9 +14,9 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
 
-type HubAndAgentVersions interface {
-	HubVersion() (string, error)
-	AgentVersion(host string) (string, error)
+type ObtainVersions interface {
+	LocalVersion() (string, error)
+	RemoteVersion(host string) (string, error)
 }
 
 type HostVersion struct {
@@ -36,8 +36,8 @@ func (m MismatchedVersions) String() string {
 	return text
 }
 
-func EnsureVersionsMatch(agentHosts []string, version HubAndAgentVersions) error {
-	hubVersion, err := version.HubVersion()
+func EnsureVersionsMatch(agentHosts []string, version ObtainVersions) error {
+	hubVersion, err := version.LocalVersion()
 	if err != nil {
 		return xerrors.Errorf("getting hub version: %w", err)
 	}
@@ -51,7 +51,7 @@ func EnsureVersionsMatch(agentHosts []string, version HubAndAgentVersions) error
 		go func(host string) {
 			defer wg.Done()
 
-			agentVersion, err := version.AgentVersion(host)
+			agentVersion, err := version.RemoteVersion(host)
 			hostVersions <- HostVersion{host: host, agentVersion: agentVersion, err: err}
 		}(host)
 	}

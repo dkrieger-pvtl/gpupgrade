@@ -19,7 +19,7 @@ type GPDBVersions struct {
 	TargetGPHome string
 }
 
-func (g *GPDBVersions) HubVersion() (string, error) {
+func (g *GPDBVersions) LocalVersion() (string, error) {
 	version, err := GPDBVersion(g.TargetGPHome)
 	if err != nil {
 		return "", err
@@ -28,7 +28,7 @@ func (g *GPDBVersions) HubVersion() (string, error) {
 	return version.String(), err
 }
 
-func (g *GPDBVersions) AgentVersion(host string) (string, error) {
+func (g *GPDBVersions) RemoteVersion(host string) (string, error) {
 	version, err := GPDBVersionOnHost(g.TargetGPHome, host)
 	if err != nil {
 		return "", err
@@ -38,16 +38,14 @@ func (g *GPDBVersions) AgentVersion(host string) (string, error) {
 }
 
 func GPDBVersion(gphome string) (semver.Version, error) {
-	return getGPDBVersion(gphome, "")
+	return version(gphome, "")
 }
 
 func GPDBVersionOnHost(gphome string, host string) (semver.Version, error) {
-	return getGPDBVersion(gphome, host)
+	return version(gphome, host)
 }
 
-// GPDBVersion returns the semantic version of a GPDB installation located at
-// the given GPHOME.
-func getGPDBVersion(gphome string, host string) (semver.Version, error) {
+func version(gphome string, host string) (semver.Version, error) {
 	postgres := filepath.Join(gphome, "bin", "postgres")
 
 	name := postgres
