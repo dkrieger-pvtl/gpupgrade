@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/blang/semver/v4"
+	"golang.org/x/xerrors"
 
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
@@ -82,21 +83,21 @@ func getMinVersion(version semver.Version, minVersions map[int]string) string {
 	return semver.MustParse(minVersions[lowest]).String()
 }
 
-var gpdbVersion = GPDBVersion
+var versionFunc = NewVersions
 
 func VerifyCompatibleGPDBVersions(sourceGPHome, targetGPHome string) error {
 	var err error
 
-	vErr := validateVersion(sourceGPHome, "source")
+	vErr := validateVersion(versionFunc(sourceGPHome), "source")
 	err = errorlist.Append(err, vErr)
 
-	vErr = validateVersion(targetGPHome, "target")
+	vErr = validateVersion(versionFunc(targetGPHome), "target")
 	err = errorlist.Append(err, vErr)
 
 	return err
 }
 
-func validateVersion(gpHome string, context string) error {
+func validateVersion(versions *versions, context string) error {
 	versionsAllowed := sourceVersionAllowed
 	minVersions := minSourceVersions
 	if context == "target" {
@@ -104,7 +105,12 @@ func validateVersion(gpHome string, context string) error {
 		minVersions = minTargetVersions
 	}
 
-	version, err := gpdbVersion(gpHome)
+	versionStr, err := versions.LocalVersion()
+	if err != nil {
+		return xerrors.Errorf("getting local Greenplum version: %w", err)
+	}
+
+	version, err := semver.Parse(versionStr)
 	if err == nil && !versionsAllowed(version) {
 		min := getMinVersion(version, minVersions)
 		errStr := fmt.Sprintf("%s cluster version %s is not supported.  "+

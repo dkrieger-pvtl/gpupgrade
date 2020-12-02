@@ -12,22 +12,18 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils"
 )
 
-func GpupgradeVersion() (string, error) {
+type versions struct{}
+
+func NewVersions() *versions {
+	return &versions{}
+}
+
+func (g *versions) LocalVersion() (string, error) {
 	return version("")
 }
 
-func GpupgradeVersionOnHost(host string) (string, error) {
+func (g *versions) RemoteVersion(host string) (string, error) {
 	return version(host)
-}
-
-type GpupgradeVersions struct{}
-
-func (g *GpupgradeVersions) LocalVersion() (string, error) {
-	return GpupgradeVersion()
-}
-
-func (g *GpupgradeVersions) RemoteVersion(host string) (string, error) {
-	return GpupgradeVersionOnHost(host)
 }
 
 func version(host string) (string, error) {
