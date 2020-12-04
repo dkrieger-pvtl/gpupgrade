@@ -49,7 +49,14 @@ INPUT_DIR=$3
 main(){
     local log_file="${INPUT_DIR}/data_migration.log"
 
-    rm -f "$log_file"
+    if [ -e "${log_file}" ]; then
+        echo ""
+        echo "Error: log file '${log_file}' exists."
+        echo "This probably means you have already run the scripts here."
+        echo "If you really want to re-run them, rename '${log_file}' and re-run this command."
+        print_usage
+        exit 1
+    fi
 
     cmd="find ${INPUT_DIR} -type f -name \"*.sql\" | sort -n"
     local files="$(eval "$cmd")"

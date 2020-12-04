@@ -11,7 +11,7 @@ and generates SQL scripts to resolve them. This command should be run prior to "
 Usage: '$(basename $0)' <GPHOME> <PGPORT> <OUTPUT_DIR>
      <GPHOME>     : the path to the source Greenplum installation directory
      <PGPORT>     : the source Greenplum system port number
-     <OUTPUT_DIR> : the user-defined directory where the SQL scripts are created
+     <OUTPUT_DIR> : the user-defined and created directory where the SQL scripts are created
 
 The output directory structure is:
      <output directory>
@@ -39,6 +39,15 @@ GPHOME=$1
 PGPORT=$2
 OUTPUT_DIR=$3
 APPLY_ONCE_FILES=("gen_alter_gphdfs_roles.sql")
+
+if [ -e "${OUTPUT_DIR}" ]; then
+    echo ""
+    echo "Error: <OUTPUT_DIR> '${OUTPUT_DIR}' exists"
+    echo ""
+    echo "Use a non-existent <OUTPUT_DIR> and re-run this script."
+    print_usage
+    exit 1
+fi
 
 get_databases(){
     databases=$("$GPHOME"/bin/psql -X -d postgres -p "$PGPORT" -Atc "SELECT datname FROM pg_database WHERE datname != 'template0';")
