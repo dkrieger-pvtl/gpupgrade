@@ -40,15 +40,6 @@ PGPORT=$2
 OUTPUT_DIR=$3
 APPLY_ONCE_FILES=("gen_alter_gphdfs_roles.sql")
 
-if [ -e "${OUTPUT_DIR}" ]; then
-    echo ""
-    echo "Error: <OUTPUT_DIR> '${OUTPUT_DIR}' exists"
-    echo ""
-    echo "Use a non-existent <OUTPUT_DIR> and re-run this script."
-    print_usage
-    exit 1
-fi
-
 get_databases(){
     databases=$("$GPHOME"/bin/psql -X -d postgres -p "$PGPORT" -Atc "SELECT datname FROM pg_database WHERE datname != 'template0';")
     echo "$databases"
@@ -99,15 +90,15 @@ should_apply_once(){
 }
 
 execute_script_directory() {
+    local rundir=$1; shift
     local dir=$1; shift
     local databases=( "$@" )
 
     local paths=($(find "$(dirname "$0")/${dir}" -type f \( -name "*.sql" -o -name "*.sh" \) | sort -n))
-    local output_dir="${OUTPUT_DIR}/${dir}"
+    local output_dir
+    output_dir="${OUTPUT_DIR}/${rundir}/${dir}"
 
     mkdir -p "$output_dir"
-    rm -f "$output_dir"/*.sql
-    rm -f "$output_dir"/*.sh
 
     for database in "${databases[@]}"; do
         for path in "${paths[@]}"; do
@@ -121,12 +112,41 @@ execute_script_directory() {
     echo "Output files are located in: $output_dir"
 }
 
+get_run_directory() {
+    local i=1
+    while true; do
+        local rundir="${OUTPUT_DIR}/run_${i}"
+        if [ ! -e  "${rundir}" ]; then
+            break
+        fi
+        local log_file="${OUTPUT_DIR}/run_${i}/pre-initialize/data_migration.log"
+        if [ ! -e "${log_file}" ]; then
+            echo ""
+            echo "Error: log file '${log_file}' does not exist."
+            echo ""
+            echo "This probably means you are re-running generator without executing them."
+            echo "You should delete '${rundir}' and then rerun this command"
+            echo "If you really want to re-run them, rename '${log_file}' and re-run this command."
+            print_usage
+            return 1
+        fi
+        (( i++ ))
+    done
+
+    echo "run_${i}"
+}
+
 main(){
     local dirs=(pre-initialize post-finalize post-revert stats)
     local databases=($(get_databases))
+    local rundir
+    if ! rundir=$(get_run_directory); then
+        echo "$rundir"
+        exit 1
+    fi
 
     for dir in "${dirs[@]}"; do
-        execute_script_directory "$dir" "${databases[@]}"
+        execute_script_directory "$rundir" "$dir" "${databases[@]}"
     done
 }
 

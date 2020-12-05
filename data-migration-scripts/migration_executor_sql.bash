@@ -35,7 +35,7 @@ if [ "$#" -eq 0 ] || ([ "$#" -eq 1 ] && ([ "$1" = -h ] || [ "$1" = --help ])) ; 
     exit 0
 fi
 
-if [ "$#" -ne 3 ]; then
+if [ "$#" -ne 4 ]; then
     echo ""
     echo "Error: Incorrect number of arguments"
     print_usage
@@ -45,11 +45,31 @@ fi
 GPHOME=$1
 PGPORT=$2
 INPUT_DIR=$3
+PHASE=$4
 
-main(){
-    local log_file="${INPUT_DIR}/data_migration.log"
+if [ ! -e "$INPUT_DIR" ]; then
+    echo ""
+    echo "Error: Input directory '${INPUT_DIR}' does not exist."
+    echo ""
+    print_usage
+    exit 1
+fi
+
+
+case "$PHASE" in
+    pre-initialize | post-revert | post-finalize);;
+    *) echo "unknown phase '$PHASE'; must be  pre-initialize | post-revert | post-finalize";;
+esac
+
+execute_run_directory(){
+    local scriptDir=$1
+    local log_file="${scriptDir}/data_migration.log"
 
     if [ -e "${log_file}" ]; then
+        if [ "$PHASE" == "pre-initialize" ]; then
+            echo "NOTE: skipping ${scriptDir} as it has already been run"
+            return 0
+        fi
         echo ""
         echo "Error: log file '${log_file}' exists."
         echo "This probably means you have already run the scripts here."
@@ -58,11 +78,11 @@ main(){
         exit 1
     fi
 
-    cmd="find ${INPUT_DIR} -type f -name \"*.sql\" | sort -n"
+    cmd="find ${scriptDir} -type f -name \"*.sql\" | sort -n"
     local files="$(eval "$cmd")"
     if [ -z "$files" ]; then
         echo "Executing command \"${cmd}\" returned no sql files. Exiting!" | tee -a "$log_file"
-        exit 1
+        return 0
     fi
 
     for file in ${files[*]}; do
@@ -72,6 +92,22 @@ main(){
     done
 
     echo "Check log file for execution details: $log_file"
+}
+
+main() {
+    local max=1
+    while true; do
+        local rundir="${INPUT_DIR}/run_${max}"
+        if [ ! -e "${rundir}" ]; then
+            (( max-- ))
+            break
+        fi
+        (( max++ ))
+    done
+
+    for i in $(seq $max 1) ; do
+        execute_run_directory "${INPUT_DIR}/run_${i}/${PHASE}"
+    done
 }
 
 main
