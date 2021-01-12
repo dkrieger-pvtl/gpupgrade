@@ -48,8 +48,8 @@ func Run(p SegmentPair, options ...Option) error {
 		"--retain", // always keep log files around
 		"--old-bindir", p.Source.BinDir,
 		"--new-bindir", p.Target.BinDir,
-		"--old-gp-dbid", strconv.Itoa(p.Source.DBID),
-		"--new-gp-dbid", strconv.Itoa(p.Target.DBID),
+		//"--old-gp-dbid", strconv.Itoa(p.Source.DBID),
+		//"--new-gp-dbid", strconv.Itoa(p.Target.DBID),
 		"--old-datadir", p.Source.DataDir,
 		"--new-datadir", p.Target.DataDir,
 		"--old-port", strconv.Itoa(p.Source.Port),
