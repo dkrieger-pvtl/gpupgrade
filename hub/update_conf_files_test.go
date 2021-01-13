@@ -33,6 +33,7 @@ func TestUpdateConfFiles(t *testing.T) {
 		}
 	}()
 
+	// TODO: Note this is only relevant on 6X and prior....
 	t.Run("UpdateGpperfmonConf", func(t *testing.T) {
 		// Set up an example gpperfmon.conf.
 		path := filepath.Join(dir, "gpperfmon", "conf", "gpperfmon.conf")
