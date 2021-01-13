@@ -120,16 +120,18 @@ func (s *Server) InitTargetCluster(stream step.OutStreams) error {
 }
 
 func GetCheckpointSegmentsAndEncoding(gpinitsystemConfig []string, dbConnector *dbconn.DBConn) ([]string, error) {
-	checkpointSegments, err := dbconn.SelectString(dbConnector, "SELECT current_setting('checkpoint_segments') AS string")
-	if err != nil {
-		return gpinitsystemConfig, xerrors.Errorf("retrieve checkpoint segments: %w", err)
-	}
+	// TODO: 6X has checkpoint_segments, default 8 in log pages(16mb).  7X has min_wal_size/max_wal_size in mb
+	//checkpointSegments, err := dbconn.SelectString(dbConnector, "SELECT current_setting('checkpoint_segments') AS string")
+	//if err != nil {
+	//	return gpinitsystemConfig, xerrors.Errorf("retrieve checkpoint segments: %w", err)
+	//}
+
 	encoding, err := dbconn.SelectString(dbConnector, "SELECT current_setting('server_encoding') AS string")
 	if err != nil {
 		return gpinitsystemConfig, xerrors.Errorf("retrieve server encoding: %w", err)
 	}
 	gpinitsystemConfig = append(gpinitsystemConfig,
-		fmt.Sprintf("CHECK_POINT_SEGMENTS=%s", checkpointSegments),
+		//fmt.Sprintf("CHECK_POINT_SEGMENTS=%s", checkpointSegments),
 		fmt.Sprintf("ENCODING=%s", encoding))
 	return gpinitsystemConfig, nil
 }

@@ -85,9 +85,10 @@ func TestGetCheckpointSegmentsAndEncoding(t *testing.T) {
 	t.Run("successfully get the GUC values", func(t *testing.T) {
 		dbConn, sqlMock := testhelper.CreateAndConnectMockDB(1)
 
-		checkpointRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("8"))
+		//for 7to7: GUC has changed name...
+		//checkpointRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("8"))
 		encodingRow := sqlmock.NewRows([]string{"string"}).AddRow(driver.Value("UNICODE"))
-		sqlMock.ExpectQuery("SELECT .*checkpoint.*").WillReturnRows(checkpointRow)
+		//®sqlMock.ExpectQuery("SELECT .*checkpoint.*").WillReturnRows(checkpointRow)
 		sqlMock.ExpectQuery("SELECT .*server.*").WillReturnRows(encodingRow)
 
 		actualConfig, err := GetCheckpointSegmentsAndEncoding([]string{}, dbConn)
@@ -95,7 +96,8 @@ func TestGetCheckpointSegmentsAndEncoding(t *testing.T) {
 			t.Fatalf("got %#v, want nil", err)
 		}
 
-		expectedConfig := []string{"CHECK_POINT_SEGMENTS=8", "ENCODING=UNICODE"}
+		//expectedConfig := []string{"CHECK_POINT_SEGMENTS=8", "ENCODING=UNICODE"}
+		expectedConfig := []string{"ENCODING=UNICODE"}
 		if !reflect.DeepEqual(actualConfig, expectedConfig) {
 			t.Errorf("got %v, want %v", actualConfig, expectedConfig)
 		}
