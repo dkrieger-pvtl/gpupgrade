@@ -6,11 +6,12 @@
 # thoroughly test those mirrors and stadnby.
 
 check_mirrors_and_standby() {
-    local master_host=$1
-    local master_port=$2
+    local gphome=$1
+    local master_host=$2
+    local master_port=$3
 
     _check_synchronized_cluster "${master_host}" "${master_port}"
-    _check_replication_connections "${master_host}" "${master_port}"
+    _check_replication_connections "${gphome}" "${master_host}" "${master_port}"
 }
 
 _check_synchronized_cluster() {
@@ -38,8 +39,9 @@ EOF
 }
 
 _check_replication_connections() {
-    local host=$1
-    local port=$2
+    local gphome=$1
+    local host=$2
+    local port=$3
 
     local rows
     rows=$(ssh -n "${host}" "
@@ -53,10 +55,16 @@ _check_replication_connections() {
         \"
     ")
 
+    local utility_mode="-c gp_session_role=utility"
+    if _is_GPDB7 "${gphome}"; then
+        utility_mode="-c gp_role=utility"
+    fi
+
+    # TODO: we will need to update the options here depending on the target cluster version...
     echo "${rows}" | while read -r primary_address primary_port mirror_host; do
         ssh -n "${mirror_host}" "
             source ${GPHOME_NEW}/greenplum_path.sh
-            PGOPTIONS=\"-c gp_session_role=utility\" psql -v ON_ERROR_STOP=1 -h $primary_address -p $primary_port \"dbname=postgres replication=database\" -c \"
+            PGOPTIONS=\"${utility_mode}\" psql -v ON_ERROR_STOP=1 -h $primary_address -p $primary_port \"dbname=postgres replication=database\" -c \"
                 IDENTIFY_SYSTEM;
             \"
         " || return $?
@@ -169,6 +177,13 @@ contents_without_mirror() {
     "
 }
 
+_is_GPDB7() {
+    local gphome=$1
+    local version=$("$gphome"/bin/postgres --gp-version)
+
+    [[ $version =~ ^"postgres (Greenplum Database) 7." ]]
+}
+
 # |     step                        | mdw     | smdw    | sdw-p   | sdw-m   |
 # |---------------------------------|---------|---------|---------|---------|
 # | 1:  initial                     | master  | standby | primary | mirror  |
@@ -219,7 +234,7 @@ validate_mirrors_and_standby() {
 
     # step 1: initial
     wait_can_start_transactions "${MASTER_HOST}" "${MASTER_PORT}"
-    check_mirrors_and_standby "${MASTER_HOST}" "${MASTER_PORT}"
+    check_mirrors_and_standby "${GPHOME_NEW}" "${MASTER_HOST}" "${MASTER_PORT}"
 
     local data_on_upgraded_cluster
     data_on_upgraded_cluster=$(create_table_with_name on_upgraded_cluster 50 "${MASTER_HOST}" "${MASTER_PORT}")
@@ -259,7 +274,7 @@ validate_mirrors_and_standby() {
         source ${GPHOME_NEW}/greenplum_path.sh
         export PGPORT=$standby_port; gpinitstandby -a -s $MASTER_HOST -P $MASTER_PORT -S $master_data_dir
     "
-    check_mirrors_and_standby "${standby_host}" "${standby_port}"
+    check_mirrors_and_standby "${GPHOME_NEW}" "${standby_host}" "${standby_port}"
 
     check_data_matches on_upgraded_cluster "${data_on_upgraded_cluster}" "${standby_host}" "${standby_port}"
     check_data_matches on_promoted_cluster "${data_on_promoted_cluster}" "${standby_host}" "${standby_port}"
@@ -273,7 +288,7 @@ validate_mirrors_and_standby() {
         export PGPORT=$standby_port
         gprecoverseg -ra
     "
-    check_mirrors_and_standby "${standby_host}" "${standby_port}"
+    check_mirrors_and_standby "${GPHOME_NEW}" "${standby_host}" "${standby_port}"
 
     # 4b: rebalance standby
     kill_contents "=-1" "${standby_host}" "${standby_port}"
@@ -298,7 +313,7 @@ validate_mirrors_and_standby() {
         source ${GPHOME_NEW}/greenplum_path.sh
         export PGPORT=$MASTER_PORT; gpinitstandby -a -s $standby_host -P $standby_port -S $standby_data_dir
     "
-    check_mirrors_and_standby "${MASTER_HOST}" "${MASTER_PORT}"
+    check_mirrors_and_standby "${GPHOME_NEW}" "${MASTER_HOST}" "${MASTER_PORT}"
 
     check_data_matches on_upgraded_cluster "${data_on_upgraded_cluster}" "${MASTER_HOST}" "${MASTER_PORT}"
     check_data_matches on_promoted_cluster "${data_on_promoted_cluster}" "${MASTER_HOST}" "${MASTER_PORT}"
