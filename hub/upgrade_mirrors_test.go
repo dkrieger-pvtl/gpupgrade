@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/blang/semver"
 
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/testutils"
@@ -349,7 +350,8 @@ func TestUpgradeMirrors(t *testing.T) {
 			return db, nil
 		}
 
-		err = UpgradeMirrors("", 123, []greenplum.SegConfig{}, stub, false)
+		// TODO: test "7.0.0" also?
+		err = UpgradeMirrors("", 123, semver.MustParse("6.9.0"), []greenplum.SegConfig{}, stub, false)
 		if err != nil {
 			t.Errorf("unexpected error: %#v", err)
 		}
@@ -361,7 +363,8 @@ func TestUpgradeMirrors(t *testing.T) {
 			return nil, expected
 		}
 
-		err := UpgradeMirrors("", 123, []greenplum.SegConfig{}, stub, false)
+		// TODO: test "7.0.0" also?
+		err := UpgradeMirrors("", 123, semver.MustParse("6.9.0"), []greenplum.SegConfig{}, stub, false)
 		if !errors.Is(err, expected) {
 			t.Errorf("got: %#v want: %#v", err, expected)
 		}

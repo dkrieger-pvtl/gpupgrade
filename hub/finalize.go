@@ -55,6 +55,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 
 	st.Run(idl.Substep_UPDATE_TARGET_CONF_FILES, func(streams step.OutStreams) error {
 		return UpdateConfFiles(streams,
+			s.Target.Version.SemVer,
 			s.Target.MasterDataDir(),
 			s.TargetInitializeConfig.Master.Port,
 			s.Source.MasterPort(),
@@ -100,6 +101,7 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 			}
 
 			return UpgradeMirrors(s.StateDir, s.Target.MasterPort(),
+				s.Target.Version.SemVer,
 				s.Source.SelectSegments(mirrors), greenplum.NewRunner(s.Target, streams), s.UseHbaHostnames)
 		})
 	}
