@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/blang/semver"
 	"github.com/pkg/errors"
 	"golang.org/x/xerrors"
 
@@ -25,7 +26,7 @@ func (s *Server) UpdateCatalogAndClusterConfig(streams step.OutStreams) (err err
 		return xerrors.Errorf("failed to start target master: %w", err)
 	}
 
-	err = WithinDbConnection(s.Target.MasterPort(), func(conn *sql.DB) error {
+	err = WithinDbConnection(s.Target.MasterPort(), s.Target.Version.SemVer, func(conn *sql.DB) error {
 		return s.UpdateGpSegmentConfiguration(conn)
 	})
 	if err != nil {
@@ -55,8 +56,8 @@ func (s *Server) UpdateCatalogAndClusterConfig(streams step.OutStreams) (err err
 	return nil
 }
 
-func WithinDbConnection(masterPort int, operation func(connection *sql.DB) error) (err error) {
-	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?gp_session_role=utility&allow_system_table_mods=true&search_path=", masterPort)
+func WithinDbConnection(masterPort int, semver semver.Version, operation func(connection *sql.DB) error) (err error) {
+	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?%s&allow_system_table_mods=true&search_path=", masterPort, semver)
 	connection, err := sql.Open("pgx", connURI)
 	if err != nil {
 		return xerrors.Errorf("connecting to master on port %d in utility mode with connection URI '%s': %w", masterPort, connURI, err)
