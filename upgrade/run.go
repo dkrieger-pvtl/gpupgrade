@@ -43,6 +43,7 @@ func Run(p SegmentPair, options ...Option) error {
 		mode = "segment"
 	}
 
+	// TODO: conditionalize based on options
 	path := filepath.Join(p.Target.BinDir, "pg_upgrade")
 	args := []string{
 		"--retain", // always keep log files around

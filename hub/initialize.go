@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/blang/semver"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"golang.org/x/xerrors"
 
@@ -19,7 +20,15 @@ import (
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
 
-const connectionString = "postgresql://localhost:%d/template1?gp_session_role=utility&search_path="
+const connectionString = "postgresql://localhost:%d/template1?%s&search_path="
+
+func getUtilityModeOption(semver semver.Version) string {
+	if semver.Major >= 7 {
+		return "gp_role=utility"
+	} else {
+		return "gp_session_role=utility"
+	}
+}
 
 func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_InitializeServer) (err error) {
 	st, err := step.Begin(s.StateDir, idl.Step_INITIALIZE, stream)
@@ -38,7 +47,8 @@ func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initi
 	}()
 
 	st.Run(idl.Substep_SAVING_SOURCE_CLUSTER_CONFIG, func(stream step.OutStreams) error {
-		conn, err := sql.Open("pgx", fmt.Sprintf(connectionString, in.SourcePort))
+		// TODO: on first call, the cluster is empty...need to be passed in the correct version of the source cluster here.
+		conn, err := sql.Open("pgx", fmt.Sprintf(connectionString, in.SourcePort, getUtilityModeOption(semver.MustParse("7.0.0"))))
 		if err != nil {
 			return err
 		}
