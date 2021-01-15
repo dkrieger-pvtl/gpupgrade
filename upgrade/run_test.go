@@ -23,7 +23,7 @@ import (
 	"github.com/greenplum-db/gpupgrade/upgrade"
 )
 
-var someValidVersion = semver.MustParse("0.0.0")
+var version = semver.MustParse("0.0.0")
 
 func Success() {}
 func Failure() { os.Exit(1) }
@@ -106,7 +106,7 @@ func TestRun(t *testing.T) {
 			}
 		})
 
-		test(t, cmd, someValidVersion)
+		test(t, cmd, version)
 
 		if !called {
 			t.Errorf("pg_upgrade was not executed")
@@ -119,7 +119,7 @@ func TestRun(t *testing.T) {
 		stdout := new(bytes.Buffer)
 		stderr := new(bytes.Buffer)
 
-		test(t, cmd, someValidVersion, upgrade.WithOutputStreams(stdout, stderr))
+		test(t, cmd, version, upgrade.WithOutputStreams(stdout, stderr))
 
 		actual := stdout.String()
 		if actual != "stdout" {
@@ -142,7 +142,7 @@ func TestRun(t *testing.T) {
 		wd := "/"
 		stdout := new(bytes.Buffer)
 
-		test(t, cmd, someValidVersion,
+		test(t, cmd, version,
 			upgrade.WithOutputStreams(stdout, nil), upgrade.WithWorkDir(wd))
 
 		actual := stdout.String()
@@ -163,7 +163,7 @@ func TestRun(t *testing.T) {
 		cmd := exectest.NewCommand(EnvironmentMain)
 		stdout := new(bytes.Buffer)
 
-		test(t, cmd, someValidVersion, upgrade.WithOutputStreams(stdout, nil))
+		test(t, cmd, version, upgrade.WithOutputStreams(stdout, nil))
 
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
@@ -191,7 +191,7 @@ func TestRun(t *testing.T) {
 		cmd := exectest.NewCommand(EnvironmentMain)
 		stdout := new(bytes.Buffer)
 
-		test(t, cmd, someValidVersion, upgrade.WithOutputStreams(stdout, nil))
+		test(t, cmd, version, upgrade.WithOutputStreams(stdout, nil))
 		t.Logf("stdout was:\n%s", stdout)
 
 		// search for printTiming in the environment variables
@@ -220,14 +220,14 @@ func TestRun(t *testing.T) {
 		cmd := exectest.NewCommand(Failure)
 
 		// The test succeeds if upgrade.Run() doesn't return an error.
-		test(t, cmd, someValidVersion, upgrade.WithExecCommand(exectest.NewCommand(Success)))
+		test(t, cmd, version, upgrade.WithExecCommand(exectest.NewCommand(Success)))
 	})
 
 	t.Run("bubbles up any errors", func(t *testing.T) {
 		upgrade.SetExecCommand(exectest.NewCommand(Failure))
 		defer upgrade.ResetExecCommand()
 
-		err := upgrade.Run(pair, someValidVersion)
+		err := upgrade.Run(pair, version)
 
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
@@ -318,24 +318,50 @@ func TestRun(t *testing.T) {
 			targetVersion semver.Version
 			options       []upgrade.Option
 		}{
-			{"the master (default)", semver.MustParse("6.9.0"),
-				[]upgrade.Option{}},
-			{"the master for 7X (no dbids needed)", semver.MustParse("7.0.0"),
-				[]upgrade.Option{}},
-			{"segments", semver.MustParse("6.9.0"),
+			{
+				"the master (default)",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{},
+			},
+			{
+				"the master for 7X (no dbids needed)",
+				semver.MustParse("7.0.0"),
+				[]upgrade.Option{},
+			},
+			{
+				"segments",
+				semver.MustParse("6.9.0"),
 				[]upgrade.Option{upgrade.WithSegmentMode()}},
-			{"--check mode on master", semver.MustParse("6.9.0"),
-				[]upgrade.Option{upgrade.WithCheckOnly()}},
-			{"--check mode on segments", semver.MustParse("6.9.0"),
-				[]upgrade.Option{upgrade.WithSegmentMode(), upgrade.WithCheckOnly()}},
-			{"--link mode on master", semver.MustParse("6.9.0"),
-				[]upgrade.Option{upgrade.WithLinkMode()}},
-			{"--link mode on segments", semver.MustParse("6.9.0"),
-				[]upgrade.Option{upgrade.WithSegmentMode(), upgrade.WithLinkMode()}},
-			{"--old-tablespaces-file flag on segments", semver.MustParse("6.9.0"),
-				[]upgrade.Option{upgrade.WithTablespaceFile("tablespaceMappingFile.txt"), upgrade.WithSegmentMode()}},
-			{"--old-options on master", semver.MustParse("6.9.0"),
-				[]upgrade.Option{upgrade.WithOldOptions("option value")}},
+			{
+				"--check mode on master",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{upgrade.WithCheckOnly()},
+			},
+			{
+				"--check mode on segments",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{upgrade.WithSegmentMode(), upgrade.WithCheckOnly()},
+			},
+			{
+				"--link mode on master",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{upgrade.WithLinkMode()},
+			},
+			{
+				"--link mode on segments",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{upgrade.WithSegmentMode(), upgrade.WithLinkMode()},
+			},
+			{
+				"--old-tablespaces-file flag on segments",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{upgrade.WithTablespaceFile("tablespaceMappingFile.txt"), upgrade.WithSegmentMode()},
+			},
+			{
+				"--old-options on master",
+				semver.MustParse("6.9.0"),
+				[]upgrade.Option{upgrade.WithOldOptions("option value")},
+			},
 		}
 
 		for _, c := range cases {

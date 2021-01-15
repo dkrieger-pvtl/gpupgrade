@@ -56,7 +56,7 @@ func Run(p SegmentPair, targetVersion semver.Version, options ...Option) error {
 		"--mode", mode,
 	}
 
-	// with 7X, upgrading tablespaces no longer needs explicit dbids
+	// Below 7X, specify the dbid's for upgrading tablespaces.
 	if targetVersion.LT(semver.MustParse("7.0.0")) {
 		args = append(args, "--old-gp-dbid", strconv.Itoa(p.Source.DBID))
 		args = append(args, "--new-gp-dbid", strconv.Itoa(p.Target.DBID))
