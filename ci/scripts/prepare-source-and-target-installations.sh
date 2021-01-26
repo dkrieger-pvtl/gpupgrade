@@ -36,9 +36,11 @@ for host in `cat cluster_env_files/hostfile_all`; do
         set -eux
 
         version=\$(rpm -q --qf '%{version}' '$source_package')
+        version=\${version/_/-}
         sudo ln -s /usr/local/greenplum-db-\${version} /usr/local/greenplum-db-source
 
         version=\$(rpm -q --qf '%{version}' '$target_package')
+        version=\${version/_/-}
         sudo ln -s /usr/local/greenplum-db-\${version} /usr/local/greenplum-db-target
     "
 done

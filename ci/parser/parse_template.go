@@ -27,9 +27,9 @@ import (
 	"github.com/blang/semver/v4"
 )
 
-var sourceVersions = []string{"6", "5"}
-var targetVersions = []string{"6"}
-var centosVersions = []string{"6", "7"}
+var sourceVersions = []string{"7"}
+var targetVersions = []string{"7"}
+var centosVersions = []string{"7"}
 
 type CheckJob struct {
 	Source, Target string
@@ -136,25 +136,6 @@ func init() {
 				CentosVersion: centosVersion,
 				GPVersion:     sourceVersion,
 			})
-		}
-	}
-
-	for _, centosVersion := range centosVersions {
-		// Special cases for 5->6. (These are special-cased to avoid exploding the
-		// test matrix too much.)
-		special := []*UpgradeJob{
-			{UseLinkMode: true},
-			{PrimariesOnly: true},
-			{NoStandby: true},
-			{RetailDemo: true},
-		}
-
-		for _, job := range special {
-			job.Source = "5"
-			job.Target = "6"
-			job.CentosVersion = centosVersion
-
-			upgradeJobs = append(upgradeJobs, job)
 		}
 	}
 
