@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/greenplum-db/gpupgrade/connURI"
+	"github.com/greenplum-db/gpupgrade/db/connURI"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
