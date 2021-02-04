@@ -9,18 +9,16 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/blang/semver/v4"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"golang.org/x/xerrors"
 
+	"github.com/greenplum-db/gpupgrade/connection_string"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
 	"github.com/greenplum-db/gpupgrade/upgrade"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
 )
-
-const connectionString = "postgresql://localhost:%d/template1?%s&search_path="
 
 func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_InitializeServer) (err error) {
 	st, err := step.Begin(s.StateDir, idl.Step_INITIALIZE, stream)
@@ -38,14 +36,31 @@ func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initi
 		}
 	}()
 
-	st.Run(idl.Substep_SAVING_SOURCE_CLUSTER_CONFIG, func(stream step.OutStreams) error {
-		// the Server populates its source version field during this substep, so we must calculate it ourselves.
-		version, err := greenplum.LocalVersion(in.SourceGPHome)
+	st.RunInternalSubstep(func() error {
+		sourceVersion, err := greenplum.LocalVersion(in.SourceGPHome)
 		if err != nil {
 			return err
 		}
 
-		conn, err := sql.Open("pgx", fmt.Sprintf(connectionString, in.SourcePort, getUtilityModeOption(version)))
+		targetVersion, err := greenplum.LocalVersion(in.TargetGPHome)
+		if err != nil {
+			return err
+		}
+
+		conn := connection_string.Connection(sourceVersion, targetVersion)
+		s.Connection = conn
+
+		return nil
+	})
+
+	st.Run(idl.Substep_SAVING_SOURCE_CLUSTER_CONFIG, func(stream step.OutStreams) error {
+		options := []connection_string.Option{
+			connection_string.ToSource(),
+			connection_string.Port(int(in.SourcePort)),
+			connection_string.UtilityMode(),
+		}
+
+		conn, err := sql.Open("pgx", s.Connection.URI(options...))
 		if err != nil {
 			return err
 		}
@@ -157,12 +172,4 @@ func (s *Server) InitializeCreateCluster(in *idl.InitializeCreateClusterRequest,
 	}
 
 	return st.Err()
-}
-
-func getUtilityModeOption(semver semver.Version) string {
-	if semver.Major >= 7 {
-		return "gp_role=utility"
-	} else {
-		return "gp_session_role=utility"
-	}
 }

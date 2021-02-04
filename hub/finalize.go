@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/blang/semver/v4"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"golang.org/x/xerrors"
 
@@ -100,9 +99,8 @@ func (s *Server) Finalize(_ *idl.FinalizeRequest, stream idl.CliToHub_FinalizeSe
 				return seg.IsMirror()
 			}
 
-			return UpgradeMirrors(s.StateDir, s.Target.MasterPort(),
-				s.Source.SelectSegments(mirrors), greenplum.NewRunner(s.Target, streams), s.UseHbaHostnames,
-				semver.MustParse(s.Target.Version.SemVer.String()))
+			return UpgradeMirrors(s.StateDir, s.Connection, s.Target.MasterPort(),
+				s.Source.SelectSegments(mirrors), greenplum.NewRunner(s.Target, streams), s.UseHbaHostnames)
 		})
 	}
 

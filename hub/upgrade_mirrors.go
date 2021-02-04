@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/blang/semver/v4"
 	"golang.org/x/xerrors"
 
+	"github.com/greenplum-db/gpupgrade/connection_string"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/utils"
 	"github.com/greenplum-db/gpupgrade/utils/errorlist"
@@ -92,9 +92,14 @@ func waitForFTS(db *sql.DB, timeout time.Duration) error {
 	}
 }
 
-func UpgradeMirrors(stateDir string, masterPort int, mirrors []greenplum.SegConfig, targetRunner greenplum.Runner, useHbaHostnames bool, targetSemver semver.Version) (err error) {
-	connURI := fmt.Sprintf("postgresql://localhost:%d/template1?%s&search_path=", masterPort, getUtilityModeOption(targetSemver))
-	db, err := utils.System.SqlOpen("pgx", connURI)
+func UpgradeMirrors(stateDir string, conn *connection_string.Conn, masterPort int, mirrors []greenplum.SegConfig, targetRunner greenplum.Runner, useHbaHostnames bool) (err error) {
+	options := []connection_string.Option{
+		connection_string.ToTarget(),
+		connection_string.Port(masterPort),
+		connection_string.UtilityMode(),
+	}
+
+	db, err := utils.System.SqlOpen("pgx", conn.URI(options...))
 	if err != nil {
 		return err
 	}

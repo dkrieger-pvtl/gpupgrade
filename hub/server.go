@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/reflection"
 	grpcStatus "google.golang.org/grpc/status"
 
+	"github.com/greenplum-db/gpupgrade/connection_string"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/upgrade"
@@ -358,6 +359,8 @@ type Config struct {
 	// Target is the upgraded GPDB cluster. It is populated during the target
 	// gpinitsystem execution in the initialize step; before that, it is nil.
 	Target *greenplum.Cluster
+
+	Connection *connection_string.Conn
 
 	// TargetInitializeConfig contains all the info needed to initialize the
 	// target cluster's master, standby, primaries and mirrors.

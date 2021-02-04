@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/blang/semver/v4"
 
+	"github.com/greenplum-db/gpupgrade/connection_string"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/testutils"
 	"github.com/greenplum-db/gpupgrade/utils"
@@ -323,67 +323,47 @@ func TestUpgradeMirrors(t *testing.T) {
 		},
 	}
 
-	cases := []struct {
-		version semver.Version
-		utility string
-	}{
-		{
-			semver.MustParse("5.0.0"),
-			"gp_session_role=utility",
-		},
-		{
-			semver.MustParse("6.0.0"),
-			"gp_session_role=utility",
-		},
-		{
-			semver.MustParse("7.0.0"),
-			"gp_role=utility",
-		},
-	}
+	conn := connection_string.Connection(semver.MustParse("6.0.0"), semver.MustParse("7.0.0"))
 
-	for _, c := range cases {
-		t.Run(fmt.Sprintf("creates db connection with correct data source settings for %s", c.version), func(t *testing.T) {
-			db, mock, err := sqlmock.New()
-			if err != nil {
-				t.Fatalf("couldn't create sqlmock: %v", err)
-			}
-			defer testutils.FinishMock(mock, t)
+	t.Run("creates db connection with correct data source settings", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatalf("couldn't create sqlmock: %v", err)
+		}
+		defer testutils.FinishMock(mock, t)
 
-			_, writePipe, err := os.Pipe()
-			if err != nil {
-				t.Fatalf("couldn't create pipe: %v", err)
+		_, writePipe, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("couldn't create pipe: %v", err)
+		}
+
+		utils.System.Create = func(name string) (*os.File, error) {
+			return writePipe, nil
+		}
+
+		expectFtsProbe(mock)
+		expectMirrorsAndReturn(mock, "t")
+
+		utils.System.SqlOpen = func(driverName, dataSourceName string) (*sql.DB, error) {
+			options := []connection_string.Option{
+				connection_string.ToTarget(),
+				connection_string.Port(123),
+				connection_string.UtilityMode(),
 			}
 
-			utils.System.Create = func(name string) (*os.File, error) {
-				return writePipe, nil
+			expected := conn.URI(options...)
+			if dataSourceName != expected {
+				t.Errorf("got: %q want: %q", dataSourceName, expected)
 			}
 
-			expectFtsProbe(mock)
-			expectMirrorsAndReturn(mock, "t")
+			return db, nil
+		}
 
-			utils.System.SqlOpen = func(driverName, dataSourceName string) (*sql.DB, error) {
-				expected := fmt.Sprintf("postgresql://localhost:123/template1?%s&search_path=", c.utility)
-				if dataSourceName != expected {
-					t.Errorf("got: %q want: %q", dataSourceName, expected)
-				}
-
-				return db, nil
-			}
-
-			err = UpgradeMirrors("", 123, []greenplum.SegConfig{}, stub, false, c.version)
-			if err != nil {
-				t.Errorf("unexpected error: %#v", err)
-			}
-		})
-	}
-}
-
-func TestUpgradeMirrorsErrors(t *testing.T) {
-	stub := &greenplumStub{
-		func(utility string, arguments ...string) error {
-			return nil
-		},
-	}
+		err = UpgradeMirrors("", conn, 123, []greenplum.SegConfig{}, stub, false)
+		if err != nil {
+			t.Errorf("unexpected error: %#v", err)
+		}
+	})
 
 	t.Run("returns error when failing to open db connection", func(t *testing.T) {
 		expected := errors.New("failed to open db")
@@ -391,7 +371,7 @@ func TestUpgradeMirrorsErrors(t *testing.T) {
 			return nil, expected
 		}
 
-		err := UpgradeMirrors("", 123, []greenplum.SegConfig{}, stub, false, semver.MustParse("6.9.0"))
+		err := UpgradeMirrors("", conn, 123, []greenplum.SegConfig{}, stub, false)
 		if !errors.Is(err, expected) {
 			t.Errorf("got: %#v want: %#v", err, expected)
 		}
