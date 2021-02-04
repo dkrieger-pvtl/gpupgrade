@@ -12,7 +12,7 @@ import (
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"golang.org/x/xerrors"
 
-	"github.com/greenplum-db/gpupgrade/connection_string"
+	"github.com/greenplum-db/gpupgrade/connURI"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/idl"
 	"github.com/greenplum-db/gpupgrade/step"
@@ -47,17 +47,17 @@ func (s *Server) Initialize(in *idl.InitializeRequest, stream idl.CliToHub_Initi
 			return err
 		}
 
-		conn := connection_string.Connection(sourceVersion, targetVersion)
+		conn := connURI.Connection(sourceVersion, targetVersion)
 		s.Connection = conn
 
 		return nil
 	})
 
 	st.Run(idl.Substep_SAVING_SOURCE_CLUSTER_CONFIG, func(stream step.OutStreams) error {
-		options := []connection_string.Option{
-			connection_string.ToSource(),
-			connection_string.Port(int(in.SourcePort)),
-			connection_string.UtilityMode(),
+		options := []connURI.Option{
+			connURI.ToSource(),
+			connURI.Port(int(in.SourcePort)),
+			connURI.UtilityMode(),
 		}
 
 		conn, err := sql.Open("pgx", s.Connection.URI(options...))

@@ -18,7 +18,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/blang/semver/v4"
 
-	"github.com/greenplum-db/gpupgrade/connection_string"
+	"github.com/greenplum-db/gpupgrade/connURI"
 	"github.com/greenplum-db/gpupgrade/greenplum"
 	"github.com/greenplum-db/gpupgrade/testutils"
 	"github.com/greenplum-db/gpupgrade/utils"
@@ -323,7 +323,7 @@ func TestUpgradeMirrors(t *testing.T) {
 		},
 	}
 
-	conn := connection_string.Connection(semver.MustParse("6.0.0"), semver.MustParse("7.0.0"))
+	conn := connURI.Connection(semver.MustParse("6.0.0"), semver.MustParse("7.0.0"))
 
 	t.Run("creates db connection with correct data source settings", func(t *testing.T) {
 		db, mock, err := sqlmock.New()
@@ -345,10 +345,10 @@ func TestUpgradeMirrors(t *testing.T) {
 		expectMirrorsAndReturn(mock, "t")
 
 		utils.System.SqlOpen = func(driverName, dataSourceName string) (*sql.DB, error) {
-			options := []connection_string.Option{
-				connection_string.ToTarget(),
-				connection_string.Port(123),
-				connection_string.UtilityMode(),
+			options := []connURI.Option{
+				connURI.ToTarget(),
+				connURI.Port(123),
+				connURI.UtilityMode(),
 			}
 
 			expected := conn.URI(options...)
