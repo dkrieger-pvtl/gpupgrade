@@ -212,6 +212,8 @@ func RunInitsystemForTargetCluster(stream step.OutStreams, gpHome, configPath st
 		args += " --ignore-warnings"
 	}
 
+	args += " --locale=en_US.utf8"
+
 	script := fmt.Sprintf("source %[1]s/greenplum_path.sh && %[1]s/bin/gpinitsystem %[2]s",
 		gpHome,
 		args,
