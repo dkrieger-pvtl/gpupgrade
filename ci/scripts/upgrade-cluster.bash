@@ -92,6 +92,7 @@ compare_dumps() {
 USE_LINK_MODE=${USE_LINK_MODE:-0}
 FILTER_DIFF=${FILTER_DIFF:-0}
 DIFF_FILE=${DIFF_FILE:-"icw.diff"}
+GPDB_6_TO_7_SQL_DROP_OBJECTS=${GPDB_6_TO_7_SQL_DROP_OBJECTS:-0}
 
 # This port is selected by our CI pipeline
 MASTER_PORT=5432
@@ -105,6 +106,13 @@ mapfile -t hosts < cluster_env_files/hostfile_all
 export GPHOME_SOURCE=/usr/local/greenplum-db-source
 export GPHOME_TARGET=/usr/local/greenplum-db-target
 
+# This script should eventually be
+if (( $GPDB_6_TO_7_SQL_DROP_OBJECTS )); then
+    echo "GPDB_6_TO_7_SQL_DROP_OBJECTS..."
+    scp gpupgrade_src/ci/scripts/load-dump-6to7-drop-objects.bash "gpadmin@mdw:/tmp"
+    ssh gpadmin@mdw "/bin/bash /tmp/load-dump-6to7-drop-objects.bash"
+fi
+
 for host in "${hosts[@]}"; do
     scp rpm_enterprise/gpupgrade-*.rpm "gpadmin@$host:/tmp"
     ssh centos@$host "sudo rpm -ivh /tmp/gpupgrade-*.rpm"
@@ -115,8 +123,9 @@ if ! is_GPDB5 ${GPHOME_SOURCE}; then
     configure_gpdb_gucs ${GPHOME_SOURCE}
 fi
 
+# SKIPPING FOR NOW....RENABBLE
 # Dump the old cluster for later comparison.
-dump_sql $MASTER_PORT /tmp/source.sql
+#dump_sql $MASTER_PORT /tmp/source.sql
 
 # Now do the upgrade.
 LINK_MODE=""
@@ -133,12 +142,14 @@ time ssh mdw bash <<EOF
               --target-gphome ${GPHOME_TARGET} \
               --source-gphome ${GPHOME_SOURCE} \
               --source-master-port $MASTER_PORT \
-              --temp-port-range 6020-6040
+              --temp-port-range 6020-6040 \
+              --skip-version-check \
+              --verbose
     # TODO: rather than setting a temp port range, consider carving out an
     # ip_local_reserved_ports range during/after CCP provisioning.
 
-    gpupgrade execute --non-interactive
-    gpupgrade finalize --non-interactive
+    gpupgrade execute --non-interactive --verbose
+    gpupgrade finalize --non-interactive --verbose
 EOF
 
 # On GPDB version other than 5, set the gucs before taking dumps

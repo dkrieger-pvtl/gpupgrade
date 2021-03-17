@@ -32,13 +32,16 @@ for host in `cat cluster_env_files/hostfile_all`; do
     fi
 
     # Install source/target symlinks.
+    # the ( tr '_' '-' ) is because rpm does not allow '-' in its version
     ssh -n centos@"$host" "
         set -eux
 
-        version=\$(rpm -q --qf '%{version}' '$source_package')
-        sudo ln -s /usr/local/greenplum-db-\${version} /usr/local/greenplum-db-source
+        rpm_version=\$(rpm -q --qf '%{version}' '$source_package')
+        gpdb_version=\$(echo \${rpm_version} | tr '_' '-')
+        sudo ln -s /usr/local/greenplum-db-\${gpdb_version} /usr/local/greenplum-db-source
 
-        version=\$(rpm -q --qf '%{version}' '$target_package')
-        sudo ln -s /usr/local/greenplum-db-\${version} /usr/local/greenplum-db-target
+        rpm_version=\$(rpm -q --qf '%{version}' '$target_package')
+        gpdb_version=\$(echo \${rpm_version}| tr '_' '-')
+        sudo ln -s /usr/local/greenplum-db-\${gpdb_version} /usr/local/greenplum-db-target
     "
 done
