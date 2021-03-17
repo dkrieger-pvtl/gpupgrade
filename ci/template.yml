@@ -28,20 +28,13 @@ resources:
     branch: ((gpupgrade-git-branch))
     fetch_tags: true
 
-{{range .AllVersions}}
-- name: gpdb{{.}}_src
-  type: git
+- name: rpm_gpdb7_centos7
+  type: gcs
   source:
-    uri: https://github.com/greenplum-db/gpdb
-    branch: {{.}}X_STABLE
-{{end}}
+    bucket: ((gcs-bucket))
+    json_key: ((concourse-gcs-resources-service-account-key))
+    regexp: server/published/master/greenplum-db-(7.*)-rhel7-x86_64.debug.rpm
 
-- name: retail_demo_src
-  type: git
-  source:
-    uri: ((retail-demo-git-remote))
-    private_key: ((retail-demo-git-key))
-    branch: ((retail-demo-git-branch))
 
 {{range .Versions}}
 {{- if eq (majorVersion .GPVersion) "5" }}
@@ -77,27 +70,6 @@ resources:
     json_key: ((cm-gcs-service-account-key))
     versioned_file: enterprise/gpupgrade-intermediate.el7.x86_64.rpm
 
-- name: rpm_oss_rc
-  type: gcs
-  source:
-    bucket: ((cm-artifacts-bucket))
-    json_key: ((cm-gcs-service-account-key))
-    regexp: release-candidates/oss/gpupgrade-(.*).rpm
-
-- name: rpm_enterprise_rc
-  type: gcs
-  source:
-    bucket: ((cm-artifacts-bucket))
-    json_key: ((cm-gcs-service-account-key))
-    regexp: release-candidates/enterprise/gpupgrade-(.*).rpm
-
-- name: bats
-  type: git
-  source:
-    uri: https://github.com/bats-core/bats-core
-    branch: master
-    tag_filter: v1.*
-
 - name: slack-alert
   type: slack-notification
   source:
@@ -127,13 +99,6 @@ resources:
       # and different teams will place there clusters' tfstate files under different paths
       bucket: gpdb5-pipeline-dynamic-terraform
       bucket_path: clusters-google/
-
-- name: gpdb5_icw_planner_centos6_dump
-  type: gcs
-  source:
-    bucket: ((gcs-bucket-intermediates))
-    json_key: ((concourse-gcs-resources-service-account-key))
-    versioned_file: 5X_STABLE/icw_planner_centos6_dump/dump.sql.xz
 
 - name: dump_gpdb6_icw_gporca_centos6
   type: gcs
@@ -207,7 +172,6 @@ groups:
     jobs:
       - build
       - lint
-      - noinstall-tests
       {{- range .CheckJobs}}
       - {{.Name}}
       {{- end}}
@@ -217,7 +181,6 @@ groups:
       {{- range .UpgradeJobs}}
       - {{.Name}}
       {{- end}}
-      - publish-release-candidate
   - name: bats
     jobs:
       {{- range .CheckJobs}}
@@ -282,17 +245,6 @@ jobs:
 
             cd gpupgrade_src
             make lint
-  on_failure:
-    <<: *slack_alert
-
-- name: noinstall-tests
-  plan:
-  - in_parallel:
-    - get: gpupgrade_src
-      trigger: true
-    - get: bats
-  - task: noinstall-tests
-    file: gpupgrade_src/ci/tasks/noinstall-tests.yml
   on_failure:
     <<: *slack_alert
 
@@ -557,59 +509,3 @@ jobs:
   on_failure:
     <<: *slack_alert
 {{end -}}
-
-- name: publish-release-candidate
-  plan:
-    - in_parallel:
-      - get: gpupgrade_src
-        trigger: true
-        passed:
-          - build
-          - noinstall-tests
-          {{- range .CheckJobs}}
-          - {{ .Name }}
-          {{- end}}
-          {{- range .UpgradeJobs}}
-          - {{ .Name }}
-          {{- end}}
-          {{- range .MultihostBatsJobs}}
-          - {{ .Name }}
-          {{- end}}
-      - get: rpm_enterprise
-        passed:
-          - build
-          {{- range .UpgradeJobs}}
-          - {{ .Name }}
-          {{- end}}
-          {{- range .MultihostBatsJobs}}
-          - {{ .Name }}
-          {{- end}}
-      - get: rpm_oss
-        passed:
-          - build
-    - task: add-semver
-      config:
-        platform: linux
-        image_resource:
-          type: docker-image
-          source:
-            repository: golang
-            tag: '1.15'
-        inputs:
-          - name: gpupgrade_src
-          - name: rpm_oss
-          - name: rpm_enterprise
-        outputs:
-          - name: renamed_rpm_oss
-          - name: renamed_rpm_enterprise
-        run:
-          path: gpupgrade_src/ci/scripts/add-semver.bash
-    - in_parallel:
-      - put: rpm_oss_rc
-        params:
-          file: renamed_rpm_oss/gpupgrade-*.rpm
-      - put: rpm_enterprise_rc
-        params:
-          file: renamed_rpm_enterprise/gpupgrade-*.rpm
-  on_failure:
-    <<: *slack_alert
