@@ -53,10 +53,11 @@ _check_replication_connections() {
         \"
     ")
 
+    # TODO: choose gp_role vs gp_session_role based on target version(6 or 7)
     echo "${rows}" | while read -r primary_address primary_port mirror_host; do
         ssh -n "${mirror_host}" "
             source ${GPHOME_NEW}/greenplum_path.sh
-            PGOPTIONS=\"-c gp_session_role=utility\" psql -v ON_ERROR_STOP=1 -h $primary_address -p $primary_port \"dbname=postgres replication=database\" -c \"
+            PGOPTIONS=\"-c gp_role=utility\" psql -v ON_ERROR_STOP=1 -h $primary_address -p $primary_port \"dbname=postgres replication=database\" -c \"
                 IDENTIFY_SYSTEM;
             \"
         " || return $?
@@ -67,8 +68,11 @@ wait_can_start_transactions() {
     local host=$1
     local port=$2
 
+
+
     for i in {1..10}; do
         ssh -n "${host}" "
+            sleep 10   # 7X HACK....do it...
             source ${GPHOME_NEW}/greenplum_path.sh
             psql -X -p $port -At -d postgres << EOF
                 SELECT gp_request_fts_probe_scan();

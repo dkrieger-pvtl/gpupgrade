@@ -26,6 +26,41 @@ configure_gpdb_gucs() {
 EOF
 }
 
+# We call this before reindex_all_dbs() to prevent a very large number of warnings
+# of the form: "WARNING:  database with OID 0 must be vacuumed within 147482491 transactions"
+#  This might only be necessary because of the large number of tables we are currently dropping.
+vacuum_all_dbs() {
+    local gphome=$1
+
+    databases=$(ssh -n gpadmin@mdw "
+      set -x
+
+      source ${gphome}/greenplum_path.sh
+      export MASTER_DATA_DIRECTORY=/data/gpdata/master/gpseg-1
+
+      psql -d regression --tuples-only --no-align --field-separator ' ' <<SQL_EOF
+          SELECT datname
+          FROM	pg_database
+          WHERE	datname != 'template0' and datname not like 'funny%';
+SQL_EOF
+")
+
+    echo 'VACUUM all databases'
+    echo "${databases}" | while read -r database; do
+        if [[ -n "${database}" ]]; then
+            ssh -n gpadmin@mdw "
+                set -x
+                source ${gphome}//greenplum_path.sh
+                export MASTER_DATA_DIRECTORY=/data/gpdata/master/gpseg-1
+
+                psql -d ${database} <<SQL_EOF
+                    VACUUM;
+SQL_EOF
+            "
+        fi
+done
+}
+
 reindex_all_dbs() {
     local gphome=$1
     ssh mdw bash <<EOF
@@ -157,6 +192,10 @@ EOF
 # marked invalid during upgrade
 if ! is_GPDB5 ${GPHOME_TARGET}; then
     configure_gpdb_gucs ${GPHOME_TARGET}
+    # TODO: vacuum_all_dbs might only be needed on a gpdb-7 target cluster
+    # but this fails right now due to a likely server issue....
+    # need to fix...
+    # vacuum_all_dbs ${GPHOME_TARGET}
     reindex_all_dbs ${GPHOME_TARGET}
 fi
 
